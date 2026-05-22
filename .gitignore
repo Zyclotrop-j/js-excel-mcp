@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.c8-report/
+.nyc_output/
+*.log
+npm-debug.log*
+.DS_Store
+.env
+.env.local
+.env.*.local
+.coverage
+.next
+coverage/
+*.tsbuildinfo
