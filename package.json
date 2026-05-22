@@ -1,0 +1,73 @@
+{
+  "name": "js-excel-mcp",
+  "version": "0.0.0",
+  "description": "JavaScript-based Excel MCP server using exceljs",
+  "main": "dist/index.js",
+  "types": "dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "dist/types/index.d.ts",
+      "require": "dist/index.cjs",
+      "import": "dist/index.mjs"
+    }
+  },
+  "files": [
+    "dist/"
+  ],
+  "scripts": {
+    "build:esm": "esbuild src/index.ts --bundle --format=esm --sourcemap --outfile=dist/index.mjs",
+    "build:cjs": "esbuild src/index.ts --bundle --format=cjs --sourcemap --outfile=dist/index.cjs",
+    "build:types": "tsc --project tsconfig.json",
+    "build": "yarn build:esm && yarn build:cjs && yarn build:types",
+    "test:unit": "node --test src/**/*.test.ts",
+    "test:integration": "node --test src/integration.test.ts",
+    "test": "yarn build:types && yarn test:unit && yarn test:integration",
+    "coverage": "c8 -r lcov -r text --report-dir ./.c8-report yarn test",
+    "dev": "tsx src/index.ts",
+    "semantic-release": "semantic-release"
+  },
+  "keywords": [
+    "mcp",
+    "excel",
+    "typescript",
+    "exceljs",
+    "model-context-protocol"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.9.0",
+    "exceljs": "^4.4.0"
+  },
+  "devDependencies": {
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/npm": "^13.1.5",
+    "@types/node": "^20.10.0",
+    "c8": "^11.0.0",
+    "esbuild": "^0.28.0",
+    "semantic-release": "^24.0.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.0"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "tag": "latest",
+    "provenance": true
+  },
+  "release": {
+    "plugins": [
+      "@semantic-release/commit-analyzer",
+      "@semantic-release/release-notes-generator",
+      [
+        "@semantic-release/npm",
+        {
+          "tarballDir": "dist"
+        }
+      ],
+      "@semantic-release/git"
+    ]
+  }
+}
