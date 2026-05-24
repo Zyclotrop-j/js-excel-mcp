@@ -97,13 +97,13 @@ export const bordersTool = new FileBasedTool(
             decode: (args) => ({
                 sheet: args.worksheetName || args.worksheetId ? String(args.worksheetName || args.worksheetId) : null,
                 cell: args.cellReference,
-                border: args.border || null,
+                border: args.border || undefined,
                 worksheetName: args.worksheetName || null,
                 worksheetId: args.worksheetId || null
             }),
             encode: (value) => ({
                 cellReference: value.cell,
-                border: value.border || undefined,
+                border: value.border || null,
                 worksheetName: value.worksheetName || undefined,
                 worksheetId: value.worksheetId || undefined
             }),

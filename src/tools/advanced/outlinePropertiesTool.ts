@@ -2,7 +2,7 @@ import { FileBasedTool } from "../toolClasses/fileBasedTools.js";
 import { z } from "zod/v4";
 import { ExcelFileSerialiser } from "../../services/excelutils.js";
 import { cellValue } from "../../services/exceltypes.js";
-import { getWorksheet } from "../../services/getWorkSheet.js";
+import { getWorksheet } from "../../services/getWorkSheet.ts";
 
 export const outlinePropertiesTool = new FileBasedTool(
     "outline_properties",
@@ -30,12 +30,12 @@ export const outlinePropertiesTool = new FileBasedTool(
         {
             decode: (args) => ({
                 sheet: args.worksheetName || args.worksheetId ? String(args.worksheetName || args.worksheetId) : null,
-                properties: args.properties || null,
+                properties: args.properties || undefined,
                 worksheetName: args.worksheetName || null,
                 worksheetId: args.worksheetId || null
             }),
             encode: (value) => ({
-                properties: value.properties || undefined,
+                properties: value.properties || null,
                 worksheetName: value.worksheetName || undefined,
                 worksheetId: value.worksheetId || undefined
             }),

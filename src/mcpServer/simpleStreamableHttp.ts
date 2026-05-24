@@ -12,6 +12,12 @@ import type {
 import { InMemoryTaskMessageQueue, InMemoryTaskStore, isInitializeRequest, McpServer } from '@modelcontextprotocol/server';
 import cors from 'cors';
 import type { Request, Response } from 'express';
+import type { CreateDemoAuthOptions, DemoAuth } from './auth.js';
+import { createDemoAuth } from './auth.js';
+
+// Auth server setup + demo token verifier (pass to `requireBearerAuth` from @modelcontextprotocol/express)
+import type { SetupAuthServerOptions } from './authServer.js';
+import { createProtectedResourceMetadataRouter, demoTokenVerifier, getAuth, setupAuthServer } from './authServer.js';
 
 // Extend Express Request type to include auth property
 declare module 'express' {
@@ -20,19 +26,11 @@ declare module 'express' {
     }
 }
 import * as z from 'zod/v4';
-
-// Simplified event store implementation
-class InMemoryEventStore {
-    private events: any[] = [];
-
-    addEvent(event: any) {
-        this.events.push(event);
-    }
-
-    getEvents() {
-        return this.events;
-    }
-}
+import { createMcpExpressApp } from '@modelcontextprotocol/express';
+import { getOAuthProtectedResourceMetadataUrl } from '@modelcontextprotocol/sdk/server/auth/router';
+import { NodeStreamableHTTPServerTransport } from '@modelcontextprotocol/node';
+import { InMemoryEventStore } from './eventStore.js'
+import { requireBearerAuth } from '@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth';
 
 // Check for OAuth flag
 const useOAuth = process.argv.includes('--oauth');
@@ -105,7 +103,7 @@ if (useOAuth) {
 }
 
 // Map to store transports by session ID
-const transports: { [sessionId: string]: NodeStreamableHTTPServerTransport } = {};
+const transports: { [sessionId: string]: any } = {};
 
 // MCP POST endpoint with optional auth
 const mcpPostHandler = (cb: (server: McpServer) => Promise<void>) => async (req: Request, res: Response) => {
@@ -120,7 +118,7 @@ const mcpPostHandler = (cb: (server: McpServer) => Promise<void>) => async (req:
         console.log('Authenticated user:', req.auth);
     }
     try {
-        let transport: NodeStreamableHTTPServerTransport;
+        let transport: any;
         if (sessionId && transports[sessionId]) {
             // Reuse existing transport
             transport = transports[sessionId];
@@ -130,7 +128,7 @@ const mcpPostHandler = (cb: (server: McpServer) => Promise<void>) => async (req:
             transport = new NodeStreamableHTTPServerTransport({
                 sessionIdGenerator: () => randomUUID(),
                 eventStore, // Enable resumability
-                onsessioninitialized: sessionId => {
+                onsessioninitialized: (sessionId: string) => {
                     // Store the transport by session ID when session is initialized
                     // This avoids race conditions where requests might come in before the session is stored
                     console.log(`Session initialized with ID: ${sessionId}`);
@@ -264,7 +262,7 @@ export default (cb: (server: McpServer) => Promise<void>) => {
         app.delete('/mcp', mcpDeleteHandler);
     }
 
-    app.listen(MCP_PORT, error => {
+    app.listen(MCP_PORT, (error: any) => {
         if (error) {
             console.error('Failed to start server:', error);
             // eslint-disable-next-line unicorn/no-process-exit

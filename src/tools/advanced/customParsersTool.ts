@@ -36,7 +36,7 @@ export const customParsersTool = new FileBasedTool(
             }),
             encode: (value) => ({
                 filename: value.filename,
-                mapping: value.mapping,
+                mapping: value.mapping || [],
                 parser: value.parser || undefined,
                 worksheetName: value.worksheetName || undefined,
                 worksheetId: value.worksheetId || undefined

@@ -49,9 +49,7 @@ export const dateFormatteringTool = new FileBasedTool(
     async (cmd, ctx) => {
         const args = cmd.args;
         // @ts-ignore - utils property may not exist in all ExcelJS versions
-        if (ExcelJS.utils && ExcelJS.utils.dateNF) {
-            ExcelJS.utils.dateNF = args.format;
-        }
+        ExcelJS.utils.dateNF = args.format;
 
         return {
             file: cmd.file,

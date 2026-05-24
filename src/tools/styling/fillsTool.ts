@@ -47,13 +47,13 @@ export const fillsTool = new FileBasedTool(
             decode: (args) => ({
                 sheet: args.worksheetName || args.worksheetId ? String(args.worksheetName || args.worksheetId) : null,
                 cell: args.cellReference,
-                fill: args.fill || null,
+                fill: args.fill || undefined,
                 worksheetName: args.worksheetName || null,
                 worksheetId: args.worksheetId || null
             }),
             encode: (value) => ({
                 cellReference: value.cell,
-                fill: value.fill || undefined,
+                fill: value.fill || null,
                 worksheetName: value.worksheetName || undefined,
                 worksheetId: value.worksheetId || undefined
             }),

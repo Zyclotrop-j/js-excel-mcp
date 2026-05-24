@@ -22,12 +22,12 @@ export const writeExcelTool = new FileBasedTool(
             decode: (args) => ({
                 filePath: args.filePath,
                 data: args.data,
-                sheet: args.sheet || null
+                sheet: args.sheet || undefined
             }),
             encode: (value) => ({
                 filePath: value.filePath,
                 data: value.data,
-                sheetName: value.sheet || undefined
+                sheetName: value.sheet || null
             }),
         }
     ),
@@ -84,6 +84,7 @@ export const writeExcelTool = new FileBasedTool(
             const dataRow = worksheet.getRow(rowIndex + 2);
             headers.forEach((header, colIndex) => {
                 const cellValue = row[header] != undefined ? row[header] : null;
+                // @ts-ignore - ExcelJS handles Date objects but TypeScript doesn't recognize it
                 dataRow.getCell(colIndex + 1).value = cellValue;
             });
             dataRow.commit();

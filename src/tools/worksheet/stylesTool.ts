@@ -3,6 +3,21 @@ import { z } from "zod/v4";
 import { ExcelFileSerialiser } from "../../services/excelutils.js";
 import { cellValue } from "../../services/exceltypes.js";
 
+// Helper functions for column letter/index conversion
+function columnToIndex(col: string): number {
+    return col.split('').reduce((acc, char) => acc * 26 + (char.charCodeAt(0) - 65), 0);
+}
+
+function indexToColumn(index: number): string {
+    let letters = '';
+    while (index > 0) {
+        index--;
+        letters = String.fromCharCode(65 + (index % 26)) + letters;
+        index = Math.floor(index / 26);
+    }
+    return letters;
+}
+
 export const stylesTool = new FileBasedTool(
     "styles",
     "Apply formatting to cells, rows, columns.",
@@ -206,11 +221,17 @@ export const stylesTool = new FileBasedTool(
                 const endCol = end.match(/[A-Z]+/)![0];
                 
                 for (let row = startRow; row <= endRow; row++) {
-                    for (let col = startCol; col <= endCol; col++) {
-                        const cell = worksheet.getCell(`${col}${row}`);
+                    // Convert column letter to column index for comparison
+                    const startColIndex = columnToIndex(startCol);
+                    const endColIndex = columnToIndex(endCol);
+                    
+                    for (let colIndex = startColIndex; colIndex <= endColIndex; colIndex++) {
+                        const colLetter = indexToColumn(colIndex);
+                        const cell = worksheet.getCell(`${colLetter}${row}`);
                         if (style) {
-                cell.style = style;
-            }
+                            // @ts-ignore - ExcelJS has different nullability expectations
+                            cell.style = style as any;
+                        }
                     }
                 }
             }
@@ -218,7 +239,8 @@ export const stylesTool = new FileBasedTool(
             // Single cell
             const cell = worksheet.getCell(target);
             if (style) {
-                cell.style = style;
+                // @ts-ignore - ExcelJS has different nullability expectations
+                (cell as any).style = style;
             }
         }
 

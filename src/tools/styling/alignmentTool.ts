@@ -39,13 +39,13 @@ export const alignmentTool = new FileBasedTool(
             decode: (args) => ({
                 sheet: args.worksheetName || args.worksheetId ? String(args.worksheetName || args.worksheetId) : null,
                 cell: args.cellReference,
-                alignment: args.alignment || null,
+                alignment: args.alignment || undefined,
                 worksheetName: args.worksheetName || null,
                 worksheetId: args.worksheetId || null
             }),
             encode: (value) => ({
                 cellReference: value.cell,
-                alignment: value.alignment || undefined,
+                alignment: value.alignment || null,
                 worksheetName: value.worksheetName || undefined,
                 worksheetId: value.worksheetId || undefined
             }),

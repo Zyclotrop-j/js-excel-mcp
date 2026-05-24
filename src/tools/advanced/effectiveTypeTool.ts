@@ -95,9 +95,9 @@ export const effectiveTypeTool = new FileBasedTool(
             } catch (e) {
                 displayValue = '#ERROR!';
             }
-        } else if (value && value.error) {
+        } else if (value && typeof value === 'object' && 'error' in value) {
             effectiveType = 'error';
-            displayValue = value.error;
+            displayValue = (value as any).error;
         }
 
         return {

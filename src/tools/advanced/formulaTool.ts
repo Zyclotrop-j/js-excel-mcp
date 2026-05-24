@@ -77,7 +77,7 @@ export const formulaTool = new FileBasedTool(
         const cell = worksheet.getCell(cellRef);
 
         if (cmd.args.formula !== undefined) {
-            cell.value = { formula: cmd.args.formula, result: undefined };
+            cell.value = { formula: cmd.args.formula || "", result: undefined };
             return {
                 file: workbook,
                 output: {
@@ -92,7 +92,7 @@ export const formulaTool = new FileBasedTool(
                 output: {
                     message: `Formula retrieved for ${cellRef}`,
                     cellReference: cellRef,
-                    formula: cell.value?.formula || null
+                    formula: (cell.value as any)?.formula || null
                 }
             };
         }

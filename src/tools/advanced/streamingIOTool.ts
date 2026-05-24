@@ -29,14 +29,14 @@ export const streamingIOTool = new FileBasedTool(
             decode: (args) => ({
                 filename: args.filename,
                 mode: args.mode || null,
-                options: args.options || null,
+                options: args.options || undefined,
                 worksheetName: args.worksheetName || null,
                 worksheetId: args.worksheetId || null
             }),
             encode: (value) => ({
                 filename: value.filename,
                 mode: value.mode || undefined,
-                options: value.options || undefined,
+                options: value.options || null,
                 worksheetName: value.worksheetName || undefined,
                 worksheetId: value.worksheetId || undefined
             }),

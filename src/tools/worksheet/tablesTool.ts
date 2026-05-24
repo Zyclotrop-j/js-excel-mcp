@@ -46,7 +46,7 @@ export const tablesTool = new FileBasedTool(
                 ref: args.ref,
                 headerRow: args.headerRow !== undefined ? args.headerRow : null,
                 totalRow: args.totalRow !== undefined ? args.totalRow : null,
-                style: args.style || null,
+                style: args.style || undefined,
                 columns: args.columns || undefined,
                 worksheetName: args.worksheetName || null,
                 worksheetId: args.worksheetId || null
@@ -54,10 +54,10 @@ export const tablesTool = new FileBasedTool(
             encode: (value) => ({
                 name: value.name,
                 ref: value.ref,
-                headerRow: value.headerRow,
-                totalRow: value.totalRow,
-                style: value.style || undefined,
-                columns: value.columns,
+                headerRow: value.headerRow !== null ? value.headerRow : undefined,
+                totalRow: value.totalRow !== null ? value.totalRow : undefined,
+                style: value.style !== null ? value.style : undefined,
+                columns: value.columns || undefined,
                 worksheetName: value.sheet || undefined,
                 worksheetId: value.sheet ? undefined : undefined
             }),
@@ -87,10 +87,15 @@ export const tablesTool = new FileBasedTool(
         const table = worksheet.addTable({
             name: cmd.args.name,
             ref: cmd.args.ref,
-            headerRow: cmd.args.headerRow,
-            totalRow: cmd.args.totalRow,
-            style: cmd.args.style || undefined,
-            columns: cmd.args.columns || []
+            headerRow: cmd.args.headerRow !== null ? cmd.args.headerRow : undefined,
+            totalRow: cmd.args.totalRow !== null ? cmd.args.totalRow : undefined,
+            style: cmd.args.style !== null ? cmd.args.style : undefined,
+            columns: cmd.args.columns?.map(col => ({ 
+                name: col.header, 
+                key: col.key,
+                totalsRowFunction: col.totalsRowFunction,
+                totalsRowLabel: col.totalsRowLabel
+            })) || []
         });
 
         return {

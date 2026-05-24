@@ -69,15 +69,17 @@ export const resultTool = new FileBasedTool(
             throw new Error(`Worksheet not found`);
         }
 
-        const cellRef = cmd.args.cellReference;
+        const cellRef = cmd.args.cell;
         const cell = worksheet.getCell(cellRef);
         
         // Calculate formula result
         let result = null;
-        if (cell.value && cell.value.formula) {
+        // @ts-ignore - formula property may not exist on all cell value types
+        if (cell.value && (cell.value as any).formula) {
             try {
+                // @ts-ignore - eval is not type-safe
                 // Simplified formula calculation
-                result = eval(cell.value.formula); // Note: eval is not recommended in production
+                result = eval((cell.value as any).formula); // Note: eval is not recommended in production
             } catch (e) {
                 result = '#ERROR!';
             }

@@ -19,13 +19,13 @@ export const formulaTranslationTool = new FileBasedTool(
         {
             decode: (args) => ({
                 action: args.action || null,
-                worksheetName: args.worksheetName || null,
-                worksheetId: args.worksheetId || null
+                worksheetName: undefined,
+                worksheetId: null
             }),
             encode: (value) => ({
                 action: value.action || undefined,
-                worksheetName: value.worksheetName || undefined,
-                worksheetId: value.worksheetId || undefined
+                worksheetName: undefined,
+                worksheetId: undefined
             }),
         }
     ),
@@ -48,7 +48,8 @@ export const formulaTranslationTool = new FileBasedTool(
         const action = cmd.args.action;
         
         if (action === "enable") {
-            ExcelJS.Workbook.prototype.translateFormula = function(formula) {
+            // @ts-ignore - translateFormula prototype doesn't exist in TypeScript definitions
+            ExcelJS.Workbook.prototype.translateFormula = function(formula: string) {
                 // Simplified formula translation
                 return formula;
             };
@@ -57,6 +58,7 @@ export const formulaTranslationTool = new FileBasedTool(
                 output: { message: `Formula translation enabled`, action: "enable" }
             };
         } else {
+            // @ts-ignore - translateFormula prototype doesn't exist in TypeScript definitions
             delete ExcelJS.Workbook.prototype.translateFormula;
             return {
                 file: cmd.file,

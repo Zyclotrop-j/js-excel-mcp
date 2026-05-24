@@ -51,13 +51,13 @@ export const cellIsRulesTool = new FileBasedTool(
             decode: (args) => ({
                 sheet: args.worksheetName || args.worksheetId ? String(args.worksheetName || args.worksheetId) : null,
                 range: args.range,
-                rule: args.rule || null,
+                rule: args.rule || undefined,
                 worksheetName: args.worksheetName || null,
                 worksheetId: args.worksheetId || null
             }),
             encode: (value) => ({
                 range: value.range,
-                rule: value.rule || undefined,
+                rule: value.rule || null,
                 worksheetName: value.worksheetName || undefined,
                 worksheetId: value.worksheetId || undefined
             }),

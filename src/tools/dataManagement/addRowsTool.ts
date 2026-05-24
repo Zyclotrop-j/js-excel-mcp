@@ -26,7 +26,7 @@ export const addRowsTool = new FileBasedTool(
         {
             decode: (args) => ({
                 sheet: args.worksheetName || args.worksheetId ? String(args.worksheetName || args.worksheetId) : null,
-                values: args.values || null,
+                values: args.values || undefined,
                 startRow: args.startRow || null,
                 overwrite: args.overwrite !== undefined ? args.overwrite : null,
             }),

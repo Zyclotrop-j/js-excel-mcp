@@ -13,8 +13,7 @@ export const modifyCellTool = new FileBasedTool(
             newValue: cellValue.meta({description: "New value for the cell. Can be number, string, boolean, date, formula, hyperlink, rich text, or error value"})
         }).meta({description: "Input parameters for modifying a cell value"}),
         z.object({ // Ideal representation to call exceljs functions
-            sheet: z.string().nullable(),
-            cell: z.string(),
+            sheet: z.string().nullable(), cell: z.string(),
             value: cellValueInverse
         }),
         {
