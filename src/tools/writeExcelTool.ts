@@ -10,13 +10,14 @@ export const writeExcelTool = new FileBasedTool(
     z.codec(
         z.object({
             filePath: z.string(),
-            data: z.array(z.record(z.string(), cellValue)),
+            data: z.array(z.record(z.string(), z.union([cellValue, z.date()]))),
             sheetName: z.string().optional()
         }),
         z.object({
             sheet: z.string().nullable(),
             filePath: z.string(),
-            data: z.array(z.record(z.string(), cellValue))
+            data: z.array(z.record(z.string(), z.union([cellValue, z.date()]))),
+            sheet: z.string().nullable()
         }),
         {
             decode: (args) => ({
