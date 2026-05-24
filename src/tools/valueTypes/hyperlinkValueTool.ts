@@ -14,7 +14,7 @@ export const hyperlinkValueTool = new FileBasedTool(
             hyperlink: z.string(),
             tooltip: z.string().optional(),
             worksheetName: z.string().optional(),
-            worksheetId: z.number().optional()
+            worksheetId: z.number().min(1).optional()
         }),
         z.object({
             sheet: z.string().nullable(),

@@ -12,7 +12,7 @@ export const dateValueTool = new FileBasedTool(
             cellReference: z.string(),
             value: z.union([z.string(), z.number()]),
             worksheetName: z.string().optional(),
-            worksheetId: z.number().optional()
+            worksheetId: z.number().min(1).optional()
         }),
         z.object({
             sheet: z.string().nullable(),

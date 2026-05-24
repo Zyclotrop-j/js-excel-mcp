@@ -71,7 +71,7 @@ export const cellTypeTool = new FileBasedTool(
             throw new Error(`Worksheet not found`);
         }
 
-        const cellRef = cmd.args.cellReference;
+        const cellRef = cmd.args.cell;
         const cell = worksheet.getCell(cellRef);
         const value = cell.value;
 
@@ -84,7 +84,7 @@ export const cellTypeTool = new FileBasedTool(
             type = 'number';
         } else if (typeof value === 'boolean') {
             type = 'boolean';
-        } else if (value && value.formula) {
+        } else if (value && typeof value === 'object' && 'formula' in value) {
             type = 'formula';
         }
 

@@ -73,7 +73,7 @@ export const formulaTool = new FileBasedTool(
             throw new Error(`Worksheet not found`);
         }
 
-        const cellRef = cmd.args.cellReference;
+        const cellRef = cmd.args.cell;
         const cell = worksheet.getCell(cellRef);
 
         if (cmd.args.formula !== undefined) {

@@ -2,6 +2,7 @@ import { FileBasedTool } from "../toolClasses/fileBasedTools.js";
 import { z } from "zod/v4";
 import { ExcelFileSerialiser } from "../../services/excelutils.js";
 import { cellValue } from "../../services/exceltypes.js";
+import type { Worksheet } from "exceljs";
 
 export const commentProtectionTool = new FileBasedTool(
     "comment_protection",
@@ -55,9 +56,9 @@ export const commentProtectionTool = new FileBasedTool(
     ExcelFileSerialiser,
     async (cmd, ctx) => {
         const workbook = cmd.file;
-        let worksheet = null;
+        let worksheet: any = null;
 
-        workbook.eachSheet((ws) => {
+        workbook.eachSheet((ws: any) => {
             if (worksheet === null) {
                 worksheet = ws;
             }
@@ -67,7 +68,7 @@ export const commentProtectionTool = new FileBasedTool(
             throw new Error("No worksheet found");
         }
 
-        const cellRef = cmd.args.cellReference;
+        const cellRef = cmd.args.cell;
         const cell = worksheet.getCell(cellRef);
         const comment = cell.comment;
 

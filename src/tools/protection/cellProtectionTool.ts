@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 import { ExcelFileSerialiser } from "../../services/excelutils.js";
 import { cellValue } from "../../services/exceltypes.js";
 import getWorksheet from "../../services/getWorkSheet.js";
+import type { Worksheet } from "exceljs";
 
 export const cellProtectionTool = new FileBasedTool(
     "cell_protection",
@@ -56,9 +57,9 @@ export const cellProtectionTool = new FileBasedTool(
     ExcelFileSerialiser,
     async (cmd, ctx) => {
         const workbook = cmd.file;
-        const worksheet = getWorksheet(cmd.args, workbook);
+        const worksheet = getWorksheet({ sheet: cmd.args.cell }, workbook) as Worksheet;
 
-        const cellRef = cmd.args.cellReference;
+        const cellRef = cmd.args.cell;
         const cell = worksheet.getCell(cellRef);
 
         if (cmd.args.locked != undefined) {
@@ -74,8 +75,8 @@ export const cellProtectionTool = new FileBasedTool(
                 message: `Cell ${cellRef} protection updated`,
                 cellReference: cellRef,
                 protection: {
-                    locked: cell.protection.locked,
-                    hidden: cell.protection.hidden
+                    locked: cell.protection.locked || false,
+                    hidden: cell.protection.hidden || false
                 }
             }
         };

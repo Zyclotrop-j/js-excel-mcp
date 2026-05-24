@@ -11,19 +11,19 @@ export const fontsTool = new FileBasedTool(
         z.object({
             cellReference: z.string(),
             font: z.object({
-                name: z.string().optional(),
-                size: z.number().optional(),
-                bold: z.boolean().optional(),
-                italic: z.boolean().optional(),
-                underline: z.boolean().optional(),
-                strike: z.boolean().optional(),
+                name: z.string().optional().meta({description: "Font name. Examples: \"Arial\", \"Calibri\", \"Times New Roman\""}),
+                size: z.number().optional().meta({description: "Font size in points. Range: 1-400. Examples: 8, 10, 12, 16"}),
+                bold: z.boolean().optional().meta({description: "Whether the font is bold. Examples: true, false"}),
+                italic: z.boolean().optional().meta({description: "Whether the font is italic. Examples: true, false"}),
+                underline: z.boolean().optional().meta({description: "Whether the text is underlined. Examples: true, false"}),
+                strike: z.boolean().optional().meta({description: "Whether the text has strikethrough. Examples: true, false"}),
                 color: z.object({
-                    argb: z.string().optional(),
-                    theme: z.number().optional()
-                }).optional()
+                    argb: z.string().regex(/^[0-9A-F]{8}$/i).optional().meta({description: "ARGB color code. Hex format: 8 characters. Range: 00000000 to FFFFFFFF. Examples: \"FF000000\" (black), \"FFFFFFFF\" (white), \"FFFF0000\" (red)"}),
+                    theme: z.number().min(0).max(65).optional().meta({description: "Theme color index. Range: 0-65. Examples: 0 (none), 1 (black), 2 (white), 3 (red)"})
+                }).optional().meta({description: "Font color. Either theme (number) or ARGB (hex string)"})
             }),
-            worksheetName: z.string().optional(),
-            worksheetId: z.number().optional()
+            worksheetName: z.string().optional().meta({description: "Name of the worksheet. Examples: \"Sheet1\", \"Data\", \"Summary\""}),
+            worksheetId: z.number().min(1).optional().meta({description: "ID of the worksheet. Positive integer starting from 1. Example: 1 (first sheet), 2 (second sheet)"})
         }),
         z.object({
             sheet: z.string().nullable(),
@@ -61,29 +61,29 @@ export const fontsTool = new FileBasedTool(
     ),
     z.codec(
         z.object({
-            message: z.string(),
-            cellReference: z.string(),
+            message: z.string().meta({description: "Success message describing the font update operation"}),
+            cellReference: z.string().meta({description: "Reference to the cell that was updated. Examples: \"A1\", \"B2\""}),
             font: z.object({
-                name: z.string().nullable(),
-                size: z.number().nullable(),
-                bold: z.boolean().nullable(),
-                italic: z.boolean().nullable(),
-                underline: z.boolean().nullable(),
-                strike: z.boolean().nullable()
-            })
-        }),
+                name: z.string().nullable().meta({description: "Font name that was applied. Examples: \"Arial\", \"Calibri\""}),
+                size: z.number().nullable().meta({description: "Font size in points that was applied. Examples: 10, 12"}),
+                bold: z.boolean().nullable().meta({description: "Bold status that was applied. Examples: true, false"}),
+                italic: z.boolean().nullable().meta({description: "Italic status that was applied. Examples: true, false"}),
+                underline: z.boolean().nullable().meta({description: "Underline status that was applied. Examples: true, false"}),
+                strike: z.boolean().nullable().meta({description: "Strikethrough status that was applied. Examples: true, false"})
+            }).meta({description: "Font properties that were applied to the cell"})
+        }).meta({description: "Result of the font update operation with applied formatting"}),
         z.object({
-            message: z.string(),
-            cellReference: z.string(),
+            message: z.string().meta({description: "Success message describing the font update operation"}),
+            cellReference: z.string().meta({description: "Reference to the cell that was updated. Examples: \"A1\", \"B2\""}),
             font: z.object({
-                name: z.string().nullable(),
-                size: z.number().nullable(),
-                bold: z.boolean().nullable(),
-                italic: z.boolean().nullable(),
-                underline: z.boolean().nullable(),
-                strike: z.boolean().nullable()
-            })
-        }),
+                name: z.string().nullable().meta({description: "Font name that was applied. Examples: \"Arial\", \"Calibri\""}),
+                size: z.number().nullable().meta({description: "Font size in points that was applied. Examples: 10, 12"}),
+                bold: z.boolean().nullable().meta({description: "Bold status that was applied. Examples: true, false"}),
+                italic: z.boolean().nullable().meta({description: "Italic status that was applied. Examples: true, false"}),
+                underline: z.boolean().nullable().meta({description: "Underline status that was applied. Examples: true, false"}),
+                strike: z.boolean().nullable().meta({description: "Strikethrough status that was applied. Examples: true, false"})
+            }).meta({description: "Font properties that were applied to the cell"})
+        }).meta({description: "Result of the font update operation with applied formatting"}),
         {
             decode: (value) => value,
             encode: (value) => value
@@ -114,8 +114,8 @@ export const fontsTool = new FileBasedTool(
         return {
             file: workbook,
             output: {
-                message: `Cell ${cellRef} font updated`,
-                cellReference: cellRef,
+                message: `Cell ${cmd.args.cell} font updated`,
+                cellReference: cmd.args.cell,
                 font: {
                     name: cell.font.name,
                     size: cell.font.size,

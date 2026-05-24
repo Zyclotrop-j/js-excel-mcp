@@ -9,9 +9,9 @@ export const readExcelTool = new FileBasedTool(
     "Read data from an Excel file. Returns rows as JSON objects with column headers as keys.",
     z.codec(
         z.object({
-            filePath: z.string(),
-            sheetName: z.string().optional()
-        }),
+            filePath: z.string().meta({description: "Path to the Excel file to read. Examples: \"data.xlsx\", \"C:\\\\Documents\\\\report.xlsx\", \"./files\\\\data.xlsx\""}),
+            sheetName: z.string().optional().meta({description: "Name of the specific sheet to read. If not provided, reads the first sheet. Examples: \"Sheet1\", \"Data\", \"Summary\""})
+        }).meta({description: "Input parameters for reading an Excel file"}),
         z.object({
             sheet: z.string().nullable(),
             filePath: z.string()
@@ -29,19 +29,19 @@ export const readExcelTool = new FileBasedTool(
     ),
     z.codec(
         z.object({
-            data: z.array(z.record(z.string(), cellValue)),
-            headers: z.array(z.string()),
-            sheetName: z.string(),
-            rowCount: z.number(),
-            columnCount: z.number()
-        }),
+            data: z.array(z.record(z.string(), cellValue)).meta({description: "Array of rows, where each row is an object with column headers as keys and cell values as values"}),
+            headers: z.array(z.string()).meta({description: "Array of column headers extracted from the first row of the sheet"}),
+            sheetName: z.string().meta({description: "Name of the sheet that was read"}),
+            rowCount: z.number().meta({description: "Number of data rows read (excluding the header row)"}),
+            columnCount: z.number().meta({description: "Number of columns in the sheet"})
+        }).meta({description: "Result of reading Excel data with parsed rows, headers, and metadata"}),
         z.object({
-            data: z.array(z.record(z.string(), cellValue)),
-            headers: z.array(z.string()),
-            sheetName: z.string(),
-            rowCount: z.number(),
-            columnCount: z.number()
-        }),
+            data: z.array(z.record(z.string(), cellValue)).meta({description: "Array of rows, where each row is an object with column headers as keys and cell values as values"}),
+            headers: z.array(z.string()).meta({description: "Array of column headers extracted from the first row of the sheet"}),
+            sheetName: z.string().meta({description: "Name of the sheet that was read"}),
+            rowCount: z.number().meta({description: "Number of data rows read (excluding the header row)"}),
+            columnCount: z.number().meta({description: "Number of columns in the sheet"})
+        }).meta({description: "Result of reading Excel data with parsed rows, headers, and metadata"}),
         {
             decode: (value) => value,
             encode: (value) => value

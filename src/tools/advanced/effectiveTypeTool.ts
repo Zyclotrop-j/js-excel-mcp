@@ -71,7 +71,7 @@ export const effectiveTypeTool = new FileBasedTool(
             throw new Error(`Worksheet not found`);
         }
 
-        const cellRef = cmd.args.cellReference;
+        const cellRef = cmd.args.cell;
         const cell = worksheet.getCell(cellRef);
         const value = cell.value;
 
@@ -87,11 +87,11 @@ export const effectiveTypeTool = new FileBasedTool(
             effectiveType = 'number';
         } else if (typeof value === 'boolean') {
             effectiveType = 'boolean';
-        } else if (value && value.formula) {
+        } else if (value && typeof value === 'object' && 'formula' in value) {
             effectiveType = 'formula';
             // Simplified formula evaluation
             try {
-                displayValue = eval(value.formula);
+                displayValue = eval((value as any).formula);
             } catch (e) {
                 displayValue = '#ERROR!';
             }

@@ -11,7 +11,7 @@ export const nullValueTool = new FileBasedTool(
         z.object({
             cellReference: z.string(),
             worksheetName: z.string().optional(),
-            worksheetId: z.number().optional()
+            worksheetId: z.number().min(1).optional()
         }),
         z.object({
             sheet: z.string().nullable(),

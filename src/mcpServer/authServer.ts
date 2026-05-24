@@ -9,7 +9,6 @@
  * See: https://www.better-auth.com/docs/plugins/mcp
  */
 
-import type { OAuthTokenVerifier } from '@modelcontextprotocol/express';
 import type { AuthInfo } from '@modelcontextprotocol/server';
 import { OAuthError, OAuthErrorCode } from '@modelcontextprotocol/server';
 import { toNodeHandler } from 'better-auth/node';
@@ -20,6 +19,10 @@ import express from 'express';
 
 import type { DemoAuth } from './auth.js';
 import { createDemoAuth, DEMO_USER_CREDENTIALS } from './auth.js';
+
+interface OAuthTokenVerifier {
+    verifyAccessToken(token: string): Promise<AuthInfo>;
+}
 
 export interface SetupAuthServerOptions {
     authServerUrl: URL;

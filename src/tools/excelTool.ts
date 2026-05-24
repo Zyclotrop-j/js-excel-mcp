@@ -9,9 +9,9 @@ export const modifyCellTool = new FileBasedTool(
     "Modifies a cell in an Excel workbook", // description - make it expressive, include good examples, etc
     z.codec(
         z.object({ // LLM friendly input for this mcp tool. Ensure this is simple json types only (e.g., no date)
-            cellReference: excelCellReferenceSchema,
-            newValue: cellValue
-        }),
+            cellReference: excelCellReferenceSchema.meta({description: "Cell reference to modify. Examples: \"A1\", \"B2\", \"C3:D10\""}),
+            newValue: cellValue.meta({description: "New value for the cell. Can be number, string, boolean, date, formula, hyperlink, rich text, or error value"})
+        }).meta({description: "Input parameters for modifying a cell value"}),
         z.object({ // Ideal representation to call exceljs functions
             sheet: z.string().nullable(),
             cell: z.string(),
@@ -30,11 +30,11 @@ export const modifyCellTool = new FileBasedTool(
     ),
     z.codec(
         z.object({ // Return value from the exceljs
-            message: z.string()
-        }),
+            message: z.string().meta({description: "Success message describing the cell modification"})
+        }).meta({description: "Result of the cell modification operation"}),
         z.object({ // LLM friendly feedback to the tool-call
-            message: z.string()
-        }),
+            message: z.string().meta({description: "Success message describing the cell modification"})
+        }).meta({description: "Friendly feedback message for the tool call"}),
         {
             decode: (value) => ({ message: value.message }), // conversion from exceljs return value to llm friendly output
             encode: (value) => ({ message: value.message }) // conversion from llm friendly output to exceljs return value

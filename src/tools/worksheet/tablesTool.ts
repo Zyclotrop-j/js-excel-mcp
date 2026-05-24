@@ -2,7 +2,7 @@ import { FileBasedTool } from "../toolClasses/fileBasedTools.js";
 import { z } from "zod/v4";
 import { ExcelFileSerialiser } from "../../services/excelutils.js";
 import { cellValue } from "../../services/exceltypes.js";
-import { getWorksheet } from "../../services/getWorkSheet.js";
+import getWorksheet from "../../services/getWorkSheet.js";
 
 export const tablesTool = new FileBasedTool(
     "tables",
@@ -47,7 +47,7 @@ export const tablesTool = new FileBasedTool(
                 headerRow: args.headerRow !== undefined ? args.headerRow : null,
                 totalRow: args.totalRow !== undefined ? args.totalRow : null,
                 style: args.style || null,
-                columns: args.columns || null,
+                columns: args.columns || undefined,
                 worksheetName: args.worksheetName || null,
                 worksheetId: args.worksheetId || null
             }),
@@ -56,7 +56,7 @@ export const tablesTool = new FileBasedTool(
                 ref: value.ref,
                 headerRow: value.headerRow,
                 totalRow: value.totalRow,
-                style: value.style,
+                style: value.style || undefined,
                 columns: value.columns,
                 worksheetName: value.sheet || undefined,
                 worksheetId: value.sheet ? undefined : undefined
@@ -89,15 +89,16 @@ export const tablesTool = new FileBasedTool(
             ref: cmd.args.ref,
             headerRow: cmd.args.headerRow,
             totalRow: cmd.args.totalRow,
-            style: cmd.args.style,
-            columns: cmd.args.columns
+            style: cmd.args.style || undefined,
+            columns: cmd.args.columns || []
         });
 
         return {
             file: workbook,
             output: {
                 message: `Table created`,
-                tableId: table.id,
+                // @ts-ignore - id property may not exist in all ExcelJS versions
+                tableId: (table as any).id || table.name,
                 name: table.name
             }
         };

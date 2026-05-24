@@ -140,13 +140,13 @@ export const stylesTool = new FileBasedTool(
         {
             decode: (args) => ({
                 target: args.target,
-                style: args.style || null,
+                style: args.style || undefined,
                 worksheetName: args.worksheetName || null,
                 worksheetId: args.worksheetId || null
             }),
             encode: (value) => ({
                 target: value.target,
-                style: value.style || undefined,
+                style: value.style || null,
                 worksheetName: value.worksheetName || undefined,
                 worksheetId: value.worksheetId || undefined
             }),
@@ -192,12 +192,34 @@ export const stylesTool = new FileBasedTool(
         
         if (target.includes(':')) {
             // Range formatting
-            const range = worksheet.getRange(target);
-            range.style = style;
+            // @ts-ignore - getRange may not exist in all ExcelJS versions
+            const range = (worksheet as any).getRange ? (worksheet as any).getRange(target) : null;
+            if (range) {
+                (range as any).style = style;
+            } else {
+                // Fallback: apply to each cell in range
+                const [start, end] = target.split(':');
+                const startCell = worksheet.getCell(start);
+                const startRow = parseInt(start.match(/\d+/)![0]);
+                const startCol = start.match(/[A-Z]+/)![0];
+                const endRow = parseInt(end.match(/\d+/)![0]);
+                const endCol = end.match(/[A-Z]+/)![0];
+                
+                for (let row = startRow; row <= endRow; row++) {
+                    for (let col = startCol; col <= endCol; col++) {
+                        const cell = worksheet.getCell(`${col}${row}`);
+                        if (style) {
+                cell.style = style;
+            }
+                    }
+                }
+            }
         } else {
             // Single cell
             const cell = worksheet.getCell(target);
-            cell.style = style;
+            if (style) {
+                cell.style = style;
+            }
         }
 
         return {

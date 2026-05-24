@@ -2,6 +2,7 @@ import { FileBasedTool } from "../toolClasses/fileBasedTools.js";
 import { z } from "zod/v4";
 import { ExcelFileSerialiser } from "../../services/excelutils.js";
 import { cellValue } from "../../services/exceltypes.js";
+import * as ExcelJS from "exceljs";
 
 export const browserSupportTool = new FileBasedTool(
     "browser_support",
@@ -21,8 +22,8 @@ export const browserSupportTool = new FileBasedTool(
             decode: (args) => ({
                 fileName: args.fileName,
                 data: args.data,
-                worksheetName: args.worksheetName || null,
-                worksheetId: args.worksheetId || null
+                worksheetName: null,
+                worksheetId: null
             }),
             encode: (value) => ({
                 fileName: value.fileName,
@@ -50,7 +51,7 @@ export const browserSupportTool = new FileBasedTool(
         const workbook = new ExcelJS.Workbook();
         
         const buffer = Buffer.from(args.data, 'base64');
-        await workbook.xlsx.load(buffer);
+        await workbook.xlsx.load(buffer as any);
 
         return {
             file: workbook,

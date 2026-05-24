@@ -2,7 +2,7 @@ import { FileBasedTool } from "./toolClasses/fileBasedTools.js";
 import { z } from "zod/v4";
 import { ExcelFileSerialiser } from "../services/excelutils.js";
 import { cellValue } from "../services/exceltypes.js";
-import { getWorksheet } from "../services/getWorkSheet.js";
+import getWorksheet from "../services/getWorkSheet.js";
 
 export const writeExcelTool = new FileBasedTool(
     "write_excel",
@@ -22,7 +22,7 @@ export const writeExcelTool = new FileBasedTool(
             decode: (args) => ({
                 filePath: args.filePath,
                 data: args.data,
-                sheet: args.sheetName || null
+                sheet: args.sheet || null
             }),
             encode: (value) => ({
                 filePath: value.filePath,

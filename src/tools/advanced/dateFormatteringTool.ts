@@ -2,13 +2,16 @@ import { FileBasedTool } from "../toolClasses/fileBasedTools.js";
 import { z } from "zod/v4";
 import { ExcelFileSerialiser } from "../../services/excelutils.js";
 import { cellValue } from "../../services/exceltypes.js";
+import * as ExcelJS from "exceljs";
 
 export const dateFormatteringTool = new FileBasedTool(
     "date_formatting",
     "Custom date/time formatting for CSV operations.",
     z.codec(
         z.object({
-            format: z.string()
+            format: z.string(),
+            worksheetName: z.string().optional(),
+            worksheetId: z.number().optional()
         }),
         z.object({
             format: z.string(),
@@ -45,7 +48,10 @@ export const dateFormatteringTool = new FileBasedTool(
     ExcelFileSerialiser,
     async (cmd, ctx) => {
         const args = cmd.args;
-        ExcelJS.utils.dateNF = args.format;
+        // @ts-ignore - utils property may not exist in all ExcelJS versions
+        if (ExcelJS.utils && ExcelJS.utils.dateNF) {
+            ExcelJS.utils.dateNF = args.format;
+        }
 
         return {
             file: cmd.file,

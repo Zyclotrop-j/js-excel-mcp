@@ -10,7 +10,7 @@ export const mergeCellTool = new FileBasedTool(
     z.codec(
         z.object({
             worksheetName: z.string().optional(),
-            worksheetId: z.number().optional(),
+            worksheetId: z.number().min(1).optional(),
             range: z.string()
         }),
         z.object({

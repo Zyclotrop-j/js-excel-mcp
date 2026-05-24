@@ -12,7 +12,7 @@ export const numberFormatsTool = new FileBasedTool(
             cellReference: z.string(),
             format: z.string(),
             worksheetName: z.string().optional(),
-            worksheetId: z.number().optional()
+            worksheetId: z.number().min(1).optional()
         }),
         z.object({
             sheet: z.string().nullable(),

@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 import { ExcelFileSerialiser } from "../../services/excelutils.js";
 import { cellValue } from "../../services/exceltypes.js";
 import getWorksheet from "../../services/getWorkSheet.js";
+import type { Worksheet } from "exceljs";
 
 export const protectionOptionsTool = new FileBasedTool(
     "protection_options",
@@ -60,14 +61,14 @@ export const protectionOptionsTool = new FileBasedTool(
         }),
         {
             decode: (args) => ({
-                worksheetName: args.worksheetName || null,
+                sheet: args.worksheetName || null,
                 worksheetId: args.worksheetId || null,
-                options: args.options || null
+                options: args.options as any
             }),
             encode: (value) => ({
-                worksheetName: value.worksheetName || undefined,
+                sheet: undefined,
                 worksheetId: value.worksheetId !== null ? value.worksheetId : undefined,
-                options: value.options || undefined
+                options: value.options as any
             }),
         }
     ),
@@ -132,7 +133,7 @@ export const protectionOptionsTool = new FileBasedTool(
     ExcelFileSerialiser,
     async (cmd, ctx) => {
         const workbook = cmd.file;
-        const worksheet = getWorksheet(cmd.args, workbook);
+        const worksheet = getWorksheet(cmd.args, workbook) as Worksheet;
         let worksheetName = '';
         let worksheetId = 0;
 
@@ -140,25 +141,11 @@ export const protectionOptionsTool = new FileBasedTool(
         worksheetId = workbook.worksheets.indexOf(worksheet) + 1;
 
         if (cmd.args.options) {
-            worksheet.protection.sheet = cmd.args.options.sheet != undefined ? cmd.args.options.sheet : worksheet.protection.sheet;
-            worksheet.protection.structure = cmd.args.options.structure != undefined ? cmd.args.options.structure : worksheet.protection.structure;
-            worksheet.protection.objects = cmd.args.options.objects != undefined ? cmd.args.options.objects : worksheet.protection.objects;
-            worksheet.protection.scenarios = cmd.args.options.scenarios != undefined ? cmd.args.options.scenarios : worksheet.protection.scenarios;
-            worksheet.protection.formatCells = cmd.args.options.formatCells != undefined ? cmd.args.options.formatCells : worksheet.protection.formatCells;
-            worksheet.protection.formatColumns = cmd.args.options.formatColumns != undefined ? cmd.args.options.formatColumns : worksheet.protection.formatColumns;
-            worksheet.protection.formatRows = cmd.args.options.formatRows != undefined ? cmd.args.options.formatRows : worksheet.protection.formatRows;
-            worksheet.protection.insertColumns = cmd.args.options.insertColumns != undefined ? cmd.args.options.insertColumns : worksheet.protection.insertColumns;
-            worksheet.protection.insertRows = cmd.args.options.insertRows != undefined ? cmd.args.options.insertRows : worksheet.protection.insertRows;
-            worksheet.protection.insertHyperlinks = cmd.args.options.insertHyperlinks != undefined ? cmd.args.options.insertHyperlinks : worksheet.protection.insertHyperlinks;
-            worksheet.protection.deleteColumns = cmd.args.options.deleteColumns != undefined ? cmd.args.options.deleteColumns : worksheet.protection.deleteColumns;
-            worksheet.protection.deleteRows = cmd.args.options.deleteRows != undefined ? cmd.args.options.deleteRows : worksheet.protection.deleteRows;
-            worksheet.protection.selectLockedCells = cmd.args.options.selectLockedCells != undefined ? cmd.args.options.selectLockedCells : worksheet.protection.selectLockedCells;
-            worksheet.protection.selectUnlockedCells = cmd.args.options.selectUnlockedCells != undefined ? cmd.args.options.selectUnlockedCells : worksheet.protection.selectUnlockedCells;
-            worksheet.protection.sort = cmd.args.options.sort != undefined ? cmd.args.options.sort : worksheet.protection.sort;
-            worksheet.protection.autoFilter = cmd.args.options.autoFilter != undefined ? cmd.args.options.autoFilter : worksheet.protection.autoFilter;
-            worksheet.protection.pivotTables = cmd.args.options.pivotTables != undefined ? cmd.args.options.pivotTables : worksheet.protection.pivotTables;
-            worksheet.protection.editObjects = cmd.args.options.editObjects != undefined ? cmd.args.options.editObjects : worksheet.protection.editObjects;
-            worksheet.protection.editScenarios = cmd.args.options.editScenarios != undefined ? cmd.args.options.editScenarios : worksheet.protection.editScenarios;
+            // Apply protection with the specified options
+            const options = Object.fromEntries(
+                Object.entries(cmd.args.options).map(([key, value]) => [key, value ?? undefined])
+            );
+            worksheet.protect("", options);
         }
 
         return {
@@ -168,25 +155,25 @@ export const protectionOptionsTool = new FileBasedTool(
                 worksheetName,
                 worksheetId,
                 options: {
-                    sheet: worksheet.protection.sheet,
-                    structure: worksheet.protection.structure,
-                    objects: worksheet.protection.objects,
-                    scenarios: worksheet.protection.scenarios,
-                    formatCells: worksheet.protection.formatCells,
-                    formatColumns: worksheet.protection.formatColumns,
-                    formatRows: worksheet.protection.formatRows,
-                    insertColumns: worksheet.protection.insertColumns,
-                    insertRows: worksheet.protection.insertRows,
-                    insertHyperlinks: worksheet.protection.insertHyperlinks,
-                    deleteColumns: worksheet.protection.deleteColumns,
-                    deleteRows: worksheet.protection.deleteRows,
-                    selectLockedCells: worksheet.protection.selectLockedCells,
-                    selectUnlockedCells: worksheet.protection.selectUnlockedCells,
-                    sort: worksheet.protection.sort,
-                    autoFilter: worksheet.protection.autoFilter,
-                    pivotTables: worksheet.protection.pivotTables,
-                    editObjects: worksheet.protection.editObjects,
-                    editScenarios: worksheet.protection.editScenarios
+                    sheet: cmd.args.options?.sheet || false,
+                    structure: cmd.args.options?.structure || false,
+                    objects: cmd.args.options?.objects || false,
+                    scenarios: cmd.args.options?.scenarios || false,
+                    formatCells: cmd.args.options?.formatCells || false,
+                    formatColumns: cmd.args.options?.formatColumns || false,
+                    formatRows: cmd.args.options?.formatRows || false,
+                    insertColumns: cmd.args.options?.insertColumns || false,
+                    insertRows: cmd.args.options?.insertRows || false,
+                    insertHyperlinks: cmd.args.options?.insertHyperlinks || false,
+                    deleteColumns: cmd.args.options?.deleteColumns || false,
+                    deleteRows: cmd.args.options?.deleteRows || false,
+                    selectLockedCells: cmd.args.options?.selectLockedCells || false,
+                    selectUnlockedCells: cmd.args.options?.selectUnlockedCells || false,
+                    sort: cmd.args.options?.sort || false,
+                    autoFilter: cmd.args.options?.autoFilter || false,
+                    pivotTables: cmd.args.options?.pivotTables || false,
+                    editObjects: cmd.args.options?.editObjects || false,
+                    editScenarios: cmd.args.options?.editScenarios || false
                 }
             }
         };

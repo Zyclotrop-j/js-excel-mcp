@@ -31,14 +31,14 @@ export const xlsxWriteTool = new FileBasedTool(
             decode: (args) => ({
                 filename: args.filename,
                 buffer: args.buffer != undefined ? args.buffer : null,
-                useStyles: args useStyles != undefined ? args useStyles : null,
+                useStyles: args.useStyles != undefined ? args.useStyles : null,
                 dateNF: args.dateNF || null,
                 zip: args.zip || null
             }),
             encode: (value) => ({
                 filename: value.filename,
                 buffer: value.buffer !== null ? value.buffer : undefined,
-                useStyles: value useStyles !== null ? value useStyles : undefined,
+                useStyles: value.useStyles !== null ? value.useStyles : undefined,
                 dateNF: value.dateNF || undefined,
                 zip: value.zip || undefined
             }),
@@ -65,7 +65,7 @@ export const xlsxWriteTool = new FileBasedTool(
         const workbook = cmd.file;
         
         await workbook.xlsx.writeFile(args.filename, {
-            useStyles: args useStyles,
+            useStyles: args.useStyles,
             dateNF: args.dateNF,
             zip: args.zip
         });

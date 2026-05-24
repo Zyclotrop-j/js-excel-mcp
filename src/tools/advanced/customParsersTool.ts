@@ -2,6 +2,7 @@ import { FileBasedTool } from "../toolClasses/fileBasedTools.js";
 import { z } from "zod/v4";
 import { ExcelFileSerialiser } from "../../services/excelutils.js";
 import { cellValue } from "../../services/exceltypes.js";
+import * as ExcelJS from "exceljs";
 
 export const customParsersTool = new FileBasedTool(
     "custom_parsers",
@@ -30,12 +31,12 @@ export const customParsersTool = new FileBasedTool(
                 filename: args.filename,
                 mapping: args.mapping || null,
                 parser: args.parser || null,
-                worksheetName: args.worksheetName || null,
-                worksheetId: args.worksheetId || null
+                worksheetName: null,
+                worksheetId: null
             }),
             encode: (value) => ({
                 filename: value.filename,
-                mapping: value.mapping || undefined,
+                mapping: value.mapping,
                 parser: value.parser || undefined,
                 worksheetName: value.worksheetName || undefined,
                 worksheetId: value.worksheetId || undefined
@@ -61,6 +62,7 @@ export const customParsersTool = new FileBasedTool(
         
         // Parse CSV with custom options
         await workbook.csv.readFile(args.filename, {
+            // @ts-ignore - defval is not in TypeScript types but works in practice
             defval: args.parser ? Function(args.parser) : undefined
         });
 

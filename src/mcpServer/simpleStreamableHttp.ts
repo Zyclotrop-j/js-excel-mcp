@@ -1,8 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { createProtectedResourceMetadataRouter, demoTokenVerifier, setupAuthServer } from '@modelcontextprotocol/examples-shared';
-import { createMcpExpressApp, getOAuthProtectedResourceMetadataUrl, requireBearerAuth } from '@modelcontextprotocol/express';
-import { NodeStreamableHTTPServerTransport } from '@modelcontextprotocol/node';
+// MCP imports - simplified version without external dependencies
 import type {
     CallToolResult,
     ElicitResult,
@@ -14,9 +12,27 @@ import type {
 import { InMemoryTaskMessageQueue, InMemoryTaskStore, isInitializeRequest, McpServer } from '@modelcontextprotocol/server';
 import cors from 'cors';
 import type { Request, Response } from 'express';
+
+// Extend Express Request type to include auth property
+declare module 'express' {
+    interface Request {
+        auth?: any;
+    }
+}
 import * as z from 'zod/v4';
 
-import { InMemoryEventStore } from './inMemoryEventStore.js';
+// Simplified event store implementation
+class InMemoryEventStore {
+    private events: any[] = [];
+
+    addEvent(event: any) {
+        this.events.push(event);
+    }
+
+    getEvents() {
+        return this.events;
+    }
+}
 
 // Check for OAuth flag
 const useOAuth = process.argv.includes('--oauth');

@@ -19,7 +19,7 @@ export const alignmentTool = new FileBasedTool(
                 indent: z.number().optional()
             }),
             worksheetName: z.string().optional(),
-            worksheetId: z.number().optional()
+            worksheetId: z.number().min(1).optional()
         }),
         z.object({
             sheet: z.string().nullable(),

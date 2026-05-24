@@ -2,6 +2,7 @@ import { FileBasedTool } from "../toolClasses/fileBasedTools.js";
 import { z } from "zod/v4";
 import { ExcelFileSerialiser } from "../../services/excelutils.js";
 import { cellValue } from "../../services/exceltypes.js";
+import * as ExcelJS from "exceljs";
 
 export const formulaTranslationTool = new FileBasedTool(
     "formula_translation",
