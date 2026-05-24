@@ -27,6 +27,8 @@
     "cors": "^2.8.6",
     "exceljs": "^4.4.0",
     "express": "^5.2.1",
+    "lru-cache": "^11.5.0",
+    "memfs": "^4.57.2",
     "zod": "^4.4.3"
   },
   "devDependencies": {

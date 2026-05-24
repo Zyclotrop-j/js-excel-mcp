@@ -1,18 +1,51 @@
 import { Workbook } from "exceljs";
-import { FileSerialiser } from "./utiltypes.js"
+import { FileSerialiser } from "./utiltypes.js";
+import { LRUCache } from 'lru-cache';
+import { createFsFromVolume, Volume } from 'memfs';
 
-export class ExcelFileSerialiser extends FileSerialiser<Workbook> {
+const vol = new Volume();
+const fs = createFsFromVolume(vol);
+
+const inMemoryStore = new LRUCache<string, Workbook>({
+    max: 100,
+    ttl: 1000 * 60 * 5, // 5 minutes
+});
+
+abstract class SingeltonStorrageFileSerialiser<T> extends FileSerialiser<T> {
+    static get memoryStore() {
+        return inMemoryStore;
+    }
+    static get fs() {
+        return fs;
+    }
+}
+
+export class ExcelFileSerialiser extends SingeltonStorrageFileSerialiser<Workbook> {
+    filename: string;
+    constructor() {
+        super();
+        this.filename = crypto.randomUUID() + ".xlsx";
+    }
+
     async deserialize(path: string): Promise<Workbook> {
-        const workbook = new Workbook();
-        await workbook.xlsx.readFile(path);
-        return workbook;
+      if(inMemoryStore.has(path)) {
+        return inMemoryStore.get(path)!;
+      }
+      const workbook = new Workbook();
+      const buffer = fs.readFileSync(path, { encoding: 'buffer' });
+      await workbook.xlsx.load(Buffer.from(buffer).buffer);
+      inMemoryStore.set(path, workbook);
+      return workbook;
     }
     async serialize(data: Workbook): Promise<string> {
-        await data.xlsx.writeFile("output.xlsx");
-        return "output.xlsx";
+      const path = `./tmp/${this.filename}`;
+      const buffer = await data.xlsx.writeBuffer();
+      fs.writeFileSync(path, Buffer.from(buffer));
+      inMemoryStore.set(path, data);
+      return path;
     }
     get outputFileName(): string {
-        return "output.xlsx";
+        return this.filename;
     }
     get outputMimeType(): string {
         return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
