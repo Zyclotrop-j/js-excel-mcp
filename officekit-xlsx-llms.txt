@@ -1,0 +1,1324 @@
+# @office-kit/xlsx — full documentation
+
+This file is the concatenation of every page on https://@office-kit/xlsx's docs site, intended for LLM ingestion. Page boundaries are marked with H1 headings prefixed by the source path.
+
+Source repo: https://github.com/office-kit/xlsx
+
+
+
+---
+
+<!-- Page: /docs/install -->
+# Install
+> Add @office-kit/xlsx to a Node, Bun, or browser project.
+
+# Install
+
+`@office-kit/xlsx` ships as ESM-only. Pick the entry that matches your runtime.
+
+## Package install
+
+```sh
+pnpm add @office-kit/xlsx
+# or
+npm install @office-kit/xlsx
+# or
+bun add @office-kit/xlsx
+```
+
+Requires **Node `>=18.18`** for the built-in `Web Streams`, `Blob`, and `fetch` globals. Modern browsers (Chromium, Firefox, Safari with Web Streams) work with the streaming entry. Bun and Deno work via Web Streams.
+
+## Subpath entries
+
+| Import | Use case |
+|--------|----------|
+| `@office-kit/xlsx` | Full library: workbook model, charts, drawings. |
+| `@office-kit/xlsx/streaming` | Read-only iter + write-only append. Browser-safe. |
+| `@office-kit/xlsx/node` | Filesystem `fromFile` / `toFile` + Node `Readable` / `Writable` glue, plus the full lib. |
+
+Bundle budgets, min + brotli:
+
+- `@office-kit/xlsx` ≤ 120 KB *(currently ~78 KB)*
+- `@office-kit/xlsx/streaming` ≤ 80 KB *(currently ~47 KB)*
+
+All exports are side-effect-free (`"sideEffects": false`), so unused chart / drawing / pivot code drops out under any modern bundler.
+
+## TypeScript
+
+Types are bundled. `tsconfig.json` should have `"moduleResolution": "bundler"` (or `"node16"` / `"nodenext"`) so the subpath entries resolve.
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true
+  }
+}
+```
+
+## What's not in the box
+
+- **ZIP64 write** — fflate's writer doesn't emit ZIP64 EOCD, so we fail fast on workbooks with > 65 535 entries. Read works.
+- **Random-access streaming reader** — the SAX `iterRows` API is in place; per-cell random access against a streaming source is buffered.
+- **Encrypted xlsx decryption** — we detect CFB Compound Documents and throw a clear error pointing at [`msoffcrypto-tool`](https://github.com/nolze/msoffcrypto-tool); decrypt first, then load.
+
+Next: <a href="{base}/docs/getting-started">Getting started →</a>
+
+
+
+---
+
+<!-- Page: /docs/getting-started -->
+# Getting started
+> Read, edit, and write your first xlsx workbook.
+
+# Getting started
+
+This page walks the canonical @office-kit/xlsx workflow: load a workbook, mutate it, write it back. Every snippet below is a real `.ts` file in this repo — `svelte-check` compiles them against the live `@office-kit/xlsx` types on every build, so when this page renders, it's already proven that the code typechecks.
+
+## Read, edit, write — full library
+
+The top-level `@office-kit/xlsx` entry gives you the full workbook model: cells, styles, charts, drawings, the lot. Pair it with the platform-specific I/O helpers from `@office-kit/xlsx/node` (or your own `XlsxSource`).
+
+```ts title="site/src/lib/examples/basic-read-write.ts"
+// Read an xlsx, mutate one cell, write it back.
+//
+// This file is imported as ?raw into the docs site so the snippet shown to
+// readers is exactly what svelte-check / tsc compiled — if an API rename
+// breaks this import, the docs build fails before deploy.
+
+import { loadWorkbook, workbookToBytes } from '@office-kit/xlsx/io';
+import { fromBuffer } from '@office-kit/xlsx/node';
+import { setCell } from '@office-kit/xlsx/worksheet';
+import { readFile, writeFile } from 'node:fs/promises';
+
+const wb = await loadWorkbook(fromBuffer(await readFile('input.xlsx')));
+const ref = wb.sheets[0];
+if (ref?.kind === 'worksheet') {
+  setCell(ref.sheet, 1, 1, 'Hello from @office-kit/xlsx');
+}
+await writeFile('output.xlsx', await workbookToBytes(wb));
+```
+
+`loadWorkbook` returns a `Workbook`. `wb.sheets` is an array of `{ sheet, name, ... }` records — the `sheet` property is the worksheet itself. Cell coordinates are 1-indexed (`row=1, col=1` is `A1`) to match the openpyxl API.
+
+`workbookToBytes` serializes back to a `Uint8Array` in one shot — fine for workbooks that fit in memory. For larger workbooks see <a href="{base}/docs/streaming">Streaming</a>.
+
+## Direct fs helpers (Node)
+
+`@office-kit/xlsx/node` exposes `fromFile` / `toFile` so you can skip the `readFile` / `writeFile` glue:
+
+```ts title="site/src/lib/examples/node-fs.ts"
+// One-shot read + save direct from / to disk via the @office-kit/xlsx/node
+// helpers, no manual fs glue needed.
+
+import { loadWorkbook, saveWorkbook } from '@office-kit/xlsx/io';
+import { fromFile, toFile } from '@office-kit/xlsx/node';
+
+const wb = await loadWorkbook(fromFile('input.xlsx'));
+// ...mutate wb...
+await saveWorkbook(wb, toFile('output.xlsx'));
+```
+
+`fromFile` returns an `XlsxSource` backed by a Node `fs.ReadStream`; `toFile` returns an `XlsxSink` backed by a `fs.WriteStream`. Both are streamed under the hood.
+
+## Browser via fetch
+
+The streaming entry is browser-safe (no `node:fs`). Use `fromResponse` to consume a `fetch` Response straight into the loader without buffering the whole download:
+
+```ts title="site/src/lib/examples/browser-fetch.ts"
+// Browser: pipe a fetch Response straight into the loader. fromResponse is
+// streaming, so the workbook starts parsing before the download is done.
+
+import { fromResponse, loadWorkbook } from '@office-kit/xlsx/io';
+
+const response = await fetch('/sheet.xlsx');
+const wb = await loadWorkbook(fromResponse(response));
+const ref = wb.sheets[0];
+if (ref?.kind === 'worksheet') {
+  console.log(ref.sheet.title);
+}
+```
+
+This works in any environment with `fetch` + Web Streams: modern browsers, Bun, Deno, Cloudflare Workers, edge runtimes.
+
+## What's next
+
+- <strong><a href="{base}/docs/recipes">Recipes</a></strong> — copy-pasteable code for the most common tasks (styling, charts, validation, streaming, export).
+- <strong><a href="{base}/docs/streaming">Streaming</a></strong> — millions of rows in fixed memory.
+- <strong><a href="{base}/api">API reference</a></strong> — every export, organized by section.
+- **GitHub:** [`office-kit/xlsx`](https://github.com/office-kit/xlsx)
+
+
+
+---
+
+<!-- Page: /docs/recipes -->
+# Recipes
+> Working code for the most common tasks — open / build / style / chart / validate / stream / export.
+
+# Recipes
+
+Working code for the things people actually want to do with @office-kit/xlsx — open a workbook, build one from scratch, style cells, add a chart, stream millions of rows. Every snippet below is a real `.ts` file in the repo, type-checked against `@office-kit/xlsx` on every build.
+
+## Basics
+
+### Open a workbook and read every cell
+Load an existing xlsx, narrow the first sheet to a worksheet, and walk every cell.
+```ts title="site/src/lib/examples/recipes/open-and-iterate.ts"
+// Open a workbook and walk every cell on the first sheet.
+
+import { loadWorkbook } from '@office-kit/xlsx/io';
+import { fromFile } from '@office-kit/xlsx/node';
+
+const wb = await loadWorkbook(fromFile('input.xlsx'));
+const first = wb.sheets[0];
+if (first?.kind === 'worksheet') {
+  for (const row of first.sheet.rows.values()) {
+    for (const cell of row.values()) {
+      console.log(`${cell.row},${cell.col}: ${String(cell.value)}`);
+    }
+  }
+}
+```
+
+- wb.sheets is a discriminated union — narrow on `kind === "worksheet"` to reach the Worksheet shape (chartsheets have a different surface).
+- For huge sheets, prefer `loadWorkbookStream` + `iterRows` instead — see the streaming recipe below.
+
+
+*Related API: `loadWorkbook`, `fromFile`, `Worksheet`*
+
+### Edit a single cell and save
+The canonical round-trip: load → mutate → write back. Same as the Quick start.
+```ts title="site/src/lib/examples/basic-read-write.ts"
+// Read an xlsx, mutate one cell, write it back.
+//
+// This file is imported as ?raw into the docs site so the snippet shown to
+// readers is exactly what svelte-check / tsc compiled — if an API rename
+// breaks this import, the docs build fails before deploy.
+
+import { loadWorkbook, workbookToBytes } from '@office-kit/xlsx/io';
+import { fromBuffer } from '@office-kit/xlsx/node';
+import { setCell } from '@office-kit/xlsx/worksheet';
+import { readFile, writeFile } from 'node:fs/promises';
+
+const wb = await loadWorkbook(fromBuffer(await readFile('input.xlsx')));
+const ref = wb.sheets[0];
+if (ref?.kind === 'worksheet') {
+  setCell(ref.sheet, 1, 1, 'Hello from @office-kit/xlsx');
+}
+await writeFile('output.xlsx', await workbookToBytes(wb));
+```
+
+
+*Related API: `loadWorkbook`, `setCell`, `workbookToBytes`, `fromBuffer`*
+
+### Build a workbook from scratch
+No input file — start with `createWorkbook`, add a sheet, write cells, save.
+```ts title="site/src/lib/examples/recipes/build-from-scratch.ts"
+// Build a one-sheet workbook from scratch and write it to disk.
+
+import { saveWorkbook } from '@office-kit/xlsx/io';
+import { toFile } from '@office-kit/xlsx/node';
+import { addWorksheet, createWorkbook } from '@office-kit/xlsx/workbook';
+import { setCell } from '@office-kit/xlsx/worksheet';
+
+const wb = createWorkbook();
+const ws = addWorksheet(wb, 'Quarterly');
+
+setCell(ws, 1, 1, 'Quarter');
+setCell(ws, 1, 2, 'Revenue');
+setCell(ws, 2, 1, 'Q1');
+setCell(ws, 2, 2, 12_400);
+setCell(ws, 3, 1, 'Q2');
+setCell(ws, 3, 2, 15_900);
+
+await saveWorkbook(wb, toFile('quarterly.xlsx'));
+```
+
+
+*Related API: `createWorkbook`, `addWorksheet`, `setCell`, `saveWorkbook`*
+
+### Multiple sheets + named ranges
+Add several worksheets, define names that span them, and reference them in a formula.
+```ts title="site/src/lib/examples/recipes/multi-sheet.ts"
+// Build several worksheets in one workbook and use named ranges
+// to refer between them.
+
+import { setFormula } from '@office-kit/xlsx/cell';
+import { saveWorkbook } from '@office-kit/xlsx/io';
+import { toFile } from '@office-kit/xlsx/node';
+import { addDefinedName, addWorksheet, createWorkbook } from '@office-kit/xlsx/workbook';
+import { setCell } from '@office-kit/xlsx/worksheet';
+
+const wb = createWorkbook();
+const inputs = addWorksheet(wb, 'Inputs');
+const summary = addWorksheet(wb, 'Summary');
+
+setCell(inputs, 1, 1, 'Revenue');
+setCell(inputs, 1, 2, 100_000);
+setCell(inputs, 2, 1, 'Cost');
+setCell(inputs, 2, 2, 65_000);
+
+addDefinedName(wb, { name: 'Revenue', value: 'Inputs!$B$1' });
+addDefinedName(wb, { name: 'Cost', value: 'Inputs!$B$2' });
+
+setCell(summary, 1, 1, 'Margin');
+setFormula(setCell(summary, 1, 2), '(Revenue - Cost) / Revenue', { cachedValue: 0.35 });
+
+await saveWorkbook(wb, toFile('multi-sheet.xlsx'));
+```
+
+
+*Related API: `addWorksheet`, `addDefinedName`, `setCellFormula`*
+
+### Direct fs helpers (Node)
+`fromFile` / `toFile` skip the manual `readFile` / `writeFile` glue.
+```ts title="site/src/lib/examples/node-fs.ts"
+// One-shot read + save direct from / to disk via the @office-kit/xlsx/node
+// helpers, no manual fs glue needed.
+
+import { loadWorkbook, saveWorkbook } from '@office-kit/xlsx/io';
+import { fromFile, toFile } from '@office-kit/xlsx/node';
+
+const wb = await loadWorkbook(fromFile('input.xlsx'));
+// ...mutate wb...
+await saveWorkbook(wb, toFile('output.xlsx'));
+```
+
+
+*Related API: `loadWorkbook`, `saveWorkbook`, `fromFile`, `toFile`*
+
+## Cells & values
+
+### Style a header cell
+Bold, font size, fill color, center alignment, and a thin border in five lines.
+```ts title="site/src/lib/examples/recipes/style-cells.ts"
+// Apply font, fill, alignment, and a thin border to a header row.
+
+import { saveWorkbook } from '@office-kit/xlsx/io';
+import { toFile } from '@office-kit/xlsx/node';
+import {
+  centerCell,
+  setBold,
+  setCellBackgroundColor,
+  setCellBorderAll,
+  setFontSize,
+} from '@office-kit/xlsx/styles';
+import { addWorksheet, createWorkbook } from '@office-kit/xlsx/workbook';
+import { setCell } from '@office-kit/xlsx/worksheet';
+
+const wb = createWorkbook();
+const ws = addWorksheet(wb, 'Report');
+
+const header = setCell(ws, 1, 1, 'Total revenue');
+setBold(wb, header);
+setFontSize(wb, header, 12);
+setCellBackgroundColor(wb, header, 'FFE0E7FF');
+centerCell(wb, header);
+setCellBorderAll(wb, header, { style: 'thin' });
+
+await saveWorkbook(wb, toFile('styled.xlsx'));
+```
+
+- These helpers are *cell-level* shortcuts. For range-wide changes, look at `setRangeFont`, `setRangeAlignment`, `setRangeBorderBox`, etc.
+- Background colors are hex `AARRGGBB` strings — leading `FF` is opaque alpha.
+
+
+*Related API: `setBold`, `setFontSize`, `setCellBackgroundColor`, `centerCell`, `setCellBorderAll`*
+
+### Number formats: currency, percent, dates
+`setCellAsCurrency` and `setCellAsPercent` are one-shot; everything else goes through `setCellNumberFormat` + a built-in or custom format code.
+```ts title="site/src/lib/examples/recipes/number-formats.ts"
+// Apply number formats: currency, percentage, and a date-time.
+
+import { saveWorkbook } from '@office-kit/xlsx/io';
+import { toFile } from '@office-kit/xlsx/node';
+import {
+  FORMAT_DATE_DATETIME,
+  setCellAsCurrency,
+  setCellAsPercent,
+  setCellNumberFormat,
+} from '@office-kit/xlsx/styles';
+import { addWorksheet, createWorkbook } from '@office-kit/xlsx/workbook';
+import { setCell } from '@office-kit/xlsx/worksheet';
+
+const wb = createWorkbook();
+const ws = addWorksheet(wb, 'Numbers');
+
+setCellAsCurrency(wb, setCell(ws, 1, 1, 12_400), { symbol: '$' });
+setCellAsPercent(wb, setCell(ws, 1, 2, 0.187), 1);
+
+const dateCell = setCell(ws, 1, 3, new Date('2026-05-08T09:30:00Z'));
+setCellNumberFormat(wb, dateCell, FORMAT_DATE_DATETIME);
+
+await saveWorkbook(wb, toFile('numbers.xlsx'));
+```
+
+
+*Related API: `setCellAsCurrency`, `setCellAsPercent`, `setCellNumberFormat`, `FORMAT_DATE_DATETIME`, `FORMAT_PERCENTAGE`*
+
+### Add a formula (with cached value)
+Pass `cachedValue` so Excel renders the result before forcing a full recalc on open.
+```ts title="site/src/lib/examples/recipes/formulas.ts"
+// Set a formula. Optionally cache its evaluated value so Excel renders
+// the result before recalculating on open.
+
+import { setFormula } from '@office-kit/xlsx/cell';
+import { saveWorkbook } from '@office-kit/xlsx/io';
+import { toFile } from '@office-kit/xlsx/node';
+import { addWorksheet, createWorkbook } from '@office-kit/xlsx/workbook';
+import { setCell } from '@office-kit/xlsx/worksheet';
+
+const wb = createWorkbook();
+const ws = addWorksheet(wb, 'Sheet1');
+
+setCell(ws, 1, 1, 12);
+setCell(ws, 2, 1, 18);
+setCell(ws, 3, 1, 30);
+
+setFormula(setCell(ws, 4, 1), 'SUM(A1:A3)', { cachedValue: 60 });
+
+await saveWorkbook(wb, toFile('with-formulas.xlsx'));
+```
+
+- Cached values are optional — Excel will recalc anyway when the file opens, but cached values keep the file viewable in tools that don't recalc.
+- For shared and array formulas, use `setSharedFormula` / `setArrayFormula` from `@office-kit/xlsx/cell` on the Cell returned by `setCell`.
+
+
+*Related API: `setCell`, `setFormula`, `setArrayFormula`, `setSharedFormula`*
+
+### Merge cells + freeze the header row
+Merge a title across columns, then freeze row 1 so it stays put while scrolling.
+```ts title="site/src/lib/examples/recipes/merge-and-freeze.ts"
+// Merge a header range across the top row and freeze the first row so
+// it stays visible while scrolling.
+
+import { saveWorkbook } from '@office-kit/xlsx/io';
+import { toFile } from '@office-kit/xlsx/node';
+import { centerCell, setBold } from '@office-kit/xlsx/styles';
+import { addWorksheet, createWorkbook } from '@office-kit/xlsx/workbook';
+import {
+  makeFreezePane,
+  makeSheetView,
+  mergeCells,
+  setCell,
+} from '@office-kit/xlsx/worksheet';
+
+const wb = createWorkbook();
+const ws = addWorksheet(wb, 'Report');
+
+const title = setCell(ws, 1, 1, 'Q2 financial summary');
+setBold(wb, title);
+centerCell(wb, title);
+mergeCells(ws, 'A1:E1');
+
+ws.views.push(makeSheetView({ pane: makeFreezePane('A2') }));
+
+await saveWorkbook(wb, toFile('merged-frozen.xlsx'));
+```
+
+
+*Related API: `mergeCells`, `makeFreezePane`, `makeSheetView`*
+
+### Make a cell clickable
+Hyperlinks live separately from cell values — set the text, attach the URL.
+```ts title="site/src/lib/examples/recipes/hyperlinks.ts"
+// Make a cell clickable. The text is whatever you set on the cell;
+// hyperlink wires up the URL underneath.
+
+import { saveWorkbook } from '@office-kit/xlsx/io';
+import { toFile } from '@office-kit/xlsx/node';
+import { addWorksheet, createWorkbook } from '@office-kit/xlsx/workbook';
+import { setCell, setHyperlink } from '@office-kit/xlsx/worksheet';
+
+const wb = createWorkbook();
+const ws = addWorksheet(wb, 'Links');
+
+setCell(ws, 1, 1, 'Project home');
+setHyperlink(ws, 'A1', {
+  target: 'https://github.com/office-kit/xlsx',
+  tooltip: 'View on GitHub',
+});
+
+await saveWorkbook(wb, toFile('with-links.xlsx'));
+```
+
+
+*Related API: `setHyperlink`*
+
+## Tables, validation, conditional formatting
+
+### Promote a range to an Excel Table
+Excel Tables get banded styling, a built-in autoFilter on every header, and a name you can reference in formulas.
+```ts title="site/src/lib/examples/recipes/tables-with-filter.ts"
+// Promote a range to an Excel Table (named range with banded styling and
+// a built-in filter dropdown on every header).
+
+import { saveWorkbook } from '@office-kit/xlsx/io';
+import { toFile } from '@office-kit/xlsx/node';
+import { addWorksheet, createWorkbook } from '@office-kit/xlsx/workbook';
+import { addExcelTable, setCell } from '@office-kit/xlsx/worksheet';
+
+const wb = createWorkbook();
+const ws = addWorksheet(wb, 'Inventory');
+
+const headers = ['SKU', 'Name', 'Price'];
+headers.forEach((h, i) => setCell(ws, 1, i + 1, h));
+const rows: ReadonlyArray<readonly [string, string, number]> = [
+  ['A-001', 'Widget', 19.95],
+  ['A-002', 'Gadget', 24.5],
+  ['A-003', 'Doohickey', 7.25],
+];
+rows.forEach((row, r) => row.forEach((v, c) => setCell(ws, r + 2, c + 1, v)));
+
+addExcelTable(wb, ws, {
+  name: 'Inventory',
+  ref: 'A1:C4',
+  columns: headers,
+  style: 'TableStyleMedium2',
+});
+
+await saveWorkbook(wb, toFile('inventory.xlsx'));
+```
+
+- Pass `style` for one-arg style selection or `styleInfo` for full control over banded rows / columns.
+- For just a filter without table styling, use `addAutoFilter(ws, "A1:C4")`.
+
+
+*Related API: `addExcelTable`, `addAutoFilter`*
+
+### Dropdown data validation
+Restrict a range to a list of allowed values. Excel renders a dropdown arrow on each cell.
+```ts title="site/src/lib/examples/recipes/dropdown-validation.ts"
+// Add a list-type data validation — gives the user a dropdown of
+// allowed values when they click into the range.
+
+import { saveWorkbook } from '@office-kit/xlsx/io';
+import { toFile } from '@office-kit/xlsx/node';
+import { addWorksheet, createWorkbook } from '@office-kit/xlsx/workbook';
+import { addDataValidation, makeDataValidation, setCell } from '@office-kit/xlsx/worksheet';
+
+const wb = createWorkbook();
+const ws = addWorksheet(wb, 'Form');
+
+setCell(ws, 1, 1, 'Status');
+addDataValidation(
+  ws,
+  makeDataValidation({
+    type: 'list',
+    sqref: 'B1:B100',
+    formula1: '"Open,In progress,Closed"',
+    prompt: 'Pick a status',
+    errorTitle: 'Invalid value',
+    error: 'Pick one of the listed values.',
+  }),
+);
+
+await saveWorkbook(wb, toFile('with-dropdown.xlsx'));
+```
+
+- Pass a sheet-relative formula (`=Sheet1!$A$1:$A$10`) instead of a literal array if the choices come from another range.
+
+
+*Related API: `makeDataValidation`, `addDataValidation`*
+
+### Heat-map with a 3-color scale
+Build a `colorScale` rule with `makeCfRule` + inner XML and attach it via `addConditionalFormatting`.
+```ts title="site/src/lib/examples/recipes/conditional-color-scale.ts"
+// Color-scale rule: red for low values, yellow for the middle, green
+// for high. Excel's classic 3-color heat-map.
+
+import { saveWorkbook } from '@office-kit/xlsx/io';
+import { toFile } from '@office-kit/xlsx/node';
+import { addWorksheet, createWorkbook } from '@office-kit/xlsx/workbook';
+import {
+  addConditionalFormatting,
+  makeCfRule,
+  makeConditionalFormatting,
+  setCell,
+} from '@office-kit/xlsx/worksheet';
+
+const wb = createWorkbook();
+const ws = addWorksheet(wb, 'Heat');
+
+for (let r = 1; r <= 10; r++) setCell(ws, r, 1, Math.round(Math.random() * 100));
+
+addConditionalFormatting(
+  ws,
+  makeConditionalFormatting({
+    sqref: 'A1:A10',
+    rules: [
+      makeCfRule({
+        type: 'colorScale',
+        priority: 1,
+        formulas: [],
+        innerXml:
+          '<colorScale>' +
+          '<cfvo type="min"/><cfvo type="percentile" val="50"/><cfvo type="max"/>' +
+          '<color rgb="FFF8696B"/><color rgb="FFFFEB84"/><color rgb="FF63BE7B"/>' +
+          '</colorScale>',
+      }),
+    ],
+  }),
+);
+
+await saveWorkbook(wb, toFile('heatmap.xlsx'));
+```
+
+
+*Related API: `makeCfRule`, `makeConditionalFormatting`, `addConditionalFormatting`*
+
+## Charts & images
+
+### Add a clustered column chart
+Wire a `BarChart` to a data range and anchor it to a cell with `addChartAt`.
+```ts title="site/src/lib/examples/recipes/add-bar-chart.ts"
+// Add a clustered column chart driven by a data range on the same sheet.
+
+import { makeBarChart, makeBarSeries, makeChartSpace } from '@office-kit/xlsx/chart';
+import { addChartAt } from '@office-kit/xlsx/drawing';
+import { saveWorkbook } from '@office-kit/xlsx/io';
+import { toFile } from '@office-kit/xlsx/node';
+import { addWorksheet, createWorkbook } from '@office-kit/xlsx/workbook';
+import { setCell } from '@office-kit/xlsx/worksheet';
+
+const wb = createWorkbook();
+const ws = addWorksheet(wb, 'Sales');
+
+setCell(ws, 1, 1, 'Region');
+setCell(ws, 1, 2, 'Revenue');
+setCell(ws, 2, 1, 'NA');
+setCell(ws, 2, 2, 12_400);
+setCell(ws, 3, 1, 'EU');
+setCell(ws, 3, 2, 9_800);
+setCell(ws, 4, 1, 'APAC');
+setCell(ws, 4, 2, 7_300);
+
+const chart = makeBarChart({
+  barDir: 'col',
+  grouping: 'clustered',
+  series: [
+    makeBarSeries({
+      idx: 0,
+      tx: { kind: 'literal', value: 'Revenue' },
+      cat: { ref: 'Sales!$A$2:$A$4' },
+      val: { ref: 'Sales!$B$2:$B$4' },
+    }),
+  ],
+});
+
+const space = makeChartSpace({
+  plotArea: { chart },
+  title: 'Revenue by region',
+  legend: { position: 'r' },
+});
+
+addChartAt(ws, 'D2', { space }, { widthPx: 480, heightPx: 320 });
+
+await saveWorkbook(wb, toFile('chart.xlsx'));
+```
+
+- Same pattern works for `makeLineChart`, `makePieChart`, `makeScatterChart` and friends — wrap them in a `PlotArea` and pass to `makeChartSpace`.
+- For modern chart kinds (Sunburst, Treemap, Waterfall, Histogram, Pareto, Funnel, BoxWhisker, RegionMap), use the `makeSunburstChart` / `makeTreemapChart` / ... helpers from the chartex family — they emit `cx:` chart space.
+
+
+*Related API: `makeBarChart`, `makeBarSeries`, `makeChartSpace`, `addChartAt`, `makeSunburstChart`*
+
+### Insert an image at a cell
+Drop a PNG / JPEG / GIF / BMP / WebP / TIFF / SVG anchored to a cell — format and dimensions are auto-detected.
+```ts title="site/src/lib/examples/recipes/insert-image.ts"
+// Insert a PNG / JPEG image at a cell anchor. Format and dimensions
+// are auto-detected from the bytes, so loadImage is the only call.
+
+import { addImageAt, loadImage } from '@office-kit/xlsx/drawing';
+import { saveWorkbook } from '@office-kit/xlsx/io';
+import { toFile } from '@office-kit/xlsx/node';
+import { addWorksheet, createWorkbook } from '@office-kit/xlsx/workbook';
+import { readFile } from 'node:fs/promises';
+
+const wb = createWorkbook();
+const ws = addWorksheet(wb, 'Cover');
+
+const image = loadImage(await readFile('logo.png'));
+addImageAt(ws, 'B2', image, { widthPx: 200, heightPx: 80 });
+
+await saveWorkbook(wb, toFile('with-image.xlsx'));
+```
+
+
+*Related API: `loadImage`, `addImageAt`, `makeOneCellAnchor`*
+
+## Streaming (huge sheets)
+
+### Write 10M rows in a fixed memory budget
+`createWriteOnlyWorkbook` deflates each row as it arrives — heap stays under 100 MB even for 10M-row sheets.
+```ts title="site/src/lib/examples/streaming-write.ts"
+// Stream millions of rows to disk in a fixed memory budget. Each row is
+// deflated as it arrives — no intermediate workbook in memory.
+
+import { toFile } from '@office-kit/xlsx/node';
+import { createWriteOnlyWorkbook } from '@office-kit/xlsx/streaming';
+
+const sink = toFile('big.xlsx');
+const wb = await createWriteOnlyWorkbook(sink);
+const ws = await wb.addWorksheet('Data');
+ws.setColumnWidth(1, 24); // must precede the first appendRow
+
+for (let r = 0; r < 10_000_000; r++) {
+  await ws.appendRow([r, `row-${r}`, r * Math.PI]);
+}
+await ws.close();
+await wb.finalize();
+```
+
+- `setColumnWidth` must run *before* the first `appendRow` — once any row is written, `<cols>` is locked.
+- `ws.close()` and `wb.finalize()` are required — that's when the central directory is written.
+
+
+*Related API: `createWriteOnlyWorkbook`, `toFile`*
+
+### Iterate a huge sheet without loading it
+`loadWorkbookStream` + `iterRows` walks the file once and yields rows as they're parsed.
+```ts title="site/src/lib/examples/streaming-read.ts"
+// Iterate huge sheets without loading the full workbook. iterRows is a SAX
+// pass — it walks the file once and yields each row's cells.
+
+import { fromFile } from '@office-kit/xlsx/node';
+import { loadWorkbookStream } from '@office-kit/xlsx/streaming';
+
+const wb = await loadWorkbookStream(fromFile('big.xlsx'));
+const sheet = wb.openWorksheet(wb.sheetNames[0] ?? '');
+for await (const row of sheet.iterRows({ minRow: 1, maxRow: 100 })) {
+  console.log(row.map((c) => c.value));
+}
+await wb.close();
+```
+
+- Bound the walk with `iterRows({ minRow, maxRow, minCol, maxCol })` — the parser skips ahead via tag-scan.
+
+
+*Related API: `loadWorkbookStream`, `fromFile`*
+
+## Browser
+
+### Browser: read xlsx from a fetch response
+`fromResponse` is streaming, so the workbook starts parsing while bytes are still arriving.
+```ts title="site/src/lib/examples/browser-fetch.ts"
+// Browser: pipe a fetch Response straight into the loader. fromResponse is
+// streaming, so the workbook starts parsing before the download is done.
+
+import { fromResponse, loadWorkbook } from '@office-kit/xlsx/io';
+
+const response = await fetch('/sheet.xlsx');
+const wb = await loadWorkbook(fromResponse(response));
+const ref = wb.sheets[0];
+if (ref?.kind === 'worksheet') {
+  console.log(ref.sheet.title);
+}
+```
+
+
+*Related API: `fromResponse`, `loadWorkbook`*
+
+### Browser: read xlsx from <input type="file">
+`fromBlob` consumes the File the user just picked, no full buffer.
+```ts title="site/src/lib/examples/recipes/browser-file-input.ts"
+// Browser: parse the xlsx the user just selected via <input type="file">.
+// fromBlob is streaming, so the workbook starts parsing while the file
+// is still being read.
+
+import { fromBlob, loadWorkbook } from '@office-kit/xlsx/io';
+
+export async function loadFromInput(input: HTMLInputElement) {
+  const file = input.files?.[0];
+  if (!file) return null;
+  const wb = await loadWorkbook(fromBlob(file));
+  return wb;
+}
+```
+
+
+*Related API: `fromBlob`, `loadWorkbook`*
+
+
+
+---
+
+<!-- Page: /docs/cheatsheet -->
+# Cheatsheet
+> One-page lookup of task → exact functions to import + call. The shortest path from "I want to do X" to working code.
+
+# Cheatsheet
+
+The shortest path from "I want to do X" to working code. Each row names the
+exact functions you import. The snippets below the index expand the most
+common patterns. For prose context see <a href="{base}/docs/recipes">Recipes</a>;
+for every export see <a href="{base}/api">API reference</a>.
+
+> Each function lives in exactly one subpath — `@office-kit/xlsx/io`, `/node`,
+> `/streaming`, `/workbook`, `/worksheet`, `/cell`, `/styles`, `/chart`,
+> `/drawing`. Function name → subpath is unique, so once you know the
+> name you know where to import from.
+
+## Index
+
+### Read
+
+| Task | Functions |
+|------|-----------|
+| Read xlsx file (Node) → Workbook | `loadWorkbook` + `fromFile` |
+| Read xlsx Buffer (Node) → Workbook | `loadWorkbook` + `fromBuffer` |
+| Read xlsx from `fetch` (browser) → Workbook | `loadWorkbook` + `fromResponse` |
+| Read xlsx from `<input type="file">` (browser) → Workbook | `loadWorkbook` + `fromBlob` |
+| Iterate every cell of a worksheet → 2D array | `iterRows` (or `iterValues`) |
+| Find the populated extents of a worksheet | `getMaxRow` + `getMaxCol` |
+
+### Stream-read (huge sheets)
+
+| Task | Functions |
+|------|-----------|
+| Iterate a huge sheet without loading it | `loadWorkbookStream` + `openWorksheet` + `iterRows` |
+| Iterate only rows N..M of a huge sheet | `loadWorkbookStream` + `iterRows({ minRow, maxRow })` |
+
+### Write
+
+| Task | Functions |
+|------|-----------|
+| Build a small workbook in memory → `Uint8Array` | `createWorkbook` + `addWorksheet` + `setCell` + `workbookToBytes` |
+| Build a small workbook → save to file (Node) | `createWorkbook` + `addWorksheet` + `setCell` + `saveWorkbook` + `toFile` |
+| Build a small workbook → `Buffer` (Node) | `createWorkbook` + `addWorksheet` + `setCell` + `workbookToBuffer` |
+| Edit one cell of an existing file (Node) | `loadWorkbook` + `fromFile` + `setCell` + `saveWorkbook` + `toFile` |
+| Append rows to a worksheet | `appendRow` (or `appendRows`) |
+
+### Stream-write (huge sheets)
+
+| Task | Functions |
+|------|-----------|
+| Stream millions of rows to a file | `createWriteOnlyWorkbook` + `addWorksheet` + `appendRow` + `ws.close` + `wb.finalize` |
+
+### Cells, formulas, links
+
+| Task | Functions |
+|------|-----------|
+| Bold + font size + fill on a header cell | `setBold` + `setFontSize` + `setCellBackgroundColor` |
+| Number format: currency / percent | `setCellAsCurrency` + `setCellAsPercent` |
+| Number format: date | `setCellNumberFormat` + `FORMAT_DATE_DATETIME` |
+| Add a formula (with cached value) | `setCell` + `setFormula` |
+| Make a cell clickable | `setHyperlink` |
+| Merge cells + freeze the header row | `mergeCells` + `makeFreezePane` + `makeSheetView` |
+
+### Worksheet structure
+
+| Task | Functions |
+|------|-----------|
+| Multiple sheets + a defined name | `addWorksheet` + `addDefinedName` |
+| Promote a range to an Excel Table | `addExcelTable` |
+| AutoFilter on a header row (no table styling) | `addAutoFilter` |
+| Dropdown data validation | `makeDataValidation` + `addDataValidation` |
+| Heat-map (3-color scale) | `makeCfRule` + `addConditionalFormatting` |
+
+### Drawings
+
+| Task | Functions |
+|------|-----------|
+| Insert an image at a cell | `loadImage` + `addImageAt` |
+| Add a clustered column chart | `makeBarChart` + `makeBarSeries` + `makeChartSpace` + `addChartAt` |
+
+## Snippets
+
+Each snippet below corresponds to one row above. Imports are explicit so
+you can copy-paste a single block into your file.
+
+### Read xlsx file (Node) → Workbook
+
+```ts
+import { loadWorkbook } from '@office-kit/xlsx/io';
+import { fromFile } from '@office-kit/xlsx/node';
+
+const wb = await loadWorkbook(fromFile('in.xlsx'));
+```
+
+### Read xlsx Buffer (Node) → Workbook
+
+```ts
+import { loadWorkbook } from '@office-kit/xlsx/io';
+import { fromBuffer } from '@office-kit/xlsx/node';
+
+const wb = await loadWorkbook(fromBuffer(buf));
+```
+
+### Read xlsx from `fetch` (browser) → Workbook
+
+```ts
+import { fromResponse, loadWorkbook } from '@office-kit/xlsx/io';
+
+const wb = await loadWorkbook(fromResponse(await fetch('/sheet.xlsx')));
+```
+
+### Read xlsx from `<input type="file">` (browser) → Workbook
+
+```ts
+import { fromBlob, loadWorkbook } from '@office-kit/xlsx/io';
+
+const wb = await loadWorkbook(fromBlob(file));
+```
+
+### Iterate every cell of a worksheet → 2D array
+
+```ts
+import { iterValues } from '@office-kit/xlsx/worksheet';
+
+const rows = [...iterValues(ws)]; // CellValue[][]
+```
+
+### Find the populated extents of a worksheet
+
+```ts
+import { getMaxRow, getMaxCol } from '@office-kit/xlsx/worksheet';
+
+const lastRow = getMaxRow(ws);
+const lastCol = getMaxCol(ws);
+```
+
+### Stream-read: iterate a huge sheet without loading it
+
+```ts
+import { fromFile } from '@office-kit/xlsx/node';
+import { loadWorkbookStream } from '@office-kit/xlsx/streaming';
+
+const wb = await loadWorkbookStream(fromFile('big.xlsx'));
+const sheet = wb.openWorksheet(wb.sheetNames[0] ?? '');
+for await (const row of sheet.iterRows()) {
+  console.log(row.map((c) => c.value));
+}
+await wb.close();
+```
+
+### Stream-read: only rows N..M of a huge sheet
+
+```ts
+import { fromFile } from '@office-kit/xlsx/node';
+import { loadWorkbookStream } from '@office-kit/xlsx/streaming';
+
+const wb = await loadWorkbookStream(fromFile('big.xlsx'));
+const sheet = wb.openWorksheet(wb.sheetNames[0] ?? '');
+for await (const row of sheet.iterRows({ minRow: 1_000_000, maxRow: 1_000_100 })) {
+  // …
+}
+await wb.close();
+```
+
+### Build a small workbook in memory → `Uint8Array`
+
+```ts
+import { workbookToBytes } from '@office-kit/xlsx/io';
+import { addWorksheet, createWorkbook } from '@office-kit/xlsx/workbook';
+import { setCell } from '@office-kit/xlsx/worksheet';
+
+const wb = createWorkbook();
+const ws = addWorksheet(wb, 'Sheet1');
+setCell(ws, 1, 1, 'Hello');
+const bytes = await workbookToBytes(wb);
+```
+
+### Build a small workbook → save to file (Node)
+
+```ts
+import { saveWorkbook } from '@office-kit/xlsx/io';
+import { toFile } from '@office-kit/xlsx/node';
+import { addWorksheet, createWorkbook } from '@office-kit/xlsx/workbook';
+import { setCell } from '@office-kit/xlsx/worksheet';
+
+const wb = createWorkbook();
+const ws = addWorksheet(wb, 'Sheet1');
+setCell(ws, 1, 1, 'Hello');
+await saveWorkbook(wb, toFile('out.xlsx'));
+```
+
+### Build a small workbook → `Buffer` (Node)
+
+```ts
+import { workbookToBuffer } from '@office-kit/xlsx/node';
+import { addWorksheet, createWorkbook } from '@office-kit/xlsx/workbook';
+import { setCell } from '@office-kit/xlsx/worksheet';
+
+const wb = createWorkbook();
+const ws = addWorksheet(wb, 'Sheet1');
+setCell(ws, 1, 1, 'Hello');
+const buf = await workbookToBuffer(wb); // Buffer
+```
+
+### Edit one cell of an existing file (Node)
+
+```ts
+import { loadWorkbook, saveWorkbook } from '@office-kit/xlsx/io';
+import { fromFile, toFile } from '@office-kit/xlsx/node';
+import { setCell } from '@office-kit/xlsx/worksheet';
+
+const wb = await loadWorkbook(fromFile('in.xlsx'));
+const sheet = wb.sheets[0];
+if (sheet?.kind === 'worksheet') {
+  setCell(sheet.sheet, 1, 1, 'updated');
+}
+await saveWorkbook(wb, toFile('out.xlsx'));
+```
+
+### Append rows to a worksheet
+
+```ts
+import { appendRows } from '@office-kit/xlsx/worksheet';
+
+appendRows(ws, [
+  ['name', 'qty'],
+  ['apple', 3],
+  ['pear', 7],
+]);
+```
+
+### Stream-write millions of rows to a file
+
+```ts
+import { toFile } from '@office-kit/xlsx/node';
+import { createWriteOnlyWorkbook } from '@office-kit/xlsx/streaming';
+
+const wb = await createWriteOnlyWorkbook(toFile('big.xlsx'));
+const ws = await wb.addWorksheet('Data');
+ws.setColumnWidth(1, 24); // must precede the first appendRow
+
+for (let r = 0; r < 10_000_000; r++) {
+  await ws.appendRow([r, `row-${r}`, r * Math.PI]);
+}
+await ws.close();
+await wb.finalize();
+```
+
+### Bold + font size + fill on a header cell
+
+```ts
+import { setBold, setCellBackgroundColor, setFontSize } from '@office-kit/xlsx/styles';
+import { setCell } from '@office-kit/xlsx/worksheet';
+
+const c = setCell(ws, 1, 1, 'Header');
+setBold(wb, c);
+setFontSize(wb, c, 14);
+setCellBackgroundColor(wb, c, 'FFEFEFEF');
+```
+
+### Number format: currency / percent
+
+```ts
+import { setCellAsCurrency, setCellAsPercent } from '@office-kit/xlsx/styles';
+import { setCell } from '@office-kit/xlsx/worksheet';
+
+setCellAsCurrency(wb, setCell(ws, 1, 1, 1234.5));
+setCellAsPercent(wb, setCell(ws, 1, 2, 0.125));
+```
+
+### Number format: date
+
+```ts
+import { FORMAT_DATE_DATETIME, setCellNumberFormat } from '@office-kit/xlsx/styles';
+import { setCell } from '@office-kit/xlsx/worksheet';
+
+setCellNumberFormat(wb, setCell(ws, 1, 1, new Date()), FORMAT_DATE_DATETIME);
+```
+
+### Add a formula (with cached value)
+
+```ts
+import { setFormula } from '@office-kit/xlsx/cell';
+import { setCell } from '@office-kit/xlsx/worksheet';
+
+const c = setCell(ws, 3, 1, null);
+setFormula(c, 'SUM(A1:A2)', { cachedValue: 42 });
+```
+
+### Make a cell clickable
+
+```ts
+import { setHyperlink } from '@office-kit/xlsx/worksheet';
+
+setHyperlink(ws, 'A1', { target: 'https://example.com', display: 'Open' });
+```
+
+### Merge cells + freeze the header row
+
+```ts
+import { makeFreezePane, makeSheetView, mergeCells } from '@office-kit/xlsx/worksheet';
+
+mergeCells(ws, 'A1:C1');
+ws.views.push(makeSheetView({ pane: makeFreezePane('A2') }));
+```
+
+### Multiple sheets + a defined name
+
+```ts
+import { addDefinedName, addWorksheet, createWorkbook } from '@office-kit/xlsx/workbook';
+
+const wb = createWorkbook();
+addWorksheet(wb, 'Q1');
+addWorksheet(wb, 'Q2');
+addDefinedName(wb, { name: 'Totals', value: 'Q1!$A$1:$A$10,Q2!$A$1:$A$10' });
+```
+
+### Promote a range to an Excel Table
+
+```ts
+import { addExcelTable } from '@office-kit/xlsx/worksheet';
+
+addExcelTable(wb, ws, {
+  name: 'Items',
+  ref: 'A1:C4',
+  columns: ['SKU', 'Name', 'Price'],
+  style: 'TableStyleMedium2',
+});
+```
+
+### AutoFilter on a header row (no table styling)
+
+```ts
+import { addAutoFilter } from '@office-kit/xlsx/worksheet';
+
+addAutoFilter(ws, 'A1:C1');
+```
+
+### Dropdown data validation
+
+```ts
+import { addDataValidation, makeDataValidation } from '@office-kit/xlsx/worksheet';
+
+addDataValidation(
+  ws,
+  makeDataValidation({
+    type: 'list',
+    sqref: 'B2:B100',
+    formula1: '"red,green,blue"',
+  }),
+);
+```
+
+### Insert an image at a cell
+
+```ts
+import { addImageAt, loadImage } from '@office-kit/xlsx/drawing';
+
+const img = loadImage(bytes); // bytes: Uint8Array
+addImageAt(ws, 'B2', img, { widthPx: 200, heightPx: 80 });
+```
+
+### Add a clustered column chart
+
+```ts
+import { makeBarChart, makeBarSeries, makeChartSpace } from '@office-kit/xlsx/chart';
+import { addChartAt } from '@office-kit/xlsx/drawing';
+
+const chart = makeBarChart({
+  barDir: 'col',
+  grouping: 'clustered',
+  series: [
+    makeBarSeries({
+      idx: 0,
+      tx: { kind: 'literal', value: 'Revenue' },
+      cat: { ref: 'Sales!$A$2:$A$4' },
+      val: { ref: 'Sales!$B$2:$B$4' },
+    }),
+  ],
+});
+
+const space = makeChartSpace({
+  plotArea: { chart },
+  title: 'Revenue by region',
+  legend: { position: 'r' },
+});
+addChartAt(ws, 'D2', { space }, { widthPx: 480, heightPx: 320 });
+```
+
+
+
+---
+
+<!-- Page: /docs/streaming -->
+# Streaming
+> Read and write multi-million row workbooks in fixed memory.
+
+# Streaming
+
+Two orthogonal modes:
+
+- **Streaming write** — append rows to a sheet that's being deflated and written to disk on the fly. Heap stays bounded no matter how many rows you push.
+- **Streaming read** — walk a workbook's worksheets row-by-row without materializing the full sheet. Backed by a SAX parser.
+
+Both live behind the `@office-kit/xlsx/streaming` entry, which is browser-safe (no `node:fs` imports). Use `@office-kit/xlsx/node` to bridge to a `fs.ReadStream` / `fs.WriteStream`.
+
+## Streaming write — 10M rows under 100 MB heap
+
+```ts title="site/src/lib/examples/streaming-write.ts"
+// Stream millions of rows to disk in a fixed memory budget. Each row is
+// deflated as it arrives — no intermediate workbook in memory.
+
+import { toFile } from '@office-kit/xlsx/node';
+import { createWriteOnlyWorkbook } from '@office-kit/xlsx/streaming';
+
+const sink = toFile('big.xlsx');
+const wb = await createWriteOnlyWorkbook(sink);
+const ws = await wb.addWorksheet('Data');
+ws.setColumnWidth(1, 24); // must precede the first appendRow
+
+for (let r = 0; r < 10_000_000; r++) {
+  await ws.appendRow([r, `row-${r}`, r * Math.PI]);
+}
+await ws.close();
+await wb.finalize();
+```
+
+`createWriteOnlyWorkbook` returns a workbook whose sheets are *append-only*. `appendRow(values)` writes one row, immediately deflates the resulting `<row>` XML, and pushes the compressed bytes to the underlying sink. Nothing is held in memory beyond the deflate window.
+
+A few constraints:
+
+- **Column widths must be set before the first `appendRow`.** Once any row is written, the worksheet's `<cols>` block is locked.
+- **No random-access edits.** Once a row is appended you can't go back and change a cell.
+- **`ws.close()` and `wb.finalize()` are required** — that's when the central directory is written. Without them you'll get a truncated zip.
+
+For a 10M-row × 3-col workbook on commodity hardware: ~30s, ~75 MB peak heap, ~110 MB on disk.
+
+## Streaming read — iter rows without loading
+
+```ts title="site/src/lib/examples/streaming-read.ts"
+// Iterate huge sheets without loading the full workbook. iterRows is a SAX
+// pass — it walks the file once and yields each row's cells.
+
+import { fromFile } from '@office-kit/xlsx/node';
+import { loadWorkbookStream } from '@office-kit/xlsx/streaming';
+
+const wb = await loadWorkbookStream(fromFile('big.xlsx'));
+const sheet = wb.openWorksheet(wb.sheetNames[0] ?? '');
+for await (const row of sheet.iterRows({ minRow: 1, maxRow: 100 })) {
+  console.log(row.map((c) => c.value));
+}
+await wb.close();
+```
+
+`loadWorkbookStream` parses the workbook part eagerly (sheet names, defined names, etc) but defers the per-sheet XML. `openWorksheet(name)` returns a handle whose `iterRows()` yields each row as it's parsed.
+
+`iterRows({ minRow, maxRow, minCol, maxCol })` lets you bound the walk. The parser skips ahead via XML tag scan, so a `minRow: 1_000_000` query on a 10M-row sheet does *not* parse the first million rows — it skips them.
+
+Each yielded `row` is a `Cell[]`: `cell.value` is `string | number | boolean | null`, `cell.coordinate` is `'A1'`-style.
+
+## When to pick which
+
+| Workload | Pick |
+|----------|------|
+| Workbook fits in memory; want to mutate cells, charts, styles | `loadWorkbook` (full library) |
+| Reading a huge sheet linearly | `loadWorkbookStream` + `iterRows` |
+| Writing > 100k rows, no need for charts / drawings | `createWriteOnlyWorkbook` |
+| Need both streaming write *and* charts | Build the workbook in-memory; not currently supported by the streaming writer |
+
+<a href="{base}/docs/getting-started">← Back to Getting started</a>
+
+
+
+---
+
+<!-- Page: /docs/api -->
+# API overview
+> Top-level exports, subpath entries, and bundle budgets.
+
+# API overview
+
+The full TypeScript API is bundled with the npm package — your editor will autocomplete every export. This page is the **map**: where to look for each kind of thing.
+
+> The full, section-organized reference lives at <a href="{base}/api"><code>/api</code></a> — every export rendered with its signature, parameters, and source link. This page is the conceptual map you reach for first.
+
+## Subpath entries
+
+The package has no root barrel — every export lives behind a section subpath, so your editor's autocomplete only surfaces what's relevant to the area you're working in. Each export has exactly one home (no convenience re-exports).
+
+```ts
+// Load and save xlsx — loadWorkbook / saveWorkbook / workbookToBytes,
+// plus byte-level Source/Sink types and browser helpers (Blob/Response/Stream).
+import { loadWorkbook, saveWorkbook, fromResponse } from '@office-kit/xlsx/io';
+
+// Node fs glue (filesystem / Readable / Writable bridges + Buffer source/sink).
+import { fromFile, toFile, fromBuffer, fromReadable } from '@office-kit/xlsx/node';
+
+// Streaming — read iter, write-only append.
+import { loadWorkbookStream, createWriteOnlyWorkbook } from '@office-kit/xlsx/streaming';
+
+// Workbook root model — createWorkbook, addWorksheet, defined names, etc.
+import { createWorkbook, addWorksheet } from '@office-kit/xlsx/workbook';
+
+// Worksheet — setCell, getCell, mergeCells, freeze panes, tables, hyperlinks…
+import { setCell, mergeCells } from '@office-kit/xlsx/worksheet';
+
+// Cell value-model + inline rich text.
+import { makeCell, makeRichText } from '@office-kit/xlsx/cell';
+
+// Styles — fonts, fills, borders, alignment, number formats, named styles.
+import { makeFont, setBold } from '@office-kit/xlsx/styles';
+
+// Charts (legacy `c:` + chartex `cx:`).
+import { makeBarChart, makeChartSpace } from '@office-kit/xlsx/chart';
+
+// Drawings — anchors, images, chart placement.
+import { addImageAt, loadImage } from '@office-kit/xlsx/drawing';
+```
+
+Other available subpaths: `@office-kit/xlsx/chartsheet`, `@office-kit/xlsx/packaging`, `@office-kit/xlsx/utils`, `@office-kit/xlsx/xml`, `@office-kit/xlsx/zip`, `@office-kit/xlsx/schema`.
+
+Each entry has the bundle budgets enforced by `pnpm size` in CI. All exports are tree-shakable — `"sideEffects": false` is set in `package.json`.
+
+## Workbook model
+
+The library exposes a layered model split across subpaths:
+
+- **I/O** (`@office-kit/xlsx/io`) — `loadWorkbook`, `saveWorkbook`, `workbookToBytes` plus byte-level `XlsxSource` / `XlsxSink` types and browser-safe helpers (`fromBlob`, `fromResponse`, `fromStream`, `fromArrayBuffer`, `toBlob`, `toArrayBuffer`).
+- **Node fs glue** (`@office-kit/xlsx/node`) — `fromFile`, `toFile`, `fromBuffer`, `toBuffer`, `fromReadable`, `toWritable`.
+- **Streaming** (`@office-kit/xlsx/streaming`) — `loadWorkbookStream`, `createWriteOnlyWorkbook`.
+- **Workbook** (`@office-kit/xlsx/workbook`) — `createWorkbook`, `addWorksheet`, `Workbook` shape, defined names, calc properties, file metadata.
+- **Worksheet** (`@office-kit/xlsx/worksheet`) — cells, rows, columns, merged cells, freeze panes, autoFilter, Tables, hyperlinks, data validations, conditional formatting, legacy comments.
+- **Cell** (`@office-kit/xlsx/cell`) — Cell shape, formula helpers, inline rich-text composition.
+- **Styles** (`@office-kit/xlsx/styles`) — `Font`, `Fill`, `Border`, `Alignment`, `Protection`, `NumberFormat`, full stylesheet pool with dedup, named styles + DXF.
+- **Drawings** (`@office-kit/xlsx/drawing`) — anchors, images (PNG/JPEG/GIF/BMP/WebP/TIFF/SVG/EMF/WMF) with auto-detected format + dimensions.
+- **Charts** (`@office-kit/xlsx/chart`) — 16 legacy `c:` chart kinds + 8 `cx:` chartex kinds (Sunburst, Treemap, Waterfall, Histogram, Pareto, Funnel, BoxWhisker, RegionMap).
+- **Packaging / XML / ZIP / schema** (`@office-kit/xlsx/packaging`, `@office-kit/xlsx/xml`, `@office-kit/xlsx/zip`, `@office-kit/xlsx/schema`) — the OPC layer below the workbook plus low-level XML reader / writer + Excel namespace constants. You won't touch these directly unless you're extending the library.
+
+## Cell helpers
+
+| Function | Purpose |
+|----------|---------|
+| `setCell(sheet, row, col, value)` | Set a cell value; coercion handled (string / number / boolean). |
+| `setFormula(cell, formula)` | Apply a formula to a Cell returned by `setCell`. Use `setSharedFormula` / `setArrayFormula` from `@office-kit/xlsx/cell` for the array / shared variants. |
+| `getCell(sheet, row, col)` | Read a cell. Returns `undefined` if empty. |
+| `setCellStyle(wb, cell, opts)` | Apply per-aspect style (font / fill / border / alignment / numberFormat) to a cell. |
+
+Coordinates are 1-indexed (`row=1, col=1` is `A1`). For A1 ↔ row/col conversion, reach for `@office-kit/xlsx/utils`.
+
+## Loading and saving
+
+```ts
+// Source-side
+loadWorkbook(source: XlsxSource): Promise<Workbook>
+loadWorkbookStream(source: XlsxSource): Promise<StreamingWorkbook>
+
+// Sink-side
+workbookToBytes(wb: Workbook): Promise<Uint8Array>
+saveWorkbook(wb: Workbook, sink: XlsxSink): Promise<void>
+createWriteOnlyWorkbook(sink: XlsxSink): Promise<WriteOnlyWorkbook>
+```
+
+`loadWorkbook` / `saveWorkbook` / `workbookToBytes` come from `@office-kit/xlsx/io`; `loadWorkbookStream` / `createWriteOnlyWorkbook` from `@office-kit/xlsx/streaming`.
+
+`XlsxSource` accepts anything from a `Uint8Array` to a `ReadableStream<Uint8Array>` to a `Blob` to a Node `Readable`. The matching `from*` helpers are split between `@office-kit/xlsx/node` (fs / buffer / readable) and `@office-kit/xlsx/io` (blob / response / web stream / array buffer).
+
+## Errors
+
+- **Encrypted workbook** — we detect the CFB Compound Document magic and throw `EncryptedWorkbookError`. Decrypt with [`msoffcrypto-tool`](https://github.com/nolze/msoffcrypto-tool) first.
+- **ZIP64 write** — workbooks with > 65 535 entries get a ZIP64 EOCD record + locator. Read works too.
+- **Malformed XML** — every XML parse path runs through a single hardened SAX layer. Errors include the file part path so you know which `xl/...` part triggered it.
+
+## Migration
+
+If you're coming from openpyxl: see [`docs/migrate-from-openpyxl.md`](https://github.com/baseballyama/openxml-js/blob/main/docs/migrate-from-openpyxl.md) in the repo for the function-by-function map.
