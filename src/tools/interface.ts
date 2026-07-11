@@ -3,22 +3,31 @@ import { Express } from 'express';
 
 type StoredCallback = (args: any, ctx: any) => CallToolResult | InputRequiredResult | Promise<CallToolResult | InputRequiredResult>;
 
+export interface ServerOptions {
+    serverHost: string;
+}
+
 export abstract class ToolHandler {
     server: McpServer;
     context: McpRequestContext
     expressApp: Express;
     toolSet: ToolHandler[] = [];
+    serverOptions: ServerOptions;
     protected tools = new Map<string, { cb: StoredCallback; inputSchema?: unknown }>();
-    constructor(server: McpServer, context: McpRequestContext, expressApp: Express) {
+    constructor(server: McpServer, context: McpRequestContext, expressApp: Express, serverOptions: ServerOptions) {
         this.server = server;
         this.context = context;
         this.expressApp = expressApp;
+        this.serverOptions = serverOptions;
     }
 
     abstract register(allTools: ToolHandler[]): Promise<void>
 
     getTool(name: string): { cb: StoredCallback; inputSchema?: unknown } | undefined {
         return this.tools.get(name);
+    }
+    listTools(): Readonly<Record<string, Readonly<{ cb: Readonly<StoredCallback>; inputSchema?: unknown }>>> {
+        return Object.freeze(Object.fromEntries(this.tools.entries()));
     }
 
     protected registerTool<S extends StandardSchemaWithJSON>(

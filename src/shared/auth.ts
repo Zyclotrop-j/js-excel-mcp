@@ -23,7 +23,7 @@ let _db: InstanceType<typeof Database> | null = null;
 
 function getDatabase(): InstanceType<typeof Database> {
     if (!_db) {
-        _db = new Database('data/auth.db');
+        _db = new Database('data/_auth.db');
         initializeSchema(_db);
     }
     return _db;

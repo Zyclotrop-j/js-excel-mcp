@@ -8,7 +8,19 @@
     "build": "tsc",
     "dev": "tsx src/index.ts",
     "start": "node dist/index.js",
-    "watch": "tsc --watch"
+    "watch": "tsc --watch",
+    "pm2:start": "pm2 start ecosystem.config.cjs",
+    "pm2:stop": "pm2 delete js-excel-mcp",
+    "pm2:restart": "pm2 restart js-excel-mcp",
+    "pm2:logs": "pm2 logs js-excel-mcp --lines 20 --nostream",
+    "pm2:status": "pm2 list",
+    "test": "tsx test/run.ts",
+    "test:unit": "tsx test/run.ts",
+    "test:integration": "tsx test/run-integration.ts",
+    "test:e2e": "tsx test/run-e2e.ts",
+    "test:property": "tsx test/run-property.ts",
+    "test:mutation": "npx stryker run",
+    "coverage": "npx c8 tsx test/run.ts"
   },
   "keywords": [
     "mcp",
@@ -36,10 +48,15 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@stryker-mutator/core": "^9.6.1",
+    "@stryker-mutator/typescript-checker": "^9.6.1",
     "@types/better-sqlite3": "^7.6.13",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^25.9.1",
+    "baretest": "^2.0.0",
+    "fast-check": "^4.9.0",
+    "pm2": "^7.0.3",
     "tsx": "^4.22.3",
     "typescript": "^6.0.3"
   }

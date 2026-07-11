@@ -158,7 +158,7 @@ export class WorkbookTools extends ToolHandler {
                 await context.delete(filename);
             }
 
-            const downloadUrl = `/download/${filename}/${key}`;
+            const downloadUrl = `${this.serverOptions.serverHost}/download/${filename}/${key}`;
             const response = await context.contextualiseResponse({
                 content: [{ type: 'text', text: `file available for download at '${downloadUrl}' until ${ttl}` }],
                 structuredContent: {

@@ -11,11 +11,13 @@ import { ToolHandler } from './tools/interface.js';
 import { mcpDescription, mcpInstructions, mcpName, mcpTitle, mcpVersion } from './meta/mcpdescription.js';
 
 const port = 3000;
+const basehost = process.env.MCP_BASEHOST ?? 'http://localhost';
 const AUTH_PORT = process.env.MCP_AUTH_PORT ? Number.parseInt(process.env.MCP_AUTH_PORT, 10) : port + 1;
+const baseUrl = `${basehost}:${port}`;
 // localhost (not `localhost`) so the PRM `resource` value matches the URL the
 // runner passes the client byte-for-byte — the SDK auth driver enforces that.
-const mcpServerUrl = new URL(`http://localhost:${port}/mcp`);
-const authServerUrl = new URL(`http://localhost:${AUTH_PORT}`)
+const mcpServerUrl = new URL(`${basehost}:${port}/mcp`);
+const authServerUrl = new URL(`${basehost}:${AUTH_PORT}`)
 
 const app = createMcpExpressApp();
 
@@ -51,7 +53,7 @@ const handler = createMcpHandler((context) => {
 
     const toolSet: ToolHandler[] = [];
     for(const Tool  of Object.values(tools)) {
-        const   t = new Tool(server, context, app);
+        const   t = new Tool(server, context, app, {serverHost: baseUrl});
         toolSet.push(t);
         t.register(toolSet);
     }
