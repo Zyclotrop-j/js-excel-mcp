@@ -9,7 +9,7 @@ export class PrintHandler extends ToolHandler {
     async register(allTools: ToolHandler[]): Promise<void> {
         this.toolSet = allTools;
 
-        const context = Context.getContext((this.context.authInfo?.extra?.userId as string) ?? 'public');
+        const context = await Context.getContext((this.context.authInfo?.extra?.userId as string) ?? 'public');
 
         this.registerTool('set_print_area', { description: 'set the print area for a worksheet', inputSchema: z.object({
             workbook: z.string().optional(),

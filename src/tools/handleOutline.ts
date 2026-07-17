@@ -9,7 +9,7 @@ export class OutlineHandler extends ToolHandler {
     async register(allTools: ToolHandler[]): Promise<void> {
         this.toolSet = allTools;
 
-        const context = Context.getContext((this.context.authInfo?.extra?.userId as string) ?? 'public');
+        const context = await Context.getContext((this.context.authInfo?.extra?.userId as string) ?? 'public');
 
         this.registerTool('group_rows', { description: 'group a range of rows together so they can be collapsed/expanded', inputSchema: z.object({
             workbook: z.string().optional(),

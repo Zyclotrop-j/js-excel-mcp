@@ -9,7 +9,7 @@ export class SheetOpsHandler extends ToolHandler {
     async register(allTools: ToolHandler[]): Promise<void> {
         this.toolSet = allTools;
 
-        const context = Context.getContext((this.context.authInfo?.extra?.userId as string) ?? 'public');
+        const context = await Context.getContext((this.context.authInfo?.extra?.userId as string) ?? 'public');
 
         this.registerTool('copy_sheet', { description: 'duplicate a worksheet in a workbook', inputSchema: z.object({
             workbook: z.string().optional(),

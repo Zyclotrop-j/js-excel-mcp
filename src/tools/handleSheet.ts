@@ -7,7 +7,7 @@ export class SheetHandler extends ToolHandler {
     async register(allTools: ToolHandler[]): Promise<void> {
         this.toolSet = allTools;
 
-        const context = Context.getContext((this.context.authInfo?.extra?.userId as string) ?? 'public');
+        const context = await Context.getContext((this.context.authInfo?.extra?.userId as string) ?? 'public');
 
         this.registerTool('create_sheet', { description: 'create a new worksheet in a workbook', inputSchema: z.object({
             workbook: z.string().optional(),

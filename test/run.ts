@@ -6,6 +6,8 @@
  * Each test module is a function that registers tests on a shared baretest instance.
  */
 import baretest from 'baretest';
+import { DatabaseBackend } from '../src/filesystem/databaseBackend.js';
+import { MemoryBackend } from '../src/filesystem/memoryBackend.js';
 
 // Create the test suite
 const test = baretest('Excel MCP Tests');
@@ -14,11 +16,16 @@ const test = baretest('Excel MCP Tests');
 import vfsTests from './filesystem/system.test.js';
 import contextTests from './filesystem/context.test.js';
 import metaTests from './meta/mcpdescription.test.js';
+import interfaceTests from './filesystem/IDatabaseBackend.test.js';
+import rateLimitingTests from './filesystem/rateLimiting.test.js';
 
 // Register tests with shared instance
 vfsTests(test);
 contextTests(test);
 metaTests(test);
+interfaceTests(test, 'DatabaseBackend', (dbPath) => new DatabaseBackend(dbPath));
+interfaceTests(test, 'MemoryBackend', (dbPath) => new MemoryBackend(dbPath));
+rateLimitingTests(test);
 
 // Run all registered tests
 !(async function() {

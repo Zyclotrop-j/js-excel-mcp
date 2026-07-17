@@ -1,6 +1,7 @@
 import { Context } from '../../src/filesystem/context.js';
 import { randomUUID } from 'node:crypto';
 import { existsSync, unlinkSync } from 'node:fs';
+import { run } from '../../src/util/requestContext.js';
 
 export interface TestContext extends Context {
     readonly userId: string;
@@ -11,19 +12,20 @@ export interface TestContext extends Context {
  * Creates an isolated test context backed by a temp SQLite database.
  * Call cleanup() in a finally block to remove the temp DB.
  */
-export function createTestContext(userId?: string): TestContext {
+export async function createTestContext(userId?: string): Promise<TestContext> {
     const id = userId ?? `test-${randomUUID()}`;
-    const context = Context.getContext(id);
 
-    return Object.assign(context, {
+    const ctx = await run(async () => await Context.getContext(id));
+
+    return Object.assign(ctx, {
         userId: id,
         async cleanup() {
             // Clear all KV state for this user
-            const file = await context.getCurrentFile();
+            const file = await ctx.getCurrentFile();
             if (file) {
-                try { await context.delete(file); } catch { /* ignore */ }
+                try { await ctx.delete(file); } catch { /* ignore */ }
             }
-            Context.contextCache.delete(id);
+            await ctx.virtualFileSystem.release();
 
             const dbPath = `data/${id}.db`;
             try {

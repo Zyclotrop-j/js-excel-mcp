@@ -11,7 +11,7 @@ export class CellCursorHandler extends ToolHandler {
     async register(allTools: ToolHandler[]): Promise<void> {
         this.toolSet = allTools;
 
-        const context = Context.getContext((this.context.authInfo?.extra?.userId as string) ?? 'public');
+        const context = await Context.getContext((this.context.authInfo?.extra?.userId as string) ?? 'public');
 
         this.registerTool('move_cell_cursor', { description: 'move the cell cursor through a sequence of moves. Each move is either a step in a direction with a stopping condition (fixed count, blank, error, value compare, regex, date compare), a jump to a specific target cell, or a jump-to-original that returns to the cell the cursor was on when this tool call started. Step moves can carry an optional `max` cap, so a condition-stopped move will abort after `max` cells if it hasn\'t fired yet (useful for "move until blank, but at most 100 cells"). Every traversed cell is reported with its stop reason.', inputSchema: z.object({
             workbook: z.string().optional(),

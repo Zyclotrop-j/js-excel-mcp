@@ -11,7 +11,7 @@ export class WorkbookTools extends ToolHandler {
         this.toolSet = allTools;
 
         console.log(`User is ${this.context.authInfo?.extra?.userId}`);
-        const context = Context.getContext((this.context.authInfo?.extra?.userId as string) ?? 'public');
+        const context = await Context.getContext((this.context.authInfo?.extra?.userId as string) ?? 'public');
 
         this.registerTool('create_new_workbook', { description: 'make new excel workbook and open it', inputSchema: z.object({
             filename: z.string()

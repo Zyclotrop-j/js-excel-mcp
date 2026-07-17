@@ -9,7 +9,7 @@ export class ImageHandler extends ToolHandler {
     async register(allTools: ToolHandler[]): Promise<void> {
         this.toolSet = allTools;
 
-        const context = Context.getContext((this.context.authInfo?.extra?.userId as string) ?? 'public');
+        const context = await Context.getContext((this.context.authInfo?.extra?.userId as string) ?? 'public');
 
         this.registerTool('insert_image', { description: 'fetch an image from a URL and insert it into a worksheet at a cell anchor', inputSchema: z.object({
             workbook: z.string().optional(),

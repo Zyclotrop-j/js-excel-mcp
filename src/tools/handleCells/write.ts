@@ -11,7 +11,7 @@ export class CellWriteHandler extends ToolHandler {
     async register(allTools: ToolHandler[]): Promise<void> {
         this.toolSet = allTools;
 
-        const context = Context.getContext((this.context.authInfo?.extra?.userId as string) ?? 'public');
+        const context = await Context.getContext((this.context.authInfo?.extra?.userId as string) ?? 'public');
 
         this.registerTool('set_cell', { description: 'set the content of a cell (string, number, boolean, or null)', inputSchema: z.object({
             workbook: z.string().optional(),

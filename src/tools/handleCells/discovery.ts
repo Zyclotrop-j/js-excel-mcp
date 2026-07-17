@@ -525,7 +525,7 @@ export class CellDiscoveryHandler extends ToolHandler {
     async register(allTools: ToolHandler[]): Promise<void> {
         this.toolSet = allTools;
 
-        const context = Context.getContext((this.context.authInfo?.extra?.userId as string) ?? 'public');
+        const context = await Context.getContext((this.context.authInfo?.extra?.userId as string) ?? 'public');
 
         const samplingCtxFrom = (reqCtx: unknown): SamplingCtx => {
             const m = (reqCtx as { mcpReq?: { requestSampling?: unknown; inputResponses?: Record<string, unknown> } })?.mcpReq;

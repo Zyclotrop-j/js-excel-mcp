@@ -7,7 +7,7 @@ export class NamedRangeHandler extends ToolHandler {
     async register(allTools: ToolHandler[]): Promise<void> {
         this.toolSet = allTools;
 
-        const context = Context.getContext((this.context.authInfo?.extra?.userId as string) ?? 'public');
+        const context = await Context.getContext((this.context.authInfo?.extra?.userId as string) ?? 'public');
 
         this.registerTool('add_named_range', { description: 'define a named range on the workbook', inputSchema: z.object({
             workbook: z.string().optional(),

@@ -8,7 +8,7 @@ export class SetContextHandler extends ToolHandler {
     async register(allTools: ToolHandler[]): Promise<void> {
         this.toolSet = allTools;
 
-        const context = Context.getContext((this.context.authInfo?.extra?.userId as string) ?? 'public');
+        const context = await Context.getContext((this.context.authInfo?.extra?.userId as string) ?? 'public');
 
         this.registerTool('set_context', {
             description: 'set the current workbook, sheet, and/or cell context. each parameter is optional; only the ones provided are updated. the sheet is only set if its workbook is the active one (or being set in the same call), and the cell is only set if its sheet is the active one (or being set in the same call).',

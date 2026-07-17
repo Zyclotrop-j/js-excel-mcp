@@ -8,7 +8,7 @@ export class ConditionalFormatHandler extends ToolHandler {
     async register(allTools: ToolHandler[]): Promise<void> {
         this.toolSet = allTools;
 
-        const context = Context.getContext((this.context.authInfo?.extra?.userId as string) ?? 'public');
+        const context = await Context.getContext((this.context.authInfo?.extra?.userId as string) ?? 'public');
 
         this.registerTool('add_color_scale', { description: 'add a 3-color scale conditional formatting rule to a cell range', inputSchema: z.object({
             workbook: z.string().optional(),

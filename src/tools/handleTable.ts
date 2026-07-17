@@ -8,7 +8,7 @@ export class TableHandler extends ToolHandler {
     async register(allTools: ToolHandler[]): Promise<void> {
         this.toolSet = allTools;
 
-        const context = Context.getContext((this.context.authInfo?.extra?.userId as string) ?? 'public');
+        const context = await Context.getContext((this.context.authInfo?.extra?.userId as string) ?? 'public');
 
         this.registerTool('create_excel_table', { description: 'promote a range to an Excel table', inputSchema: z.object({
             workbook: z.string().optional(),

@@ -3,21 +3,33 @@ import { VirtualFileSystem } from './system.js'
 import type { Workbook } from '@office-kit/xlsx/workbook';
 import { fromArrayBuffer, loadWorkbook, workbookToBytes } from '@office-kit/xlsx/io';
 import z from 'zod';
+import { getContext } from '../util/requestContext.js';
 
 export class Context {
     virtualFileSystem: VirtualFileSystem;
     userId: string;
-    static sharedFs = new VirtualFileSystem('_shared', true);
-    constructor(userid: string) {
-        this.virtualFileSystem = new VirtualFileSystem(userid, false);
+    static sharedFs: VirtualFileSystem;
+    constructor(vfs: VirtualFileSystem, userid: string) {
+        this.virtualFileSystem = vfs;
         this.userId = userid;
     }
-    static contextCache = new Map<string, Context>();
-    static getContext(userid: string) {
-        if(!Context.contextCache.get(userid)) {
-            Context.contextCache.set(userid, new Context(userid));
+    private static sharedFsInitialized = false;
+    static async initSharedFs(): Promise<VirtualFileSystem> {
+        if (!Context.sharedFsInitialized) {
+            Context.sharedFs = await VirtualFileSystem.acquire('_shared', true);
+            Context.sharedFsInitialized = true;
         }
-        return Context.contextCache.get(userid)!;
+        return Context.sharedFs;
+    }
+    static async getContext(userid: string) {
+        const reqCtx = getContext();
+        if(!reqCtx.context) {
+            const vfs = await VirtualFileSystem.acquire(userid, false);
+            reqCtx.virtualFileSystem = vfs;
+            reqCtx.release = async () => { await vfs.release(); };
+            reqCtx.context = new Context(vfs, userid);
+        }
+        return reqCtx.context;
     }
     get(fileName: string) {
         return this.virtualFileSystem.load(fileName)
@@ -42,9 +54,8 @@ export class Context {
             if(currentFile === fileName) {
                 this.virtualFileSystem.erase('currentFile');
             }
-            this.virtualFileSystem.eraseMatching(`currentSheet-${fileName}`);
-            this.virtualFileSystem.eraseMatching(`currentCell-%-${fileName}`);
-            this.virtualFileSystem.eraseMatching(`cache:bands:${fileName}:%`);
+            this.virtualFileSystem.erasePrefix(`${fileName}-`);
+            this.virtualFileSystem.erasePrefix(`cache:bands:${fileName}:`);
         });
     } 
 
@@ -57,30 +68,33 @@ export class Context {
     }
 
     async getCurrentSheet(): Promise<string | null> {
-        return this.virtualFileSystem.recall(`currentSheet-${await this.getCurrentFile()}`);
+        return this.virtualFileSystem.recall(`${await this.getCurrentFile()}-currentSheet`);
     }
     async setCurrentSheet(value: string): Promise<void> {
-        return this.virtualFileSystem.remember(`currentSheet-${await this.getCurrentFile()}`, value);
+        return this.virtualFileSystem.remember(`${await this.getCurrentFile()}-currentSheet`, value);
     }
 
     async getCurrentCell(): Promise<string | null> {
-        return this.virtualFileSystem.recall(`currentCell-${await this.getCurrentSheet()}-${await this.getCurrentFile()}`);
+        return this.virtualFileSystem.recall(`${await this.getCurrentFile()}-${await this.getCurrentSheet()}-currentCell`);
     }
     async setCurrentCell(value: string): Promise<void> {
-        return this.virtualFileSystem.remember(`currentCell-${await this.getCurrentSheet()}-${await this.getCurrentFile()}`, value);
+        return this.virtualFileSystem.remember(`${await this.getCurrentFile()}-${await this.getCurrentSheet()}-currentCell`, value);
     }
 
     async getCurrentState(): Promise<[{type: 'text', text: string}, Record<string, string | null>]> {
+        const now = new Date().toISOString();
         const currentFile = await this.getCurrentFile();
         const currentSheet = await this.getCurrentSheet();
         const currentCell = await this.getCurrentCell();
         return [{ type: 'text', text: `context:
   file: ${currentFile ?? 'no file selected'}
   sheet: ${currentSheet ?? 'no sheet selected'}
-  cell: ${currentCell ?? 'no cell selected'}` }, {
+  cell: ${currentCell ?? 'no cell selected'}
+  asOf: ${now}` }, {
             currentFile,
             currentSheet,
             currentCell,
+            now
             }]
     }
 
@@ -100,14 +114,17 @@ export class Context {
             currentFile: z.string().nullable(),
             currentSheet: z.string().nullable(),
             currentCell: z.string().nullable(),
+            now: z.string(),
         })
     }
 
     static async importFile(name: string, key: string) {
+        await Context.initSharedFs();
         return Context.sharedFs.importFile(name, key);
     }
 
     static async exportFile(name: string, data: Uint8Array) {
+        await Context.initSharedFs();
         return Context.sharedFs.exportFile(name, data);
     }
 

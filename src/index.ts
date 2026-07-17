@@ -1,5 +1,6 @@
 import { McpServer, createMcpHandler } from '@modelcontextprotocol/server';
 import { toNodeHandler } from '@modelcontextprotocol/node';
+import { getContext, run } from './util/requestContext.js';
 
 import { createProtectedResourceMetadataRouter, demoTokenVerifier, setupAuthServer } from './shared/authServer.js';
 import { createMcpExpressApp, getOAuthProtectedResourceMetadataUrl, requireBearerAuth } from '@modelcontextprotocol/express';
@@ -62,7 +63,17 @@ const handler = createMcpHandler((context) => {
 });
 const nodeHandler = toNodeHandler(handler);
 
-app.all('/mcp', auth, (req, res) => void nodeHandler(req, res, req.body));
+app.all('/mcp', auth, async (req, res) => {
+    // request start here
+    await run(async () => {
+        try {
+            await nodeHandler(req, res, req.body);
+        } finally {
+            await getContext()?.release?.();
+        }
+    });
+    // request end here
+});
 
 app.listen(port, () => {
     console.error(`  Protected Resource Metadata: http://localhost:${3000}/.well-known/oauth-protected-resource/mcp`);

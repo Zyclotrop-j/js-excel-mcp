@@ -9,7 +9,7 @@ export class HyperlinkHandler extends ToolHandler {
     async register(allTools: ToolHandler[]): Promise<void> {
         this.toolSet = allTools;
 
-        const context = Context.getContext((this.context.authInfo?.extra?.userId as string) ?? 'public');
+        const context = await Context.getContext((this.context.authInfo?.extra?.userId as string) ?? 'public');
 
         this.registerTool('set_cell_hyperlink', { description: 'set a hyperlink on a cell', inputSchema: z.object({
             workbook: z.string().optional(),

@@ -26,7 +26,7 @@ export class ChainHandler extends ToolHandler {
     async register(allTools: ToolHandler[]): Promise<void> {
         this.toolSet = allTools;
 
-        const context = Context.getContext((this.context.authInfo?.extra?.userId as string) ?? 'public');
+        const context = await Context.getContext((this.context.authInfo?.extra?.userId as string) ?? 'public');
 
         this.registerTool('chain_operations', {
             description: 'dispatch a list of tool-call operations one after another, streaming each step result back as it happens via logging notifications. operations share the sticky file/sheet/cell context, so later steps see state changes from earlier ones.',
