@@ -164,7 +164,4 @@ test('import_workbook_from_url is registered', async () => {
     assert.ok(mockServer.hasTool('import_workbook_from_url'));
 });
 
-export default function registerTests(testInstance: ReturnType<typeof baretest>) {
-    // Tests are registered on the shared baretest instance
-    // This function exists for compatibility with the test runner pattern
-}
+export default test;

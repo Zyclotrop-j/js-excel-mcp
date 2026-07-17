@@ -6,27 +6,27 @@ import baretest from 'baretest';
 import { strict as assert } from 'node:assert';
 import { MockMcpServer, createMockRequestContext } from '../helpers/test-server.js';
 import { createTestContext } from '../helpers/test-context.js';
-import { SheetTools } from '../../src/tools/handleSheet.js';
-import { SheetOpsTools } from '../../src/tools/handleSheetOps.js';
+import { SheetHandler } from '../../src/tools/handleSheet.js';
+import { SheetOpsHandler } from '../../src/tools/handleSheetOps.js';
 
 const test = baretest('Sheet Operations Flow Integration Tests');
 
 let mockServer: MockMcpServer;
 let testContext: ReturnType<typeof createTestContext>;
-let sheetTools: SheetTools;
-let sheetOpsTools: SheetOpsTools;
+let sheetTools: SheetHandler;
+let sheetOpsTools: SheetOpsHandler;
 
 test('setup', async () => {
     mockServer = new MockMcpServer();
     testContext = createTestContext('sheet-ops-flow-test');
     
     // Create SheetTools instance
-    sheetTools = new SheetTools();
+    sheetTools = new SheetHandler();
     sheetTools.server = mockServer as any;
     sheetTools.context = testContext;
     
     // Create SheetOpsTools instance
-    sheetOpsTools = new SheetOpsTools();
+    sheetOpsTools = new SheetOpsHandler();
     sheetOpsTools.server = mockServer as any;
     sheetOpsTools.context = testContext;
     
@@ -235,6 +235,4 @@ test('move_sheet changes sheet position', async () => {
     assert.equal(sheetCIndex, 1); // Should be at index 1 (second position)
 });
 
-export default function registerTests(testInstance: ReturnType<typeof baretest>) {
-    // Tests registered on shared instance
-}
+export default test;

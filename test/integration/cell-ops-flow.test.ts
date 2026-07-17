@@ -6,23 +6,44 @@ import baretest from 'baretest';
 import { strict as assert } from 'node:assert';
 import { MockMcpServer, createMockRequestContext } from '../helpers/test-server.js';
 import { createTestContext } from '../helpers/test-context.js';
-import { CellTools } from '../../src/tools/handleCell.js';
+import { CellReadHandler } from '../../src/tools/handleCells/read.js';
+import { CellWriteHandler } from '../../src/tools/handleCells/write.js';
+import { CellCursorHandler } from '../../src/tools/handleCells/cursor.js';
+import { CellDiscoveryHandler } from '../../src/tools/handleCells/discovery.js';
 
 const test = baretest('Cell Operations Flow Integration Tests');
 
 let mockServer: MockMcpServer;
 let testContext: ReturnType<typeof createTestContext>;
-let cellTools: CellTools;
+let cellReadHandler: CellReadHandler;
+let cellWriteHandler: CellWriteHandler;
+let cellCursorHandler: CellCursorHandler;
+let cellDiscoveryHandler: CellDiscoveryHandler;
 
 test('setup', async () => {
     mockServer = new MockMcpServer();
     testContext = createTestContext('cell-ops-flow-test');
     
-    cellTools = new CellTools();
-    cellTools.server = mockServer as any;
-    cellTools.context = testContext;
-    
-    await cellTools.register([]);
+    cellReadHandler = new CellReadHandler();
+    cellReadHandler.server = mockServer as any;
+    cellReadHandler.context = testContext;
+
+    cellWriteHandler = new CellWriteHandler();
+    cellWriteHandler.server = mockServer as any;
+    cellWriteHandler.context = testContext;
+
+    cellCursorHandler = new CellCursorHandler();
+    cellCursorHandler.server = mockServer as any;
+    cellCursorHandler.context = testContext;
+
+    cellDiscoveryHandler = new CellDiscoveryHandler();
+    cellDiscoveryHandler.server = mockServer as any;
+    cellDiscoveryHandler.context = testContext;
+
+    await cellReadHandler.register([]);
+    await cellWriteHandler.register([]);
+    await cellCursorHandler.register([]);
+    await cellDiscoveryHandler.register([]);
     
     // Create a test workbook
     const workbookTools = await import('../../src/tools/handleWorkbook.js');
@@ -333,6 +354,4 @@ test('move_cell_cursor with UNTIL_ERROR stop condition', async () => {
     assert.equal(result.structuredContent.stopReason, 'ERROR');
 });
 
-export default function registerTests(testInstance: ReturnType<typeof baretest>) {
-    // Tests registered on shared instance
-}
+export default test;
