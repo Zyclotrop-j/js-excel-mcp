@@ -16,6 +16,10 @@ export class MockMcpServer {
         this.registeredTools.set(name, { cb, inputSchema: config.inputSchema, config });
     }
 
+    registerResource(_name: string, _config: Record<string, unknown>): void {
+        // Stub for resource registration - not used in tests
+    }
+
     async sendLoggingMessage(msg: { level: string; logger?: string; data: unknown }): Promise<void> {
         this.sentLogs.push({ level: msg.level, data: msg.data });
     }

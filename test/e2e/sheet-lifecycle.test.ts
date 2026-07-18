@@ -10,6 +10,7 @@ import { WorkbookTools } from '../../src/tools/handleWorkbook.js';
 import { SheetTools } from '../../src/tools/handleSheet.js';
 import { SheetOpsTools } from '../../src/tools/handleSheetOps.js';
 import { CellTools } from '../../src/tools/handleCell.js';
+import { run } from '../../src/util/requestContext.js';
 
 const test = baretest('Sheet Lifecycle E2E');
 
@@ -17,6 +18,7 @@ let mockServer: MockMcpServer;
 let testContext: ReturnType<typeof createTestContext>;
 
 test('setup', async () => {
+    await run(async () => {
     mockServer = new MockMcpServer();
     testContext = createTestContext('sheet-lifecycle-e2e');
 
@@ -41,6 +43,7 @@ test('setup', async () => {
     cellTools.server = mockServer as any;
     cellTools.context = testContext;
     await cellTools.register([]);
+    });
 });
 
 test('teardown', async () => {
@@ -48,6 +51,7 @@ test('teardown', async () => {
 });
 
 test('full sheet lifecycle: create → list → add → select → rename → copy → move → delete', async () => {
+    await run(async () => {
     const ctx = createMockRequestContext('sheet-lifecycle-e2e');
 
     await mockServer.getTool('create_new_workbook').cb({ filename: 'sheet-lifecycle.xlsx' }, ctx);
@@ -100,17 +104,21 @@ test('full sheet lifecycle: create → list → add → select → rename → co
 
     listResult = await mockServer.getTool('list_sheets').cb({}, ctx);
     assert.ok(!listResult.structuredContent.sheets.includes('Sheet1_Backup'));
+    });
 });
 
 test('select non-existent sheet returns error', async () => {
+    await run(async () => {
     const ctx = createMockRequestContext('sheet-lifecycle-e2e');
 
     const result = await mockServer.getTool('select_sheet').cb({ name: 'NoSuchSheet' }, ctx);
     assert.ok(result.content);
     assert.ok(result.content.some((c: any) => c.text.includes('not found') || c.text.includes('error')));
+    });
 });
 
 test('cannot delete the last remaining sheet', async () => {
+    await run(async () => {
     const ctx = createMockRequestContext('sheet-lifecycle-e2e');
 
     await mockServer.getTool('create_new_workbook').cb({ filename: 'last-sheet.xlsx' }, ctx);
@@ -125,6 +133,7 @@ test('cannot delete the last remaining sheet', async () => {
     const result = await mockServer.getTool('delete_sheet').cb({ name: sheets[0] }, ctx);
     assert.ok(result.content);
     assert.ok(result.content.some((c: any) => c.text.includes('cannot delete') || c.text.includes('last sheet') || c.text.includes('error')));
+    });
 });
 
 export default function registerTests(testInstance: ReturnType<typeof baretest>) {

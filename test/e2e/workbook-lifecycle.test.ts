@@ -9,6 +9,7 @@ import { createTestContext } from '../helpers/test-context.js';
 import { WorkbookTools } from '../../src/tools/handleWorkbook.js';
 import { CellTools } from '../../src/tools/handleCell.js';
 import { SheetTools } from '../../src/tools/handleSheet.js';
+import { run } from '../../src/util/requestContext.js';
 
 const test = baretest('Workbook Lifecycle E2E');
 
@@ -16,6 +17,7 @@ let mockServer: MockMcpServer;
 let testContext: ReturnType<typeof createTestContext>;
 
 test('setup', async () => {
+    await run(async () => {
     mockServer = new MockMcpServer();
     testContext = createTestContext('wb-lifecycle-e2e');
 
@@ -35,6 +37,7 @@ test('setup', async () => {
     sheetTools.server = mockServer as any;
     sheetTools.context = testContext;
     await sheetTools.register([]);
+    });
 });
 
 test('teardown', async () => {
@@ -42,6 +45,7 @@ test('teardown', async () => {
 });
 
 test('full lifecycle: create → write data → list → export → close', async () => {
+    await run(async () => {
     const ctx = createMockRequestContext('wb-lifecycle-e2e');
 
     const createResult = await mockServer.getTool('create_new_workbook').cb({ filename: 'lifecycle-e2e.xlsx' }, ctx);
@@ -73,9 +77,11 @@ test('full lifecycle: create → write data → list → export → close', asyn
 
     const listAfterClose = await mockServer.getTool('list_open_workbook').cb({}, ctx);
     assert.ok(!listAfterClose.structuredContent.files.includes('lifecycle-e2e.xlsx'));
+    });
 });
 
 test('export with autoclose removes workbook', async () => {
+    await run(async () => {
     const ctx = createMockRequestContext('wb-lifecycle-e2e');
 
     await mockServer.getTool('create_new_workbook').cb({ filename: 'autoclose-e2e.xlsx' }, ctx);
@@ -85,9 +91,11 @@ test('export with autoclose removes workbook', async () => {
 
     const listResult = await mockServer.getTool('list_open_workbook').cb({}, ctx);
     assert.ok(!listResult.structuredContent.files.includes('autoclose-e2e.xlsx'));
+    });
 });
 
 test('create multiple workbooks and list them all', async () => {
+    await run(async () => {
     const ctx = createMockRequestContext('wb-lifecycle-e2e');
 
     await mockServer.getTool('create_new_workbook').cb({ filename: 'multi-a.xlsx' }, ctx);
@@ -98,22 +106,27 @@ test('create multiple workbooks and list them all', async () => {
     assert.ok(listResult.structuredContent.files.includes('multi-a.xlsx'));
     assert.ok(listResult.structuredContent.files.includes('multi-b.xlsx'));
     assert.ok(listResult.structuredContent.files.includes('multi-c.xlsx'));
+    });
 });
 
 test('close workbook that does not exist returns error', async () => {
+    await run(async () => {
     const ctx = createMockRequestContext('wb-lifecycle-e2e');
 
     const result = await mockServer.getTool('close_workbook').cb({ filename: 'ghost.xlsx' }, ctx);
     assert.ok(result.content);
     assert.ok(result.content.some((c: any) => c.text.includes('not found') || c.text.includes('error')));
+    });
 });
 
 test('export without open workbook returns error', async () => {
+    await run(async () => {
     const ctx = createMockRequestContext('wb-lifecycle-e2e-fresh');
 
     const result = await mockServer.getTool('export_workbook_to_url').cb({}, ctx);
     assert.ok(result.content);
     assert.ok(result.content.some((c: any) => c.text.includes('no workbook is currently open')));
+    });
 });
 
 export default function registerTests(testInstance: ReturnType<typeof baretest>) {

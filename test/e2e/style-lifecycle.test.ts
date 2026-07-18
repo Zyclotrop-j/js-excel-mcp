@@ -9,6 +9,7 @@ import { createTestContext } from '../helpers/test-context.js';
 import { WorkbookTools } from '../../src/tools/handleWorkbook.js';
 import { CellTools } from '../../src/tools/handleCell.js';
 import { StyleHandler } from '../../src/tools/handleStyle.js';
+import { run } from '../../src/util/requestContext.js';
 
 const test = baretest('Style Lifecycle E2E');
 
@@ -16,6 +17,7 @@ let mockServer: MockMcpServer;
 let testContext: ReturnType<typeof createTestContext>;
 
 test('setup', async () => {
+    await run(async () => {
     mockServer = new MockMcpServer();
     testContext = createTestContext('style-lifecycle-e2e');
 
@@ -35,6 +37,7 @@ test('setup', async () => {
     styleHandler.server = mockServer as any;
     styleHandler.context = testContext;
     await styleHandler.register([]);
+    });
 });
 
 test('teardown', async () => {
@@ -42,6 +45,7 @@ test('teardown', async () => {
 });
 
 test('apply bold → verify structured content', async () => {
+    await run(async () => {
     const ctx = createMockRequestContext('style-lifecycle-e2e');
 
     await mockServer.getTool('create_new_workbook').cb({ filename: 'style-lifecycle.xlsx' }, ctx);
@@ -53,9 +57,11 @@ test('apply bold → verify structured content', async () => {
 
     const boldOffResult = await mockServer.getTool('set_cell_bold').cb({ ref: 'A1', bold: false }, ctx);
     assert.equal(boldOffResult.structuredContent.bold, false);
+    });
 });
 
 test('apply font properties', async () => {
+    await run(async () => {
     const ctx = createMockRequestContext('style-lifecycle-e2e');
 
     await mockServer.getTool('set_cell').cb({ cell: 'B1', value: 'Styled Font' }, ctx);
@@ -70,9 +76,11 @@ test('apply font properties', async () => {
     assert.equal(fontResult.structuredContent.fontSize, 14);
     assert.equal(fontResult.structuredContent.fontName, 'Arial');
     assert.equal(fontResult.structuredContent.fontColor, 'FF0000FF');
+    });
 });
 
 test('apply background color', async () => {
+    await run(async () => {
     const ctx = createMockRequestContext('style-lifecycle-e2e');
 
     await mockServer.getTool('set_cell').cb({ cell: 'C1', value: 'Colored Background' }, ctx);
@@ -83,9 +91,11 @@ test('apply background color', async () => {
     }, ctx);
     assert.equal(bgResult.structuredContent.ref, 'C1');
     assert.equal(bgResult.structuredContent.color, 'FFFFFF00');
+    });
 });
 
 test('apply alignment settings', async () => {
+    await run(async () => {
     const ctx = createMockRequestContext('style-lifecycle-e2e');
 
     await mockServer.getTool('set_cell').cb({ cell: 'D1', value: 'Aligned Text' }, ctx);
@@ -100,9 +110,11 @@ test('apply alignment settings', async () => {
     assert.equal(alignResult.structuredContent.horizontal, 'center');
     assert.equal(alignResult.structuredContent.vertical, 'middle');
     assert.equal(alignResult.structuredContent.wrapText, true);
+    });
 });
 
 test('apply border to cell', async () => {
+    await run(async () => {
     const ctx = createMockRequestContext('style-lifecycle-e2e');
 
     await mockServer.getTool('set_cell').cb({ cell: 'E1', value: 'Bordered' }, ctx);
@@ -115,9 +127,11 @@ test('apply border to cell', async () => {
     assert.equal(borderResult.structuredContent.ref, 'E1');
     assert.equal(borderResult.structuredContent.borderStyle, 'thin');
     assert.equal(borderResult.structuredContent.sides, 'all');
+    });
 });
 
 test('chain multiple styles on one cell', async () => {
+    await run(async () => {
     const ctx = createMockRequestContext('style-lifecycle-e2e');
 
     await mockServer.getTool('set_cell').cb({ cell: 'F1', value: 'Fully Styled' }, ctx);
@@ -130,6 +144,7 @@ test('chain multiple styles on one cell', async () => {
 
     const getResult = await mockServer.getTool('get_cell').cb({ cell: 'F1' }, ctx);
     assert.equal(getResult.structuredContent.value, 'Fully Styled');
+    });
 });
 
 test('style operations use current cell when no ref given', async () => {

@@ -8,6 +8,7 @@ import { strict as assert } from 'node:assert';
 import { MockMcpServer, createMockRequestContext } from '../helpers/test-server.js';
 import { createTestContext } from '../helpers/test-context.js';
 import { WorkbookTools } from '../../src/tools/handleWorkbook.js';
+import { run } from '../../src/util/requestContext.js';
 
 const test = baretest('Auth Flow Integration Tests');
 
@@ -42,140 +43,146 @@ test('createMockRequestContext accepts different user IDs', async () => {
 });
 
 test('user isolation: user A workbook is not visible to user B', async () => {
-    const contextA = await createTestContext('auth-user-a');
-    const contextB = await createTestContext('auth-user-b');
+    await run(async () => {
+        const contextA = await createTestContext('auth-user-a');
+        const contextB = await createTestContext('auth-user-b');
 
-    try {
-        // Set up tools for user A
-        const serverA = new MockMcpServer();
-        const wbToolsA = new WorkbookTools();
-        wbToolsA.server = serverA as any;
-        wbToolsA.context = contextA;
-        wbToolsA.expressApp = { get: () => {}, post: () => {} } as any;
-        wbToolsA.serverOptions = { serverHost: 'http://localhost:3000' };
-        await wbToolsA.register([]);
+        try {
+            // Set up tools for user A
+            const serverA = new MockMcpServer();
+            const wbToolsA = new WorkbookTools();
+            wbToolsA.server = serverA as any;
+            wbToolsA.context = contextA;
+            wbToolsA.expressApp = { get: () => {}, post: () => {} } as any;
+            wbToolsA.serverOptions = { serverHost: 'http://localhost:3000' };
+            await wbToolsA.register([]);
 
-        // Set up tools for user B
-        const serverB = new MockMcpServer();
-        const wbToolsB = new WorkbookTools();
-        wbToolsB.server = serverB as any;
-        wbToolsB.context = contextB;
-        wbToolsB.expressApp = { get: () => {}, post: () => {} } as any;
-        wbToolsB.serverOptions = { serverHost: 'http://localhost:3000' };
-        await wbToolsB.register([]);
+            // Set up tools for user B
+            const serverB = new MockMcpServer();
+            const wbToolsB = new WorkbookTools();
+            wbToolsB.server = serverB as any;
+            wbToolsB.context = contextB;
+            wbToolsB.expressApp = { get: () => {}, post: () => {} } as any;
+            wbToolsB.serverOptions = { serverHost: 'http://localhost:3000' };
+            await wbToolsB.register([]);
 
-        const ctxA = createMockRequestContext('auth-user-a');
-        const ctxB = createMockRequestContext('auth-user-b');
+            const ctxA = createMockRequestContext('auth-user-a');
+            const ctxB = createMockRequestContext('auth-user-b');
 
-        // User A creates a workbook
-        const createToolA = serverA.getTool('create_new_workbook');
-        await createToolA.cb({ filename: 'alice-private.xlsx' }, ctxA);
+            // User A creates a workbook
+            const createToolA = serverA.getTool('create_new_workbook');
+            await createToolA.cb({ filename: 'alice-private.xlsx' }, ctxA);
 
-        // User A sees their workbook
-        const listToolA = serverA.getTool('list_open_workbook');
-        const listA = await listToolA.cb({}, ctxA);
-        assert.ok(listA.structuredContent.files.includes('alice-private.xlsx'));
+            // User A sees their workbook
+            const listToolA = serverA.getTool('list_open_workbook');
+            const listA = await listToolA.cb({}, ctxA);
+            assert.ok(listA.structuredContent.files.includes('alice-private.xlsx'));
 
-        // User B does NOT see user A's workbook
-        const listToolB = serverB.getTool('list_open_workbook');
-        const listB = await listToolB.cb({}, ctxB);
-        assert.ok(!listB.structuredContent.files.includes('alice-private.xlsx'));
-        assert.equal(listB.structuredContent.files.length, 0);
-    } finally {
-        await contextA.cleanup();
-        await contextB.cleanup();
-    }
+            // User B does NOT see user A's workbook
+            const listToolB = serverB.getTool('list_open_workbook');
+            const listB = await listToolB.cb({}, ctxB);
+            assert.ok(!listB.structuredContent.files.includes('alice-private.xlsx'));
+            assert.equal(listB.structuredContent.files.length, 0);
+        } finally {
+            await contextA.cleanup();
+            await contextB.cleanup();
+        }
+    });
 });
 
 test('user isolation: each user has independent current file', async () => {
-    const contextA = await createTestContext('auth-isolation-a');
-    const contextB = await createTestContext('auth-isolation-b');
+    await run(async () => {
+        const contextA = await createTestContext('auth-isolation-a');
+        const contextB = await createTestContext('auth-isolation-b');
 
-    try {
-        const serverA = new MockMcpServer();
-        const wbToolsA = new WorkbookTools();
-        wbToolsA.server = serverA as any;
-        wbToolsA.context = contextA;
-        wbToolsA.expressApp = { get: () => {}, post: () => {} } as any;
-        wbToolsA.serverOptions = { serverHost: 'http://localhost:3000' };
-        await wbToolsA.register([]);
+        try {
+            const serverA = new MockMcpServer();
+            const wbToolsA = new WorkbookTools();
+            wbToolsA.server = serverA as any;
+            wbToolsA.context = contextA;
+            wbToolsA.expressApp = { get: () => {}, post: () => {} } as any;
+            wbToolsA.serverOptions = { serverHost: 'http://localhost:3000' };
+            await wbToolsA.register([]);
 
-        const serverB = new MockMcpServer();
-        const wbToolsB = new WorkbookTools();
-        wbToolsB.server = serverB as any;
-        wbToolsB.context = contextB;
-        wbToolsB.expressApp = { get: () => {}, post: () => {} } as any;
-        wbToolsB.serverOptions = { serverHost: 'http://localhost:3000' };
-        await wbToolsB.register([]);
+            const serverB = new MockMcpServer();
+            const wbToolsB = new WorkbookTools();
+            wbToolsB.server = serverB as any;
+            wbToolsB.context = contextB;
+            wbToolsB.expressApp = { get: () => {}, post: () => {} } as any;
+            wbToolsB.serverOptions = { serverHost: 'http://localhost:3000' };
+            await wbToolsB.register([]);
 
-        const ctxA = createMockRequestContext('auth-isolation-a');
-        const ctxB = createMockRequestContext('auth-isolation-b');
+            const ctxA = createMockRequestContext('auth-isolation-a');
+            const ctxB = createMockRequestContext('auth-isolation-b');
 
-        // User A creates workbook A
-        const createA = serverA.getTool('create_new_workbook');
-        await createA.cb({ filename: 'file-a.xlsx' }, ctxA);
+            // User A creates workbook A
+            const createA = serverA.getTool('create_new_workbook');
+            await createA.cb({ filename: 'file-a.xlsx' }, ctxA);
 
-        // User B creates workbook B
-        const createB = serverB.getTool('create_new_workbook');
-        await createB.cb({ filename: 'file-b.xlsx' }, ctxB);
+            // User B creates workbook B
+            const createB = serverB.getTool('create_new_workbook');
+            await createB.cb({ filename: 'file-b.xlsx' }, ctxB);
 
-        // Each user's current file is their own
-        const currentA = await contextA.getCurrentFile();
-        const currentB = await contextB.getCurrentFile();
-        assert.equal(currentA, 'file-a.xlsx');
-        assert.equal(currentB, 'file-b.xlsx');
-    } finally {
-        await contextA.cleanup();
-        await contextB.cleanup();
-    }
+            // Each user's current file is their own
+            const currentA = await contextA.getCurrentFile();
+            const currentB = await contextB.getCurrentFile();
+            assert.equal(currentA, 'file-a.xlsx');
+            assert.equal(currentB, 'file-b.xlsx');
+        } finally {
+            await contextA.cleanup();
+            await contextB.cleanup();
+        }
+    });
 });
 
 test('user isolation: closing a workbook for user A does not affect user B', async () => {
-    const contextA = await createTestContext('auth-close-a');
-    const contextB = await createTestContext('auth-close-b');
+    await run(async () => {
+        const contextA = await createTestContext('auth-close-a');
+        const contextB = await createTestContext('auth-close-b');
 
-    try {
-        const serverA = new MockMcpServer();
-        const wbToolsA = new WorkbookTools();
-        wbToolsA.server = serverA as any;
-        wbToolsA.context = contextA;
-        wbToolsA.expressApp = { get: () => {}, post: () => {} } as any;
-        wbToolsA.serverOptions = { serverHost: 'http://localhost:3000' };
-        await wbToolsA.register([]);
+        try {
+            const serverA = new MockMcpServer();
+            const wbToolsA = new WorkbookTools();
+            wbToolsA.server = serverA as any;
+            wbToolsA.context = contextA;
+            wbToolsA.expressApp = { get: () => {}, post: () => {} } as any;
+            wbToolsA.serverOptions = { serverHost: 'http://localhost:3000' };
+            await wbToolsA.register([]);
 
-        const serverB = new MockMcpServer();
-        const wbToolsB = new WorkbookTools();
-        wbToolsB.server = serverB as any;
-        wbToolsB.context = contextB;
-        wbToolsB.expressApp = { get: () => {}, post: () => {} } as any;
-        wbToolsB.serverOptions = { serverHost: 'http://localhost:3000' };
-        await wbToolsB.register([]);
+            const serverB = new MockMcpServer();
+            const wbToolsB = new WorkbookTools();
+            wbToolsB.server = serverB as any;
+            wbToolsB.context = contextB;
+            wbToolsB.expressApp = { get: () => {}, post: () => {} } as any;
+            wbToolsB.serverOptions = { serverHost: 'http://localhost:3000' };
+            await wbToolsB.register([]);
 
-        const ctxA = createMockRequestContext('auth-close-a');
-        const ctxB = createMockRequestContext('auth-close-b');
+            const ctxA = createMockRequestContext('auth-close-a');
+            const ctxB = createMockRequestContext('auth-close-b');
 
-        // Both users create workbooks
-        const createA = serverA.getTool('create_new_workbook');
-        await createA.cb({ filename: 'a-wb.xlsx' }, ctxA);
+            // Both users create workbooks
+            const createA = serverA.getTool('create_new_workbook');
+            await createA.cb({ filename: 'a-wb.xlsx' }, ctxA);
 
-        const createB = serverB.getTool('create_new_workbook');
-        await createB.cb({ filename: 'b-wb.xlsx' }, ctxB);
+            const createB = serverB.getTool('create_new_workbook');
+            await createB.cb({ filename: 'b-wb.xlsx' }, ctxB);
 
-        // User A closes their workbook
-        const closeA = serverA.getTool('close_workbook');
-        await closeA.cb({ filename: 'a-wb.xlsx' }, ctxA);
+            // User A closes their workbook
+            const closeA = serverA.getTool('close_workbook');
+            await closeA.cb({ filename: 'a-wb.xlsx' }, ctxA);
 
-        // User A's workbook is gone
-        const listA = await serverA.getTool('list_open_workbook').cb({}, ctxA);
-        assert.ok(!listA.structuredContent.files.includes('a-wb.xlsx'));
+            // User A's workbook is gone
+            const listA = await serverA.getTool('list_open_workbook').cb({}, ctxA);
+            assert.ok(!listA.structuredContent.files.includes('a-wb.xlsx'));
 
-        // User B's workbook is unaffected
-        const listB = await serverB.getTool('list_open_workbook').cb({}, ctxB);
-        assert.ok(listB.structuredContent.files.includes('b-wb.xlsx'));
-    } finally {
-        await contextA.cleanup();
-        await contextB.cleanup();
-    }
+            // User B's workbook is unaffected
+            const listB = await serverB.getTool('list_open_workbook').cb({}, ctxB);
+            assert.ok(listB.structuredContent.files.includes('b-wb.xlsx'));
+        } finally {
+            await contextA.cleanup();
+            await contextB.cleanup();
+        }
+    });
 });
 
 test('token structure: authInfo contains required fields', async () => {
@@ -197,69 +204,73 @@ test('token validation: different tokens are independent', async () => {
 });
 
 test('user isolation: many users can operate concurrently', async () => {
-    const userIds = ['concurrent-1', 'concurrent-2', 'concurrent-3', 'concurrent-4'];
-    const contexts = await Promise.all(userIds.map(id => createTestContext(id)));
+    await run(async () => {
+        const userIds = ['concurrent-1', 'concurrent-2', 'concurrent-3', 'concurrent-4'];
+        const contexts = await Promise.all(userIds.map(id => createTestContext(id)));
 
-    try {
-        const servers = contexts.map(() => new MockMcpServer());
+        try {
+            const servers = contexts.map(() => new MockMcpServer());
 
-        // Register workbook tools for each user
-        for (let i = 0; i < contexts.length; i++) {
-            const wbTools = new WorkbookTools();
-            wbTools.server = servers[i] as any;
-            wbTools.context = contexts[i];
-            wbTools.expressApp = { get: () => {}, post: () => {} } as any;
-            wbTools.serverOptions = { serverHost: 'http://localhost:3000' };
-            await wbTools.register([]);
+            // Register workbook tools for each user
+            for (let i = 0; i < contexts.length; i++) {
+                const wbTools = new WorkbookTools();
+                wbTools.server = servers[i] as any;
+                wbTools.context = contexts[i];
+                wbTools.expressApp = { get: () => {}, post: () => {} } as any;
+                wbTools.serverOptions = { serverHost: 'http://localhost:3000' };
+                await wbTools.register([]);
+            }
+
+            // Each user creates a uniquely-named workbook
+            for (let i = 0; i < userIds.length; i++) {
+                const ctx = createMockRequestContext(userIds[i]);
+                const createTool = servers[i].getTool('create_new_workbook');
+                await createTool.cb({ filename: `user-${userIds[i]}.xlsx` }, ctx);
+            }
+
+            // Each user only sees their own workbook
+            for (let i = 0; i < userIds.length; i++) {
+                const ctx = createMockRequestContext(userIds[i]);
+                const listTool = servers[i].getTool('list_open_workbook');
+                const result = await listTool.cb({}, ctx);
+
+                assert.equal(result.structuredContent.files.length, 1);
+                assert.ok(result.structuredContent.files.includes(`user-${userIds[i]}.xlsx`));
+            }
+        } finally {
+            await Promise.all(contexts.map(c => c.cleanup()));
         }
-
-        // Each user creates a uniquely-named workbook
-        for (let i = 0; i < userIds.length; i++) {
-            const ctx = createMockRequestContext(userIds[i]);
-            const createTool = servers[i].getTool('create_new_workbook');
-            await createTool.cb({ filename: `user-${userIds[i]}.xlsx` }, ctx);
-        }
-
-        // Each user only sees their own workbook
-        for (let i = 0; i < userIds.length; i++) {
-            const ctx = createMockRequestContext(userIds[i]);
-            const listTool = servers[i].getTool('list_open_workbook');
-            const result = await listTool.cb({}, ctx);
-
-            assert.equal(result.structuredContent.files.length, 1);
-            assert.ok(result.structuredContent.files.includes(`user-${userIds[i]}.xlsx`));
-        }
-    } finally {
-        await Promise.all(contexts.map(c => c.cleanup()));
-    }
+    });
 });
 
 test('auth context passed through to tool callbacks', async () => {
-    const context = await createTestContext('auth-context-pass');
+    await run(async () => {
+        const context = await createTestContext('auth-context-pass');
 
-    try {
-        const server = new MockMcpServer();
-        const wbTools = new WorkbookTools();
-        wbTools.server = server as any;
-        wbTools.context = context;
-        wbTools.expressApp = { get: () => {}, post: () => {} } as any;
-        wbTools.serverOptions = { serverHost: 'http://localhost:3000' };
-        await wbTools.register([]);
+        try {
+            const server = new MockMcpServer();
+            const wbTools = new WorkbookTools();
+            wbTools.server = server as any;
+            wbTools.context = context;
+            wbTools.expressApp = { get: () => {}, post: () => {} } as any;
+            wbTools.serverOptions = { serverHost: 'http://localhost:3000' };
+            await wbTools.register([]);
 
-        const ctx = createMockRequestContext('auth-context-pass');
-        const createTool = server.getTool('create_new_workbook');
-        const result = await createTool.cb({ filename: 'ctx-pass.xlsx' }, ctx);
+            const ctx = createMockRequestContext('auth-context-pass');
+            const createTool = server.getTool('create_new_workbook');
+            const result = await createTool.cb({ filename: 'ctx-pass.xlsx' }, ctx);
 
-        // The tool executed using the context's userId
-        assert.equal(result.structuredContent.filename, 'ctx-pass.xlsx');
-        assert.equal(result.structuredContent.status, 'created');
+            // The tool executed using the context's userId
+            assert.equal(result.structuredContent.filename, 'ctx-pass.xlsx');
+            assert.equal(result.structuredContent.status, 'created');
 
-        // Verify the context is bound to the correct user
-        const currentFile = await context.getCurrentFile();
-        assert.equal(currentFile, 'ctx-pass.xlsx');
-    } finally {
-        await context.cleanup();
-    }
+            // Verify the context is bound to the correct user
+            const currentFile = await context.getCurrentFile();
+            assert.equal(currentFile, 'ctx-pass.xlsx');
+        } finally {
+            await context.cleanup();
+        }
+    });
 });
 
 export default function registerTests(testInstance: ReturnType<typeof baretest>) {

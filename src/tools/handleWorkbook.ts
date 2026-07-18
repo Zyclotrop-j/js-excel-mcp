@@ -1,5 +1,5 @@
 import { ToolHandler } from './interface.js';
-import {createWorkbook, sheetNames } from '@office-kit/xlsx/workbook';
+import {addWorksheet, createWorkbook, sheetNames } from '@office-kit/xlsx/workbook';
 import { fromResponse, loadWorkbook } from '@office-kit/xlsx/io';
 import { ResourceTemplate } from '@modelcontextprotocol/server';
 import z from 'zod';
@@ -14,7 +14,11 @@ export class WorkbookTools extends ToolHandler {
         const context = await Context.getContext((this.context.authInfo?.extra?.userId as string) ?? 'public');
 
         this.registerTool('create_new_workbook', { description: 'make new excel workbook and open it', inputSchema: z.object({
-            filename: z.string()
+            filename: z.string(),
+            createDefaultWorksheet: z.union([
+                z.literal(false),
+                z.string(),
+            ]).default('Sheet1').meta({description: "Specify the sheet default sheet's name or pass false to create the workbook without a default sheet")
         }), outputSchema: z.object({
             filename: z.string(),
             status: z.string(),
@@ -31,8 +35,13 @@ export class WorkbookTools extends ToolHandler {
             await context.setWorkbook(arg.filename, wb);
             context.setCurrentFile(arg.filename);
 
+            if(arg.createDefaultWorksheet) {
+                addWorksheet(wb, arg.createDefaultWorksheet);
+                await context.setCurrentSheet(arg.createDefaultWorksheet);
+            }
+
             return context.contextualiseResponse({
-                content: [{ type: 'text', text: `new workbook '${arg.filename}' created and set active`},
+                content: [{ type: 'text', text: `new workbook '${arg.filename}' created and set active${arg.createDefaultWorksheet ? ` with default sheet '${arg.createDefaultWorksheet}'` : ''}`},
                           { type: 'resource', resource: { uri: `workbook://${arg.filename}`, mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', text: JSON.stringify({ filename: arg.filename, status: 'created', sheets: sheetNames(wb) }) }}],
                 structuredContent: {
                     filename: arg.filename,
