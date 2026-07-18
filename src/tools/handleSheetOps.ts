@@ -1,7 +1,7 @@
 import { ToolHandler } from './interface.js';
 import { addWorksheet, sheetNames, moveSheet, type SheetRef, type Workbook } from '@office-kit/xlsx/workbook';
-import { getCell, setCell, getMaxRow, getMaxCol, type Worksheet } from '@office-kit/xlsx/worksheet';
-import { cellValueAsString } from '@office-kit/xlsx/cell';
+import { copyRange, getMaxCol, getMaxRow, type Worksheet } from '@office-kit/xlsx/worksheet';
+import { columnLetterFromIndex } from '@office-kit/xlsx/utils';
 import z from 'zod';
 import { Context } from '../filesystem/context.js';
 
@@ -44,17 +44,15 @@ export class SheetOpsHandler extends ToolHandler {
             if (!newSheet || newSheet.kind !== 'worksheet') return context.contextualiseResponse({ content: [{ type: 'text', text: `failed to create new sheet '${arg.newName}'` }], isError: true });
             const targetWs: Worksheet = newSheet.sheet;
 
+            // copyRange shallow-clones every populated cell's `value` + `styleId`
+            // across sheets; since both sheets share this workbook's stylesheet
+            // pool (cellXfs — font/fill/border/alignment/numberFormat), formulas
+            // and styles survive intact. Comments / hyperlinks are NOT carried by
+            // copyRange — see office-kit's copyRange doc.
             const maxRow = getMaxRow(sourceWs);
             const maxCol = getMaxCol(sourceWs);
-
-            for (let row = 1; row <= maxRow; row++) {
-                for (let col = 1; col <= maxCol; col++) {
-                    const cell = getCell(sourceWs, row, col);
-                    if (cell) {
-                        const value = cellValueAsString(cell.value);
-                        setCell(targetWs, row, col, value);
-                    }
-                }
+            if (maxRow > 0 && maxCol > 0) {
+                copyRange(sourceWs, `A1:${columnLetterFromIndex(maxCol)}${maxRow}`, 'A1', { targetWs: targetWs });
             }
 
             await context.setWorkbook(filename, wb);
