@@ -135,6 +135,7 @@ test('delete_comment errors with no open workbook', async () => {
 });
 
 test.after(async () => {
+    if (!testContext) return;
     await (await testContext).cleanup();
 });
 

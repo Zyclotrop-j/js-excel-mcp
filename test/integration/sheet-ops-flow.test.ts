@@ -264,6 +264,9 @@ test('move_sheet changes sheet position', async () => {
 });
 
 test.after(async () => {
+    // Guard: if setup never completed (threw before assigning testContext), baretest's
+    // catch path still invokes after-hooks, so tolerate the undefined here.
+    if (!testContext) return;
     await (await testContext).cleanup();
 });
 

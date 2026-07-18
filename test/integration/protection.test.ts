@@ -131,6 +131,7 @@ test('protect_sheet error when no workbook is open', async () => {
 });
 
 test.after(async () => {
+    if (!testContext) return;
     await (await testContext).cleanup();
 });
 

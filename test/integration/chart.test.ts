@@ -197,6 +197,7 @@ test('add_bar_chart with invalid dataRange fails', async () => {
 });
 
 test.after(async () => {
+    if (!testContext) return;
     await (await testContext).cleanup();
 });
 

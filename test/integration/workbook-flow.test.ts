@@ -29,10 +29,17 @@ test('setup', async () => {
 
         // Register all tools
         await workbookTools.register([]);
+
+        // Force the createTestContext IIFE to finish hydrating the VFS before
+        // setup exits; otherwise test bodies that use the register-captured
+        // Context (syncedCtx) see null virtualFileSystem until the next
+        // microtask drain, racing tool.cb's `context.setWorkbook(...)` call.
+        await testContext;
     });
 });
 
 test.after(async () => {
+    if (!testContext) return;
     await (await testContext).cleanup();
 });
 

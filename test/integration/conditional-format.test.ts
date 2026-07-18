@@ -204,6 +204,7 @@ test('add_color_scale without open workbook (error)', async () => {
 });
 
 test.after(async () => {
+    if (!testContext) return;
     await (await testContext).cleanup();
 });
 

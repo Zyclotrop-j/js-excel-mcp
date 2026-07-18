@@ -228,6 +228,7 @@ test('set_row_height with zero height', async () => {
 });
 
 test.after(async () => {
+    if (!testContext) return;
     await (await testContext).cleanup();
 });
 

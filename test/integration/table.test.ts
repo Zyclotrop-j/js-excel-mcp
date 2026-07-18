@@ -217,6 +217,7 @@ test('add_autofilter with unknown sheet', async () => {
 });
 
 test.after(async () => {
+    if (!testContext) return;
     await (await testContext).cleanup();
 });
 

@@ -199,6 +199,7 @@ test('set_cell_currency errors when no workbook is open', async () => {
 });
 
 test.after(async () => {
+    if (!testContext) return;
     await (await testContext).cleanup();
 });
 

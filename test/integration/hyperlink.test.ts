@@ -116,6 +116,7 @@ test('set_cell_hyperlink errors when url is missing', async () => {
 });
 
 test.after(async () => {
+    if (!testContext) return;
     await (await testContext).cleanup();
 });
 
