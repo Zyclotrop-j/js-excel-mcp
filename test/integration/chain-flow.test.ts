@@ -43,13 +43,12 @@ test('setup', async () => {
 
         const createTool = mockServer.getTool('create_new_workbook');
         const ctx = createMockRequestContext('chain-flow-test');
-        await createTool.cb({ filename: 'chain-test.xlsx' }, ctx);
+        await createTool.cb({ filename: 'chain-test.xlsx', createDefaultWorksheet: 'Sheet1' }, ctx);
     });
 });
 
 test('teardown', async () => {
-    const ctx = await testContext;
-    await ctx.cleanup();
+    await (await testContext).cleanup();
 });
 
 test('chain_operations writes multiple cells sequentially', async () => {
@@ -181,5 +180,6 @@ test('chain_operations continues on error when stopOnError is false', async () =
     });
 });
 
-export default function registerTests(testInstance: ReturnType<typeof baretest>) {
+export default async function () {
+    await test.run();
 }

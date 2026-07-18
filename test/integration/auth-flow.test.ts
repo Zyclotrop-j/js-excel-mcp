@@ -273,6 +273,6 @@ test('auth context passed through to tool callbacks', async () => {
     });
 });
 
-export default function registerTests(testInstance: ReturnType<typeof baretest>) {
-    // Tests registered on shared instance
+export default async function () {
+    await test.run();
 }

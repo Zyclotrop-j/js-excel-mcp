@@ -8,8 +8,8 @@ import { strict as assert } from 'node:assert';
 import { MockMcpServer, createMockRequestContext } from '../helpers/test-server.js';
 import { createTestContext } from '../helpers/test-context.js';
 import { WorkbookTools } from '../../src/tools/handleWorkbook.js';
-import { CellTools } from '../../src/tools/handleCell.js';
-import { SheetTools } from '../../src/tools/handleSheet.js';
+import { CellReadHandler, CellWriteHandler, CellCursorHandler, CellDiscoveryHandler } from '../../src/tools/handleCell.js';
+import { SheetHandler } from '../../src/tools/handleSheet.js';
 import { Context } from '../../src/filesystem/context.js';
 import { run } from '../../src/util/requestContext.js';
 
@@ -31,15 +31,30 @@ test('setup', async () => {
     wbTools.serverOptions = { serverHost: 'http://localhost:3000' };
     await wbTools.register([]);
 
-    const cellTools = new CellTools();
-    cellTools.server = mockServer as any;
-    cellTools.context = testContext;
-    await cellTools.register([]);
+    const cellRead = new CellReadHandler();
+    cellRead.server = mockServer as any;
+    cellRead.context = testContext;
+    await cellRead.register([]);
 
-    const sheetTools = new SheetTools();
-    sheetTools.server = mockServer as any;
-    sheetTools.context = testContext;
-    await sheetTools.register([]);
+    const cellWrite = new CellWriteHandler();
+    cellWrite.server = mockServer as any;
+    cellWrite.context = testContext;
+    await cellWrite.register([]);
+
+    const cellCursor = new CellCursorHandler();
+    cellCursor.server = mockServer as any;
+    cellCursor.context = testContext;
+    await cellCursor.register([]);
+
+    const cellDiscovery = new CellDiscoveryHandler();
+    cellDiscovery.server = mockServer as any;
+    cellDiscovery.context = testContext;
+    await cellDiscovery.register([]);
+
+    const sheetHandler = new SheetHandler();
+    sheetHandler.server = mockServer as any;
+    sheetHandler.context = testContext;
+    await sheetHandler.register([]);
 
     originalFetch = globalThis.fetch;
     });
@@ -47,7 +62,7 @@ test('setup', async () => {
 
 test('teardown', async () => {
     globalThis.fetch = originalFetch;
-    await testContext.cleanup();
+    await (await testContext).cleanup();
 });
 
 test('write cells → read back → data matches', async () => {
@@ -108,7 +123,7 @@ test('export → import roundtrip with mock fetch', async () => {
 
     await mockServer.getTool('close_workbook').cb({ filename: 'export-import.xlsx' }, ctx);
 
-    const fileBytes = await testContext.get('export-import.xlsx');
+    const fileBytes = await (await testContext).get('export-import.xlsx');
 
     globalThis.fetch = async (input: any) => {
         const url = typeof input === 'string' ? input : input.url;
@@ -175,5 +190,6 @@ test('large batch write → range read → data intact', async () => {
     }
 });
 
-export default function registerTests(testInstance: ReturnType<typeof baretest>) {
+export default async function () {
+    await test.run();
 }

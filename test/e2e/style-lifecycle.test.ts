@@ -7,7 +7,7 @@ import { strict as assert } from 'node:assert';
 import { MockMcpServer, createMockRequestContext } from '../helpers/test-server.js';
 import { createTestContext } from '../helpers/test-context.js';
 import { WorkbookTools } from '../../src/tools/handleWorkbook.js';
-import { CellTools } from '../../src/tools/handleCell.js';
+import { CellReadHandler, CellWriteHandler, CellCursorHandler, CellDiscoveryHandler } from '../../src/tools/handleCell.js';
 import { StyleHandler } from '../../src/tools/handleStyle.js';
 import { run } from '../../src/util/requestContext.js';
 
@@ -28,10 +28,25 @@ test('setup', async () => {
     wbTools.serverOptions = { serverHost: 'http://localhost:3000' };
     await wbTools.register([]);
 
-    const cellTools = new CellTools();
-    cellTools.server = mockServer as any;
-    cellTools.context = testContext;
-    await cellTools.register([]);
+    const cellRead = new CellReadHandler();
+    cellRead.server = mockServer as any;
+    cellRead.context = testContext;
+    await cellRead.register([]);
+
+    const cellWrite = new CellWriteHandler();
+    cellWrite.server = mockServer as any;
+    cellWrite.context = testContext;
+    await cellWrite.register([]);
+
+    const cellCursor = new CellCursorHandler();
+    cellCursor.server = mockServer as any;
+    cellCursor.context = testContext;
+    await cellCursor.register([]);
+
+    const cellDiscovery = new CellDiscoveryHandler();
+    cellDiscovery.server = mockServer as any;
+    cellDiscovery.context = testContext;
+    await cellDiscovery.register([]);
 
     const styleHandler = new StyleHandler();
     styleHandler.server = mockServer as any;
@@ -41,7 +56,7 @@ test('setup', async () => {
 });
 
 test('teardown', async () => {
-    await testContext.cleanup();
+    await (await testContext).cleanup();
 });
 
 test('apply bold → verify structured content', async () => {
@@ -152,7 +167,7 @@ test('style operations use current cell when no ref given', async () => {
     const ctx = createMockRequestContext('style-lifecycle-e2e');
 
     await mockServer.getTool('set_cell').cb({ cell: 'G1', value: 'Current Cell Style' }, ctx);
-    await testContext.setCurrentCell('G1');
+    await (await testContext).setCurrentCell('G1');
 
     const boldResult = await mockServer.getTool('set_cell_bold').cb({ bold: true }, ctx);
     assert.equal(boldResult.structuredContent.ref, 'G1');
@@ -160,5 +175,6 @@ test('style operations use current cell when no ref given', async () => {
     });
 });
 
-export default function registerTests(testInstance: ReturnType<typeof baretest>) {
+export default async function () {
+    await test.run();
 }

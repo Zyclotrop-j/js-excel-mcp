@@ -58,12 +58,12 @@ test('setup', async () => {
 
         const createTool = mockServer.getTool('create_new_workbook');
         const ctx = createMockRequestContext('cell-ops-flow-test');
-        await createTool.cb({ filename: 'cell-test.xlsx' }, ctx);
+        await createTool.cb({ filename: 'cell-test.xlsx', createDefaultWorksheet: 'Sheet1' }, ctx);
     });
 });
 
 test('teardown', async () => {
-    await testContext.cleanup();
+    await (await testContext).cleanup();
 });
 
 test('get_cell reads single cell value', async () => {
@@ -297,7 +297,7 @@ test('move_cell_cursor navigates right', async () => {
         const ctx = createMockRequestContext('cell-ops-flow-test');
 
         // Set cursor to A1
-        await testContext.setCurrentCell('A1');
+        await (await testContext).setCurrentCell('A1');
 
         const result = await tool.cb({ direction: 'right', steps: 3 }, ctx);
 
@@ -308,7 +308,7 @@ test('move_cell_cursor navigates right', async () => {
         assert.equal(result.structuredContent.steps, 3);
 
         // Verify cursor moved
-        const cursor = await testContext.getCurrentCell();
+        const cursor = await (await testContext).getCurrentCell();
         assert.equal(cursor, 'D1');
     });
 });
@@ -319,7 +319,7 @@ test('move_cell_cursor navigates down', async () => {
         const ctx = createMockRequestContext('cell-ops-flow-test');
 
         // Set cursor to D1 (from previous test)
-        await testContext.setCurrentCell('D1');
+        await (await testContext).setCurrentCell('D1');
 
         const result = await tool.cb({ direction: 'down', steps: 2 }, ctx);
 
@@ -328,7 +328,7 @@ test('move_cell_cursor navigates down', async () => {
         assert.equal(result.structuredContent.toCell, 'D3');
         assert.equal(result.structuredContent.direction, 'down');
 
-        const cursor = await testContext.getCurrentCell();
+        const cursor = await (await testContext).getCurrentCell();
         assert.equal(cursor, 'D3');
     });
 });
@@ -348,7 +348,7 @@ test('move_cell_cursor with UNTIL_BLANK stop condition', async () => {
             ]
         }, ctx);
 
-        await testContext.setCurrentCell('A1');
+        await (await testContext).setCurrentCell('A1');
 
         const result = await tool.cb({ 
             direction: 'down', 
@@ -376,7 +376,7 @@ test('move_cell_cursor with UNTIL_ERROR stop condition', async () => {
             ]
         }, ctx);
 
-        await testContext.setCurrentCell('A10');
+        await (await testContext).setCurrentCell('A10');
 
         const result = await tool.cb({ 
             direction: 'down', 
@@ -389,4 +389,6 @@ test('move_cell_cursor with UNTIL_ERROR stop condition', async () => {
     });
 });
 
-export default test;
+export default async function () {
+    await test.run();
+}

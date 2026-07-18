@@ -31,7 +31,7 @@ test('setup', async () => {
 
         const createTool = mockServer.getTool('create_new_workbook');
         const ctx = createMockRequestContext('style-flow-test');
-        await createTool.cb({ filename: 'style-test.xlsx' }, ctx);
+        await createTool.cb({ filename: 'style-test.xlsx', createDefaultWorksheet: 'Sheet1' }, ctx);
 
         const setCell = mockServer.getTool('set_cell');
         await setCell.cb({ cell: 'A1', value: 'Styled' }, ctx);
@@ -41,8 +41,7 @@ test('setup', async () => {
 });
 
 test('teardown', async () => {
-    const ctx = await testContext;
-    await ctx.cleanup();
+    await (await testContext).cleanup();
 });
 
 test('set_cell_bold toggles bold on a cell', async () => {
@@ -192,5 +191,6 @@ test('set_cell_border removes border with none', async () => {
     });
 });
 
-export default function registerTests(testInstance: ReturnType<typeof baretest>) {
+export default async function () {
+    await test.run();
 }

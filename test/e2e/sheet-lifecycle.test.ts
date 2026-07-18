@@ -7,9 +7,9 @@ import { strict as assert } from 'node:assert';
 import { MockMcpServer, createMockRequestContext } from '../helpers/test-server.js';
 import { createTestContext } from '../helpers/test-context.js';
 import { WorkbookTools } from '../../src/tools/handleWorkbook.js';
-import { SheetTools } from '../../src/tools/handleSheet.js';
-import { SheetOpsTools } from '../../src/tools/handleSheetOps.js';
-import { CellTools } from '../../src/tools/handleCell.js';
+import { SheetHandler } from '../../src/tools/handleSheet.js';
+import { SheetOpsHandler } from '../../src/tools/handleSheetOps.js';
+import { CellReadHandler, CellWriteHandler, CellCursorHandler, CellDiscoveryHandler } from '../../src/tools/handleCell.js';
 import { run } from '../../src/util/requestContext.js';
 
 const test = baretest('Sheet Lifecycle E2E');
@@ -29,25 +29,40 @@ test('setup', async () => {
     wbTools.serverOptions = { serverHost: 'http://localhost:3000' };
     await wbTools.register([]);
 
-    const sheetTools = new SheetTools();
-    sheetTools.server = mockServer as any;
-    sheetTools.context = testContext;
-    await sheetTools.register([]);
+    const sheetHandler = new SheetHandler();
+    sheetHandler.server = mockServer as any;
+    sheetHandler.context = testContext;
+    await sheetHandler.register([]);
 
-    const sheetOpsTools = new SheetOpsTools();
-    sheetOpsTools.server = mockServer as any;
-    sheetOpsTools.context = testContext;
-    await sheetOpsTools.register([]);
+    const sheetOpsHandler = new SheetOpsHandler();
+    sheetOpsHandler.server = mockServer as any;
+    sheetOpsHandler.context = testContext;
+    await sheetOpsHandler.register([]);
 
-    const cellTools = new CellTools();
-    cellTools.server = mockServer as any;
-    cellTools.context = testContext;
-    await cellTools.register([]);
+    const cellRead = new CellReadHandler();
+    cellRead.server = mockServer as any;
+    cellRead.context = testContext;
+    await cellRead.register([]);
+
+    const cellWrite = new CellWriteHandler();
+    cellWrite.server = mockServer as any;
+    cellWrite.context = testContext;
+    await cellWrite.register([]);
+
+    const cellCursor = new CellCursorHandler();
+    cellCursor.server = mockServer as any;
+    cellCursor.context = testContext;
+    await cellCursor.register([]);
+
+    const cellDiscovery = new CellDiscoveryHandler();
+    cellDiscovery.server = mockServer as any;
+    cellDiscovery.context = testContext;
+    await cellDiscovery.register([]);
     });
 });
 
 test('teardown', async () => {
-    await testContext.cleanup();
+    await (await testContext).cleanup();
 });
 
 test('full sheet lifecycle: create → list → add → select → rename → copy → move → delete', async () => {
@@ -65,7 +80,7 @@ test('full sheet lifecycle: create → list → add → select → rename → co
 
     const selectResult = await mockServer.getTool('select_sheet').cb({ name: 'Data' }, ctx);
     assert.equal(selectResult.structuredContent.sheet, 'Data');
-    const currentSheet = await testContext.getCurrentSheet();
+    const currentSheet = await (await testContext).getCurrentSheet();
     assert.equal(currentSheet, 'Data');
 
     await mockServer.getTool('set_cell').cb({ cell: 'A1', value: 'Sheet data' }, ctx);
@@ -136,5 +151,6 @@ test('cannot delete the last remaining sheet', async () => {
     });
 });
 
-export default function registerTests(testInstance: ReturnType<typeof baretest>) {
+export default async function () {
+    await test.run();
 }

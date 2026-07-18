@@ -7,8 +7,8 @@ import { strict as assert } from 'node:assert';
 import { MockMcpServer, createMockRequestContext } from '../helpers/test-server.js';
 import { createTestContext } from '../helpers/test-context.js';
 import { WorkbookTools } from '../../src/tools/handleWorkbook.js';
-import { CellTools } from '../../src/tools/handleCell.js';
-import { SheetTools } from '../../src/tools/handleSheet.js';
+import { CellReadHandler, CellWriteHandler, CellCursorHandler, CellDiscoveryHandler } from '../../src/tools/handleCell.js';
+import { SheetHandler } from '../../src/tools/handleSheet.js';
 import { run } from '../../src/util/requestContext.js';
 
 const test = baretest('Workbook Lifecycle E2E');
@@ -28,20 +28,35 @@ test('setup', async () => {
     wbTools.serverOptions = { serverHost: 'http://localhost:3000' };
     await wbTools.register([]);
 
-    const cellTools = new CellTools();
-    cellTools.server = mockServer as any;
-    cellTools.context = testContext;
-    await cellTools.register([]);
+    const cellRead = new CellReadHandler();
+    cellRead.server = mockServer as any;
+    cellRead.context = testContext;
+    await cellRead.register([]);
 
-    const sheetTools = new SheetTools();
-    sheetTools.server = mockServer as any;
-    sheetTools.context = testContext;
-    await sheetTools.register([]);
+    const cellWrite = new CellWriteHandler();
+    cellWrite.server = mockServer as any;
+    cellWrite.context = testContext;
+    await cellWrite.register([]);
+
+    const cellCursor = new CellCursorHandler();
+    cellCursor.server = mockServer as any;
+    cellCursor.context = testContext;
+    await cellCursor.register([]);
+
+    const cellDiscovery = new CellDiscoveryHandler();
+    cellDiscovery.server = mockServer as any;
+    cellDiscovery.context = testContext;
+    await cellDiscovery.register([]);
+
+    const sheetHandler = new SheetHandler();
+    sheetHandler.server = mockServer as any;
+    sheetHandler.context = testContext;
+    await sheetHandler.register([]);
     });
 });
 
 test('teardown', async () => {
-    await testContext.cleanup();
+    await (await testContext).cleanup();
 });
 
 test('full lifecycle: create → write data → list → export → close', async () => {
@@ -63,7 +78,7 @@ test('full lifecycle: create → write data → list → export → close', asyn
     const listResult = await mockServer.getTool('list_open_workbook').cb({}, ctx);
     assert.ok(listResult.structuredContent.files.includes('lifecycle-e2e.xlsx'));
 
-    const currentFile = await testContext.getCurrentFile();
+    const currentFile = await (await testContext).getCurrentFile();
     assert.equal(currentFile, 'lifecycle-e2e.xlsx');
 
     const exportResult = await mockServer.getTool('export_workbook_to_url').cb({ filename: 'lifecycle-e2e.xlsx' }, ctx);
@@ -129,5 +144,6 @@ test('export without open workbook returns error', async () => {
     });
 });
 
-export default function registerTests(testInstance: ReturnType<typeof baretest>) {
+export default async function () {
+    await test.run();
 }

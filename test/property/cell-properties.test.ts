@@ -44,8 +44,7 @@ export default function (test: any) {
             await sheetHandler.register([]);
 
             const ctx = createMockRequestContext('cell-props');
-            await mockServer.getTool('create_new_workbook').cb({ filename: 'cell-test.xlsx' }, ctx);
-            await mockServer.getTool('create_sheet').cb({ name: 'Sheet1' }, ctx);
+            await mockServer.getTool('create_new_workbook').cb({ filename: 'cell-test.xlsx', createDefaultWorksheet: 'Sheet1' }, ctx);
 
             await fn(mockServer);
         });

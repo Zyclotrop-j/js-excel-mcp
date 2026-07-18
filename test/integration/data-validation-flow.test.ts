@@ -31,13 +31,12 @@ test('setup', async () => {
 
         const createTool = mockServer.getTool('create_new_workbook');
         const ctx = createMockRequestContext('data-validation-flow-test');
-        await createTool.cb({ filename: 'validation-test.xlsx' }, ctx);
+        await createTool.cb({ filename: 'validation-test.xlsx', createDefaultWorksheet: 'Sheet1' }, ctx);
     });
 });
 
 test('teardown', async () => {
-    const ctx = await testContext;
-    await ctx.cleanup();
+    await (await testContext).cleanup();
 });
 
 test('add_dropdown_validation adds dropdown with string array options', async () => {
@@ -159,5 +158,6 @@ test('add_dropdown_validation handles single option', async () => {
     });
 });
 
-export default function registerTests(testInstance: ReturnType<typeof baretest>) {
+export default async function () {
+    await test.run();
 }

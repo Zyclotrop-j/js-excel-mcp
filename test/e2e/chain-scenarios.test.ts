@@ -8,10 +8,11 @@ import { strict as assert } from 'node:assert';
 import { MockMcpServer, createMockRequestContext } from '../helpers/test-server.js';
 import { createTestContext } from '../helpers/test-context.js';
 import { WorkbookTools } from '../../src/tools/handleWorkbook.js';
-import { CellTools } from '../../src/tools/handleCell.js';
-import { SheetTools } from '../../src/tools/handleSheet.js';
-import { SheetOpsTools } from '../../src/tools/handleSheetOps.js';
+import { CellReadHandler, CellWriteHandler, CellCursorHandler, CellDiscoveryHandler } from '../../src/tools/handleCell.js';
+import { SheetHandler } from '../../src/tools/handleSheet.js';
+import { SheetOpsHandler } from '../../src/tools/handleSheetOps.js';
 import { StyleHandler } from '../../src/tools/handleStyle.js';
+import { run } from '../../src/util/requestContext.js';
 
 const test = baretest('Chain Scenarios E2E');
 
@@ -19,6 +20,7 @@ let mockServer: MockMcpServer;
 let testContext: ReturnType<typeof createTestContext>;
 
 test('setup', async () => {
+    await run(async () => {
     mockServer = new MockMcpServer();
     testContext = createTestContext('chain-scenarios-e2e');
 
@@ -29,32 +31,49 @@ test('setup', async () => {
     wbTools.serverOptions = { serverHost: 'http://localhost:3000' };
     await wbTools.register([]);
 
-    const cellTools = new CellTools();
-    cellTools.server = mockServer as any;
-    cellTools.context = testContext;
-    await cellTools.register([]);
+    const cellRead = new CellReadHandler();
+    cellRead.server = mockServer as any;
+    cellRead.context = testContext;
+    await cellRead.register([]);
 
-    const sheetTools = new SheetTools();
-    sheetTools.server = mockServer as any;
-    sheetTools.context = testContext;
-    await sheetTools.register([]);
+    const cellWrite = new CellWriteHandler();
+    cellWrite.server = mockServer as any;
+    cellWrite.context = testContext;
+    await cellWrite.register([]);
 
-    const sheetOpsTools = new SheetOpsTools();
-    sheetOpsTools.server = mockServer as any;
-    sheetOpsTools.context = testContext;
-    await sheetOpsTools.register([]);
+    const cellCursor = new CellCursorHandler();
+    cellCursor.server = mockServer as any;
+    cellCursor.context = testContext;
+    await cellCursor.register([]);
+
+    const cellDiscovery = new CellDiscoveryHandler();
+    cellDiscovery.server = mockServer as any;
+    cellDiscovery.context = testContext;
+    await cellDiscovery.register([]);
+
+    const sheetHandler = new SheetHandler();
+    sheetHandler.server = mockServer as any;
+    sheetHandler.context = testContext;
+    await sheetHandler.register([]);
+
+    const sheetOpsHandler = new SheetOpsHandler();
+    sheetOpsHandler.server = mockServer as any;
+    sheetOpsHandler.context = testContext;
+    await sheetOpsHandler.register([]);
 
     const styleHandler = new StyleHandler();
     styleHandler.server = mockServer as any;
     styleHandler.context = testContext;
     await styleHandler.register([]);
+    });
 });
 
 test('teardown', async () => {
-    await testContext.cleanup();
+    await (await testContext).cleanup();
 });
 
 test('chain: create workbook → set cells in sequence → read all back', async () => {
+    await run(async () => {
     const ctx = createMockRequestContext('chain-scenarios-e2e');
     const set = mockServer.getTool('set_cell');
     const get = mockServer.getTool('get_cell');
@@ -70,9 +89,11 @@ test('chain: create workbook → set cells in sequence → read all back', async
         const result = await get.cb({ cell: `A${i + 1}` }, ctx);
         assert.equal(result.structuredContent.value, values[i], `Cell A${i + 1} chain failed`);
     }
+    });
 });
 
 test('chain: create sheet → switch → write → switch back → write → verify both', async () => {
+    await run(async () => {
     const ctx = createMockRequestContext('chain-scenarios-e2e');
 
     await mockServer.getTool('create_new_workbook').cb({ filename: 'chain-sheets.xlsx' }, ctx);
@@ -98,9 +119,11 @@ test('chain: create sheet → switch → write → switch back → write → ver
     await mockServer.getTool('select_sheet').cb({ name: 'Third' }, ctx);
     result = await mockServer.getTool('get_cell').cb({ cell: 'C1' }, ctx);
     assert.equal(result.structuredContent.value, 'sheet3-value');
+    });
 });
 
 test('chain: write cell → bold → font → background → alignment → border', async () => {
+    await run(async () => {
     const ctx = createMockRequestContext('chain-scenarios-e2e');
 
     await mockServer.getTool('create_new_workbook').cb({ filename: 'chain-styles.xlsx' }, ctx);
@@ -123,9 +146,11 @@ test('chain: write cell → bold → font → background → alignment → borde
 
     const result = await mockServer.getTool('get_cell').cb({ cell: 'A1' }, ctx);
     assert.equal(result.structuredContent.value, 'Fully Chained');
+    });
 });
 
 test('chain: create → write → copy sheet → verify data in both', async () => {
+    await run(async () => {
     const ctx = createMockRequestContext('chain-scenarios-e2e');
 
     await mockServer.getTool('create_new_workbook').cb({ filename: 'chain-copy.xlsx' }, ctx);
@@ -144,14 +169,16 @@ test('chain: create → write → copy sheet → verify data in both', async () 
     await mockServer.getTool('select_sheet').cb({ name: 'Sheet1' }, ctx);
     r = await mockServer.getTool('get_cell').cb({ cell: 'A1' }, ctx);
     assert.equal(r.structuredContent.value, 'original-data');
+    });
 });
 
 test('chain: cursor moves while writing → verify each position', async () => {
+    await run(async () => {
     const ctx = createMockRequestContext('chain-scenarios-e2e');
 
     await mockServer.getTool('create_new_workbook').cb({ filename: 'chain-cursor.xlsx' }, ctx);
 
-    await testContext.setCurrentCell('A1');
+    await (await testContext).setCurrentCell('A1');
     await mockServer.getTool('set_cell').cb({ cell: 'A1', value: 'pos-A1' }, ctx);
     await mockServer.getTool('move_cell_cursor').cb({ direction: 'right', steps: 1 }, ctx);
 
@@ -166,9 +193,11 @@ test('chain: cursor moves while writing → verify each position', async () => {
     assert.equal(b1.structuredContent.value, 'pos-B1');
     const b2 = await mockServer.getTool('get_cell').cb({ cell: 'B2' }, ctx);
     assert.equal(b2.structuredContent.value, 'pos-B2');
+    });
 });
 
 test('chain: rename sheet → verify data persists under new name', async () => {
+    await run(async () => {
     const ctx = createMockRequestContext('chain-scenarios-e2e');
 
     await mockServer.getTool('create_new_workbook').cb({ filename: 'chain-rename.xlsx' }, ctx);
@@ -188,9 +217,11 @@ test('chain: rename sheet → verify data persists under new name', async () => 
     await mockServer.getTool('select_sheet').cb({ name: 'Sheet1' }, ctx);
     const sheet1 = await mockServer.getTool('get_cell').cb({ cell: 'A1' }, ctx);
     assert.equal(sheet1.structuredContent.value, 'before-rename');
+    });
 });
 
 test('chain: delete sheet → verify remaining sheets unaffected', async () => {
+    await run(async () => {
     const ctx = createMockRequestContext('chain-scenarios-e2e');
 
     await mockServer.getTool('create_new_workbook').cb({ filename: 'chain-delete.xlsx' }, ctx);
@@ -209,9 +240,11 @@ test('chain: delete sheet → verify remaining sheets unaffected', async () => {
 
     const listResult = await mockServer.getTool('list_sheets').cb({}, ctx);
     assert.ok(!listResult.structuredContent.sheets.includes('Doomed'));
+    });
 });
 
 test('chain: rapid set_cells + search + read', async () => {
+    await run(async () => {
     const ctx = createMockRequestContext('chain-scenarios-e2e');
 
     await mockServer.getTool('create_new_workbook').cb({ filename: 'chain-rapid.xlsx' }, ctx);
@@ -231,7 +264,9 @@ test('chain: rapid set_cells + search + read', async () => {
         const r = await mockServer.getTool('get_cell').cb({ cell: match.cell }, ctx);
         assert.ok(String(r.structuredContent.value).startsWith('match-'));
     }
+    });
 });
 
-export default function registerTests(testInstance: ReturnType<typeof baretest>) {
+export default async function () {
+    await test.run();
 }

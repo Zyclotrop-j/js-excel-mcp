@@ -47,7 +47,7 @@ const auth = requireBearerAuth({
     resourceMetadataUrl: getOAuthProtectedResourceMetadataUrl(mcpServerUrl)
 });
 
-const handler = createMcpHandler((context) => {
+const handler = createMcpHandler(async (context) => {
     const server = new McpServer({ name: mcpName, version: mcpVersion, description: mcpDescription, 'title': mcpTitle }, {
         'instructions': mcpInstructions,
     });
@@ -56,7 +56,7 @@ const handler = createMcpHandler((context) => {
     for(const Tool  of Object.values(tools)) {
         const   t = new Tool(server, context, app, {serverHost: baseUrl});
         toolSet.push(t);
-        t.register(toolSet);
+        await t.register(toolSet);
     }
 
     return server;

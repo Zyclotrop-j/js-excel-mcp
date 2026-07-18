@@ -34,7 +34,7 @@ test('setup', async () => {
 });
 
 test('teardown', async () => {
-    await testContext.cleanup();
+    await (await testContext).cleanup();
 });
 
 test('create_new_workbook creates workbook and sets as current', async () => {
@@ -42,7 +42,7 @@ test('create_new_workbook creates workbook and sets as current', async () => {
         const tool = mockServer.getTool('create_new_workbook');
         const ctx = createMockRequestContext('workbook-flow-test');
 
-        const result = await tool.cb({ filename: 'test-workbook.xlsx' }, ctx);
+        const result = await tool.cb({ filename: 'test-workbook.xlsx', createDefaultWorksheet: 'Sheet1' }, ctx);
 
         assert.ok(result.structuredContent);
         assert.equal(result.structuredContent.filename, 'test-workbook.xlsx');
@@ -51,7 +51,7 @@ test('create_new_workbook creates workbook and sets as current', async () => {
         assert.equal(result.structuredContent.sheets.length, 1); // Default sheet
 
         // Verify it's set as current file
-        const currentFile = await testContext.getCurrentFile();
+        const currentFile = await (await testContext).getCurrentFile();
         assert.equal(currentFile, 'test-workbook.xlsx');
     });
 });
@@ -183,4 +183,6 @@ test('import_workbook_from_url is registered', async () => {
     assert.ok(mockServer.hasTool('import_workbook_from_url'));
 });
 
-export default test;
+export default async function () {
+    await test.run();
+}

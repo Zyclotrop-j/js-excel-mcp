@@ -47,12 +47,12 @@ test('setup', async () => {
 
         const createTool = mockServer.getTool('create_new_workbook');
         const ctx = createMockRequestContext('sheet-ops-flow-test');
-        await createTool.cb({ filename: 'sheet-test.xlsx' }, ctx);
+        await createTool.cb({ filename: 'sheet-test.xlsx', createDefaultWorksheet: 'Sheet1' }, ctx);
     });
 });
 
 test('teardown', async () => {
-    await testContext.cleanup();
+    await (await testContext).cleanup();
 });
 
 test('list_sheets returns all sheet names', async () => {
@@ -84,7 +84,7 @@ test('select_sheet switches active sheet', async () => {
         assert.equal(result.structuredContent.sheet, 'Sheet2');
 
         // Verify current sheet is updated
-        const currentSheet = await testContext.getCurrentSheet();
+        const currentSheet = await (await testContext).getCurrentSheet();
         assert.equal(currentSheet, 'Sheet2');
     });
 });
@@ -260,4 +260,6 @@ test('move_sheet changes sheet position', async () => {
     });
 });
 
-export default test;
+export default async function () {
+    await test.run();
+}
