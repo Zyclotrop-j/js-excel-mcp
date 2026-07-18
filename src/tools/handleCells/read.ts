@@ -47,7 +47,7 @@ export class CellReadHandler extends ToolHandler {
             col: z.number().optional()
         }), outputSchema: z.object({
             ref: z.string().optional(),
-            value: z.string().optional(),
+            value: z.union([z.string(), z.number(), z.boolean(), z.null()]).optional(),
             nativeValue: cellNativeValueSchema.optional(),
             formula: z.string().nullable().optional(),
             context: context.contextualiseResponseTypes()

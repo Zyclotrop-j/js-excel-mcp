@@ -1,5 +1,5 @@
 import { ToolHandler } from './interface.js';
-import { addWorksheet, sheetNames, moveSheet, type SheetRef, type Workbook } from '@office-kit/xlsx/workbook';
+import { addWorksheet, sheetNames, moveSheet, validateSheetTitle, type SheetRef, type Workbook } from '@office-kit/xlsx/workbook';
 import { copyRange, getMaxCol, getMaxRow, type Worksheet } from '@office-kit/xlsx/worksheet';
 import { columnLetterFromIndex } from '@office-kit/xlsx/utils';
 import z from 'zod';
@@ -19,7 +19,7 @@ export class SheetOpsHandler extends ToolHandler {
             filename: z.string().optional(),
             sourceSheet: z.string().optional(),
             newName: z.string().optional(),
-            action: z.literal('copied'),
+            action: z.literal('copied').optional(),
             sheets: z.array(z.string()).optional(),
             context: context.contextualiseResponseTypes()
         }), annotations: {
@@ -38,6 +38,31 @@ export class SheetOpsHandler extends ToolHandler {
             const sourceSheet = wb.sheets.find((s: SheetRef) => s.sheet.title === sourceName);
             if (!sourceSheet || sourceSheet.kind !== 'worksheet') return context.contextualiseResponse({ content: [{ type: 'text', text: `source sheet '${sourceName}' not found` }], isError: true });
             const sourceWs: Worksheet = sourceSheet.sheet;
+
+            if (wb.sheets.find((s: SheetRef) => s.sheet.title === arg.newName)) {
+                return context.contextualiseResponse({
+                    content: [{ type: 'text', text: `sheet '${arg.newName}' already exists in workbook '${filename}'` }],
+                    isError: true,
+                    structuredContent: {
+                        filename,
+                        newName: arg.newName,
+                        sheets: sheetNames(wb)
+                    }
+                });
+            }
+
+            const titleReason = validateSheetTitle(arg.newName);
+            if (titleReason) {
+                return context.contextualiseResponse({
+                    content: [{ type: 'text', text: `invalid sheet name '${arg.newName}': ${titleReason}` }],
+                    isError: true,
+                    structuredContent: {
+                        filename,
+                        newName: arg.newName,
+                        sheets: sheetNames(wb)
+                    }
+                });
+            }
 
             addWorksheet(wb, arg.newName);
             const newSheet = wb.sheets.find((s: SheetRef) => s.sheet.title === arg.newName);
@@ -77,7 +102,7 @@ export class SheetOpsHandler extends ToolHandler {
             filename: z.string().optional(),
             sheet: z.string().optional(),
             newIndex: z.number().optional(),
-            action: z.literal('moved'),
+            action: z.literal('moved').optional(),
             sheets: z.array(z.string()).optional(),
             context: context.contextualiseResponseTypes()
         }), annotations: {

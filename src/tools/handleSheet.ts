@@ -1,5 +1,5 @@
 import { ToolHandler } from './interface.js';
-import { addWorksheet, getSheet, removeSheet, renameSheet, setActiveSheet, sheetNames } from '@office-kit/xlsx/workbook';
+import { addWorksheet, getSheet, removeSheet, renameSheet, setActiveSheet, sheetNames, validateSheetTitle } from '@office-kit/xlsx/workbook';
 import z from 'zod';
 import { Context } from '../filesystem/context.js';
 
@@ -12,10 +12,10 @@ export class SheetHandler extends ToolHandler {
         this.registerTool('create_sheet', { description: 'create a new worksheet in a workbook', inputSchema: z.object({
             workbook: z.string().optional(),
             name: z.string()
-        }), outputSchema: z.object({
+}), outputSchema: z.object({
             filename: z.string().optional(),
             sheet: z.string().optional(),
-            action: z.literal('created'),
+            action: z.literal('created').optional(),
             sheets: z.array(z.string()).optional(),
             context: context.contextualiseResponseTypes()
         }), annotations: {
@@ -28,6 +28,29 @@ export class SheetHandler extends ToolHandler {
             if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }], isError: true });
 
             const wb = await context.getWorkbook(filename);
+            const titleReason = validateSheetTitle(arg.name);
+            if (titleReason) {
+                return context.contextualiseResponse({
+                    content: [{ type: 'text', text: `invalid sheet name '${arg.name}': ${titleReason}` }],
+                    isError: true,
+                    structuredContent: {
+                        filename,
+                        sheet: arg.name,
+                        sheets: sheetNames(wb)
+                    }
+                });
+            }
+            if (getSheet(wb, arg.name)) {
+                return context.contextualiseResponse({
+                    content: [{ type: 'text', text: `sheet '${arg.name}' already exists in workbook '${filename}'` }],
+                    isError: true,
+                    structuredContent: {
+                        filename,
+                        sheet: arg.name,
+                        sheets: sheetNames(wb)
+                    }
+                });
+            }
             addWorksheet(wb, arg.name);
             await context.setWorkbook(filename, wb);
             await context.setCurrentSheet(arg.name);
@@ -103,7 +126,8 @@ export class SheetHandler extends ToolHandler {
         }), outputSchema: z.object({
             filename: z.string().optional(),
             sheet: z.string().optional(),
-            action: z.literal('selected'),
+            action: z.literal('selected').optional(),
+            sheets: z.array(z.string()).optional(),
             context: context.contextualiseResponseTypes()
         }), annotations: {
             destructiveHint: false,
@@ -118,6 +142,19 @@ export class SheetHandler extends ToolHandler {
             if (!sheetName) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no sheet specified and no current sheet set' }], isError: true });
 
             const wb = await context.getWorkbook(filename);
+
+            if (!getSheet(wb, sheetName)) {
+                return context.contextualiseResponse({
+                    content: [{ type: 'text', text: `sheet '${sheetName}' not found in workbook '${filename}'` }],
+                    isError: true,
+                    structuredContent: {
+                        filename,
+                        sheet: sheetName,
+                        sheets: sheetNames(wb)
+                    }
+                });
+            }
+
             setActiveSheet(wb, sheetName);
             await context.setWorkbook(filename, wb);
             await context.setCurrentSheet(sheetName);
@@ -167,7 +204,8 @@ export class SheetHandler extends ToolHandler {
             filename: z.string().optional(),
             oldName: z.string().optional(),
             newName: z.string().optional(),
-            action: z.literal('renamed'),
+            action: z.literal('renamed').optional(),
+            sheets: z.array(z.string()).optional(),
             context: context.contextualiseResponseTypes()
         }), annotations: {
             destructiveHint: false,
@@ -182,6 +220,44 @@ export class SheetHandler extends ToolHandler {
             if (!oldName) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no sheet specified and no current sheet set' }], isError: true });
 
             const wb = await context.getWorkbook(filename);
+
+            if (!getSheet(wb, oldName)) {
+                return context.contextualiseResponse({
+                    content: [{ type: 'text', text: `sheet '${oldName}' not found in workbook '${filename}'` }],
+                    isError: true,
+                    structuredContent: {
+                        filename,
+                        sheet: oldName,
+                        sheets: sheetNames(wb)
+                    }
+                });
+            }
+
+            if (arg.newName !== oldName && getSheet(wb, arg.newName)) {
+                return context.contextualiseResponse({
+                    content: [{ type: 'text', text: `sheet '${arg.newName}' already exists in workbook '${filename}'` }],
+                    isError: true,
+                    structuredContent: {
+                        filename,
+                        sheet: arg.newName,
+                        sheets: sheetNames(wb)
+                    }
+                });
+            }
+
+            const titleReason = validateSheetTitle(arg.newName);
+            if (titleReason) {
+                return context.contextualiseResponse({
+                    content: [{ type: 'text', text: `invalid sheet name '${arg.newName}': ${titleReason}` }],
+                    isError: true,
+                    structuredContent: {
+                        filename,
+                        sheet: arg.newName,
+                        sheets: sheetNames(wb)
+                    }
+                });
+            }
+
             renameSheet(wb, oldName, arg.newName);
             await context.setWorkbook(filename, wb);
 

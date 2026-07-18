@@ -5,6 +5,28 @@ import { ResourceTemplate } from '@modelcontextprotocol/server';
 import z from 'zod';
 import { Context } from '../filesystem/context.js';
 import { rgbColor } from '@office-kit/xlsx/styles';
+import wretch from 'wretch';
+import { retry, dedupe, throttlingCache } from 'wretch/middlewares';
+
+const workbookClient = wretch()
+    .middlewares([
+        retry({
+            maxAttempts: 3,
+            delayTimer: 500,
+            delayRamp: (delay, attempts) => delay * attempts,
+            retryOnNetworkError: true,
+            until: (response) => !!response && (response.ok || (response.status >= 400 && response.status < 500)),
+        }),
+        dedupe({
+            key: (url, opts) => opts.method + '@' + url,
+            resolver: (response) => response.clone(),
+        }),
+        throttlingCache({
+            throttle: 5 * 60 * 1000,
+            key: (url, opts) => opts.method + '@' + url,
+            condition: (response) => response.ok,
+        }),
+    ]);
 
 
 export class WorkbookTools extends ToolHandler {
@@ -72,8 +94,18 @@ export class WorkbookTools extends ToolHandler {
             openWorldHint: true,
             readOnlyHint: false
         }}, async (arg) => {
-            
-            const result = await fetch(arg.url);
+
+            const result = await workbookClient
+                .url(arg.url)
+                .get()
+                .notFound(() => { throw new Error(`could not find the workbook at '${arg.url}'. Please verify the URL is correct and the file exists at this location`) })
+                .unauthorized(() => { throw new Error(`authentication required to access '${arg.url}'. This file may require login credentials or an access token`) })
+                .forbidden(() => { throw new Error(`access denied to '${arg.url}'. You may not have permission to access this file`) })
+                .timeout(() => { throw new Error(`request timed out while fetching '${arg.url}'. The server may be slow or unreachable`) })
+                .fetchError((err) => { throw new Error(`network error while fetching '${arg.url}': ${err.message}. Please check your internet connection and verify the URL is reachable`) })
+                .error(400, () => { throw new Error(`the server rejected the request for '${arg.url}' (bad request)`) })
+                .error(500, () => { throw new Error(`the server hosting '${arg.url}' encountered an internal error`) })
+                .res();
             const wb = await loadWorkbook(await fromResponse(result));
 
             await context.setWorkbook(arg.filename, wb);
@@ -104,15 +136,19 @@ export class WorkbookTools extends ToolHandler {
             readOnlyHint: false
         }}, async (arg) => {
 
-            if(!(await context.get(arg.filename))) {
-              return context.contextualiseResponse({
-                content: [{ type: 'text', text: `workbook '${arg.filename}' doesn't exist` }],
-                isError: true,
-                structuredContent: {
-                    filename: arg.filename,
-                    status: 'error'
+            try {
+                if(!await context.get(arg.filename)) {
+                    throw new Error(`Missing ${arg.filename}`)
                 }
-            })  
+            } catch {
+              return context.contextualiseResponse({
+                    content: [{ type: 'text', text: `workbook '${arg.filename}' doesn't exist` }],
+                    isError: true,
+                    structuredContent: {
+                        filename: arg.filename,
+                        status: 'error'
+                    }
+                });
             }
 
             await context.delete(arg.filename);

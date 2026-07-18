@@ -22,7 +22,7 @@ export class TableHandler extends ToolHandler {
             sheet: z.string().optional(),
             name: z.string().optional(),
             range: z.string().optional(),
-            action: z.literal('created'),
+            action: z.literal('created').optional(),
             context: context.contextualiseResponseTypes()
         }), annotations: {
             destructiveHint: false,
@@ -64,7 +64,7 @@ export class TableHandler extends ToolHandler {
             filename: z.string().optional(),
             sheet: z.string().optional(),
             range: z.string().optional(),
-            action: z.literal('added'),
+            action: z.literal('added').optional(),
             context: context.contextualiseResponseTypes()
         }), annotations: {
             destructiveHint: false,

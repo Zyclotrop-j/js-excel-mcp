@@ -5,7 +5,6 @@ type FileEntry = { name: string; data: Buffer; ttl: string };
 type ExportEntry = { key: string; name: string; ttl: string; data: Buffer };
 
 const DEFAULT_LATENCY_MS = 5;
-const WRITE_COOLDOWN_MS = 1000;
 
 function delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -15,7 +14,6 @@ export class MemoryBackend implements IDatabaseBackend {
     private kv = new Map<string, KVEntry>();
     private files = new Map<string, FileEntry>();
     private exports = new Map<string, ExportEntry>();
-    private lastWriteTimestamps = new Map<string, number>();
     private closed = false;
     private writeCounts = new Map<string, number>();
     private latencyMs: { min: number; max: number };
@@ -36,18 +34,7 @@ export class MemoryBackend implements IDatabaseBackend {
         await delay(ms);
     }
 
-    private async waitForRateLimit(key: string): Promise<void> {
-        const lastWrite = this.lastWriteTimestamps.get(key);
-        if (lastWrite !== undefined) {
-            const elapsed = Date.now() - lastWrite;
-            if (elapsed < WRITE_COOLDOWN_MS) {
-                await delay(WRITE_COOLDOWN_MS - elapsed);
-            }
-        }
-    }
-
     private recordWrite(key: string): void {
-        this.lastWriteTimestamps.set(key, Date.now());
         this.writeCounts.set(key, (this.writeCounts.get(key) ?? 0) + 1);
     }
 
@@ -95,7 +82,6 @@ export class MemoryBackend implements IDatabaseBackend {
         this.assertOpen();
         await this.simulateLatency();
         const rateKey = `kv:${key}`;
-        await this.waitForRateLimit(rateKey);
         this.kv.set(key, { key, value, ttl });
         this.recordWrite(rateKey);
     }
@@ -104,7 +90,6 @@ export class MemoryBackend implements IDatabaseBackend {
         this.assertOpen();
         await this.simulateLatency();
         const rateKey = `file:${name}`;
-        await this.waitForRateLimit(rateKey);
         this.files.set(name, { name, data: Buffer.from(data), ttl });
         this.recordWrite(rateKey);
     }
@@ -113,7 +98,6 @@ export class MemoryBackend implements IDatabaseBackend {
         this.assertOpen();
         await this.simulateLatency();
         const rateKey = `export:${key}`;
-        await this.waitForRateLimit(rateKey);
         this.exports.set(key, { key, name, ttl, data: Buffer.from(data) });
         this.recordWrite(rateKey);
     }
@@ -122,7 +106,6 @@ export class MemoryBackend implements IDatabaseBackend {
         this.assertOpen();
         await this.simulateLatency();
         const rateKey = `kv:${key}`;
-        await this.waitForRateLimit(rateKey);
         this.kv.set(key, { key, value, ttl });
         this.recordWrite(rateKey);
     }
@@ -131,7 +114,6 @@ export class MemoryBackend implements IDatabaseBackend {
         this.assertOpen();
         await this.simulateLatency();
         const rateKey = `export:${key}`;
-        await this.waitForRateLimit(rateKey);
         this.exports.set(key, { key, name, ttl, data: Buffer.from(data) });
         this.recordWrite(rateKey);
     }
@@ -140,7 +122,6 @@ export class MemoryBackend implements IDatabaseBackend {
         this.assertOpen();
         await this.simulateLatency();
         const rateKey = `file:${name}`;
-        await this.waitForRateLimit(rateKey);
         this.files.set(name, { name, data: Buffer.from(data), ttl });
         this.recordWrite(rateKey);
     }

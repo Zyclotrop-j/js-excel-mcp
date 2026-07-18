@@ -125,6 +125,9 @@ export class ChartHandler extends ToolHandler {
             const catCol = startMatch[1];
             const valCol = String.fromCharCode(catCol.charCodeAt(0) + 1);
 
+            // office-kit exposes `makeBarSeries` but no `makeLineSeries` factory,
+            // and the `LineSeries` shape is compatible with `BarSeries`. We reuse
+            // the bar-series builder and cast the result for makeLineChart.
             const series = makeBarSeries({
                 idx: 0,
                 tx: { kind: 'literal', value: arg.title ?? 'Series' },

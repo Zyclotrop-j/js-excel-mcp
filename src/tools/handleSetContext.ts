@@ -18,10 +18,10 @@ export class SetContextHandler extends ToolHandler {
                 cell: z.string().optional()
             }),
             outputSchema: z.object({
-                workbook: z.string().nullable(),
-                sheet: z.string().nullable(),
-                cell: z.string().nullable(),
-                changed: z.array(z.string()),
+                workbook: z.string().nullable().optional(),
+                sheet: z.string().nullable().optional(),
+                cell: z.string().nullable().optional(),
+                changed: z.array(z.string()).optional(),
                 context: context.contextualiseResponseTypes()
             }),
             annotations: {

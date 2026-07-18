@@ -23,7 +23,6 @@ const DEMO_PASSWORD = 'ernCjBsavZjKxznbu_1g1g';
 // Open the database once (module-level singleton) — file-backed SQLite at
 // `data/_auth.db` so demo sessions persist across server restarts. This avoids
 // re-creating the schema on every server start.
-// This avoids the type export issue and ensures the same DB is used
 let _db: InstanceType<typeof Database> | null = null;
 
 function getDatabase(): InstanceType<typeof Database> {
@@ -192,7 +191,14 @@ interface CreateDemoAuthOptions {
  *
  * @see https://www.better-auth.com/docs/plugins/mcp
  */
-export function createDemoAuth(options: CreateDemoAuthOptions) {
+export function createDemoAuth(options: CreateDemoAuthOptions): DemoAuth {
+    // TS4058: `createDemoAuth`'s inferred return type transitively references
+    // the non-exported `MCPOptions` interface from `better-auth/dist/plugins/mcp`
+    // via the `mcp(...)` plugin parameter; TypeScript cannot name it across the
+    // module boundary. Fixed by annotating an explicit structural return type
+    // (`DemoAuth`) that lists only the members `authServer.ts` actually uses,
+    // and casting the `betterAuth({...})` result to it. The argument object is
+    // NOT cast — that would regress TS2559 + TS7006 on the `logger.log` params.
     const { baseURL, resource, loginPage = '/sign-in', demoMode } = options;
 
     // File-backed SQLite at data/_auth.db — see getDatabase(). Demo data
@@ -245,12 +251,34 @@ export function createDemoAuth(options: CreateDemoAuthOptions) {
                   }
               }
             : undefined
-    } as unknown as ReturnType<typeof betterAuth>);
+    }) as unknown as DemoAuth;
 }
 
 /**
- * Type for the auth instance returned by createDemoAuth.
- * Note: Due to plugin type inference complexity, we use a generic type.
+ * Structural type for the auth instance returned by `createDemoAuth`.
+ *
+ * Better-auth's inferred `Auth` return type references the non-exported
+ * `MCPOptions` interface from `better-auth/dist/plugins/mcp`, which trips
+ * TS4058 across the module boundary. Instead of exporting that inferred type,
+ * we declare only the members `authServer.ts` actually consumes. The
+ * `betterAuth({...})` result is structurally compatible (it has all of
+ * these) and is cast via `as unknown as DemoAuth` at the return site.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type DemoAuth = ReturnType<typeof createDemoAuth>;
+type AnyFn = (...args: any[]) => any;
+export interface DemoAuth {
+    /** Request handler — consumed by `toNodeHandler(auth)` from `better-auth/node`. */
+    handler: AnyFn;
+    api: {
+        /** Used by `authServer.ts` to create the demo user (accessed via `as any`). */
+        signUpEmail: AnyFn;
+        /** Used by `authServer.ts` `/sign-in` flow to create a session. */
+        signInEmail: AnyFn;
+        /** Used by `demoTokenVerifier.verifyAccessToken` (accessed via `as any`). */
+        getMcpSession: AnyFn;
+        /** Required by `oAuthDiscoveryMetadata(auth)` generic constraint. */
+        getMcpOAuthConfig: AnyFn;
+        /** Required by `oAuthProtectedResourceMetadata(auth)` generic constraint. */
+        getMCPProtectedResource: AnyFn;
+    };
+}

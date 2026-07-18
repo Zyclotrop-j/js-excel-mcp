@@ -122,12 +122,20 @@ export class Context {
 
     static async importFile(name: string, key: string) {
         await Context.initSharedFs();
-        return Context.sharedFs.importFile(name, key);
+        try {
+            return await Context.sharedFs.importFile(name, key);
+        } finally {
+            await Context.sharedFs.flush();
+        }
     }
 
     static async exportFile(name: string, data: Uint8Array) {
         await Context.initSharedFs();
-        return Context.sharedFs.exportFile(name, data);
+        try {
+            return await Context.sharedFs.exportFile(name, data);
+        } finally {
+            await Context.sharedFs.flush();
+        }
     }
 
 }
