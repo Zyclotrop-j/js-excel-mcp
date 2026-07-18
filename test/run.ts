@@ -18,6 +18,7 @@ import contextTests from './filesystem/context.test.js';
 import metaTests from './meta/mcpdescription.test.js';
 import interfaceTests from './filesystem/IDatabaseBackend.test.js';
 import rateLimitingTests from './filesystem/rateLimiting.test.js';
+import lockRegressionTests from './filesystem/lockRegression.test.js';
 
 // Register tests with shared instance
 vfsTests(test);
@@ -26,6 +27,7 @@ metaTests(test);
 interfaceTests(test, 'DatabaseBackend', (dbPath) => new DatabaseBackend(dbPath));
 interfaceTests(test, 'MemoryBackend', (dbPath) => new MemoryBackend(dbPath));
 rateLimitingTests(test);
+lockRegressionTests(test);
 
 // Run all registered tests
 !(async function() {

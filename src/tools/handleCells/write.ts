@@ -61,7 +61,7 @@ export class CellWriteHandler extends ToolHandler {
             });
         });
 
-        this.registerTool('set_formula', { description: 'set a formula on a cell (e.g. =SUM(A1:A10))', inputSchema: z.object({
+        this.registerTool('set_formula', { description: 'set a formula on a cell (e.g. =SUM(A1:A10)). Note: The fomulas result is NOT calculated, and will only become available after downloading the sheet and opening it in Excel!', inputSchema: z.object({
             workbook: z.string().optional(),
             sheet: z.string().optional(),
             ref: z.string().optional(),
@@ -134,6 +134,27 @@ export class CellWriteHandler extends ToolHandler {
             const sheet = wb.sheets.find((s: SheetRef) => s.sheet.title === sheetName);
             if (!sheet || sheet.kind !== 'worksheet') return context.contextualiseResponse({ content: [{ type: 'text', text: `sheet '${sheetName}' not found` }] });
             const ws: Worksheet = sheet.sheet;
+
+            const rangeParts = arg.range.split(':');
+            const parseCellRef = (ref: string) => {
+                const m = ref.match(/^([A-Z]+)(\d+)$/);
+                if (!m) throw new Error(`Invalid cell reference: ${ref}`);
+                let col = 0;
+                for (let i = 0; i < m[1].length; i++) col = col * 26 + (m[1].charCodeAt(i) - 64);
+                return { row: parseInt(m[2], 10), col };
+            };
+            const startCell = parseCellRef(rangeParts[0]);
+            const endCell = rangeParts.length > 1 ? parseCellRef(rangeParts[1]) : startCell;
+            const maxRows = endCell.row - startCell.row + 1;
+            const maxCols = endCell.col - startCell.col + 1;
+            if (arg.values.length > maxRows) {
+                return context.contextualiseResponse({ content: [{ type: 'text', text: `values array has ${arg.values.length} rows but range '${arg.range}' only covers ${maxRows} rows` }], isError: true });
+            }
+            for (let i = 0; i < arg.values.length; i++) {
+                if (arg.values[i].length > maxCols) {
+                    return context.contextualiseResponse({ content: [{ type: 'text', text: `values row ${i + 1} has ${arg.values[i].length} columns but range '${arg.range}' only covers ${maxCols} columns` }], isError: true });
+                }
+            }
 
             setRangeValues(ws, arg.range, arg.values);
             await context.setWorkbook(filename, wb);

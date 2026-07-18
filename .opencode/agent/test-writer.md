@@ -1,7 +1,7 @@
 ---
 description: Test case writer - Creates comprehensive test cases from bug reports and e2e test results
 mode: subagent
-model: openrouter/qwen/qwen3-coder:free
+model: openrouter/tencent/hy3:free
 ---
 
 You are a test case writer agent. Your job is to create comprehensive test cases based on:

@@ -14,7 +14,7 @@ export class WorkbookTools extends ToolHandler {
         const context = await Context.getContext((this.context.authInfo?.extra?.userId as string) ?? 'public');
 
         this.registerTool('create_new_workbook', { description: 'make new excel workbook and open it', inputSchema: z.object({
-            filename: z.string(),
+            filename: z.string().min(1),
             createDefaultWorksheet: z.union([
                 z.literal(false),
                 z.string(),

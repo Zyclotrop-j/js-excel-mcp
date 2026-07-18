@@ -1,7 +1,6 @@
 import { ToolHandler } from './interface.js';
 import { getCell, getCellByCoord, setCell, type Worksheet } from '@office-kit/xlsx/worksheet';
-import { makeRichText, makeTextRun, getCoordinate } from '@office-kit/xlsx/cell';
-import { setBold, setFontSize, setFontColor, setItalic, setUnderline } from '@office-kit/xlsx/styles';
+import { makeRichText, makeTextRun, getCoordinate, type InlineFont } from '@office-kit/xlsx/cell';
 import type { SheetRef } from '@office-kit/xlsx/workbook';
 import { tupleToCoordinate } from '@office-kit/xlsx/utils';
 import z from 'zod';
@@ -70,16 +69,17 @@ export class RichTextHandler extends ToolHandler {
             }
 
             const runs = arg.parts.map((p) => {
-                const run = makeTextRun({ text: p.text });
-                if (run.font) {
-                    if (p.bold) run.font.bold = true;
-                    if (p.italic) run.font.italic = true;
-                    if (p.underline) run.font.underline = 'single';
-                    if (p.fontSize !== undefined) run.font.size = p.fontSize;
-                    if (p.fontColor) run.font.color = p.fontColor.startsWith('FF') ? p.fontColor : `FF${p.fontColor}`;
-                    if (p.fontName) run.font.name = p.fontName;
-                }
-                return run;
+                const font: Record<string, unknown> = {};
+                if (p.bold) font.b = true;
+                if (p.italic) font.i = true;
+                if (p.underline) font.u = 'single';
+                if (p.fontSize !== undefined) font.sz = p.fontSize;
+                if (p.fontColor) font.color = { rgb: p.fontColor.startsWith('FF') ? p.fontColor : `FF${p.fontColor}` };
+                if (p.fontName) font.name = p.fontName;
+
+                return Object.keys(font).length > 0
+                    ? makeTextRun(p.text, font as InlineFont)
+                    : makeTextRun(p.text);
             });
 
             const richText = makeRichText(runs);

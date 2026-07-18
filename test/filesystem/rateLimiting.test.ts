@@ -11,14 +11,29 @@ import { strict as assert } from 'node:assert';
 import { existsSync, unlinkSync } from 'node:fs';
 import { DatabaseBackend } from '../../src/filesystem/databaseBackend.js';
 import { VirtualFileSystem } from '../../src/filesystem/system.js';
+import { WriteCoordinator } from '../../src/filesystem/writeCoordinator.js';
 import { run, getContext } from '../../src/util/requestContext.js';
 
-const TEST_USER = 'rate-limit-test';
-const DB_PATH = `data/${TEST_USER}.db`;
+const currentUser = 'rate-limit-test';
+let testCounter = 0;
+// Each sub-test gets a fresh userid/DB so a leftover (and on Windows, locked)
+// .db file from a previous test can never be re-hydrated into the next one.
+let currentUser = currentUser;
+let currentDb = `data/${currentUser}.db`;
+
+function freshUser() {
+    currentUser = `${currentUser}-${testCounter++}`;
+    currentDb = `data/${currentUser}.db`;
+}
 
 function cleanup() {
+    freshUser();
+    // WriteCoordinator keeps static, per-userid caches (pendingWrites,
+    // lastWriteTimestamps) that persist across tests. Reset them for isolation.
+    (WriteCoordinator as any).pendingWrites.clear();
+    (WriteCoordinator as any).lastWriteTimestamps.clear();
     try {
-        if (existsSync(DB_PATH)) unlinkSync(DB_PATH);
+        if (existsSync(currentDb)) unlinkSync(currentDb);
     } catch { /* ignore */ }
 }
 
@@ -27,19 +42,20 @@ class InstrumentedBackend extends DatabaseBackend {
     insertFileCount = 0;
     insertExportCount = 0;
 
-    async insertKV(key: string, value: string, ttl: string): Promise<void> {
+    // flush() writes via the insertOrReplace* methods, so instrument those.
+    async insertOrReplaceKV(key: string, value: string, ttl: string): Promise<void> {
         this.insertKVCount++;
-        await super.insertKV(key, value, ttl);
+        await super.insertOrReplaceKV(key, value, ttl);
     }
 
-    async insertFile(name: string, data: Uint8Array, ttl: string): Promise<void> {
+    async insertOrReplaceFile(name: string, data: Uint8Array, ttl: string): Promise<void> {
         this.insertFileCount++;
-        await super.insertFile(name, data, ttl);
+        await super.insertOrReplaceFile(name, data, ttl);
     }
 
-    async insertExport(key: string, name: string, ttl: string, data: Uint8Array): Promise<void> {
+    async insertOrReplaceExport(key: string, name: string, ttl: string, data: Uint8Array): Promise<void> {
         this.insertExportCount++;
-        await super.insertExport(key, name, ttl, data);
+        await super.insertOrReplaceExport(key, name, ttl, data);
     }
 
     resetCounts() {
@@ -54,10 +70,10 @@ export default function (test: any) {
         
         test('same key written multiple times within 1 second writes latest value after wait', async () => {
             cleanup();
-            const vfs = await VirtualFileSystem.acquire(TEST_USER, false);
+            const vfs = await VirtualFileSystem.acquire(currentUser, false);
             
             // Replace backend with instrumented version
-            const instrumented = new InstrumentedBackend(DB_PATH);
+            const instrumented = new InstrumentedBackend(currentDb);
             (vfs as any).backend = instrumented;
             
             // Write same key multiple times rapidly
@@ -80,9 +96,9 @@ export default function (test: any) {
 
         test('same key written more than 1 second apart writes each time', async () => {
             cleanup();
-            const vfs = await VirtualFileSystem.acquire(TEST_USER, false);
+            const vfs = await VirtualFileSystem.acquire(currentUser, false);
             
-            const instrumented = new InstrumentedBackend(DB_PATH);
+            const instrumented = new InstrumentedBackend(currentDb);
             (vfs as any).backend = instrumented;
             
             // First write
@@ -104,9 +120,9 @@ export default function (test: any) {
 
         test('different keys written in parallel all write to DB', async () => {
             cleanup();
-            const vfs = await VirtualFileSystem.acquire(TEST_USER, false);
+            const vfs = await VirtualFileSystem.acquire(currentUser, false);
             
-            const instrumented = new InstrumentedBackend(DB_PATH);
+            const instrumented = new InstrumentedBackend(currentDb);
             (vfs as any).backend = instrumented;
             
             // Write different keys in parallel
@@ -127,9 +143,9 @@ export default function (test: any) {
 
         test('files follow same rate limiting as KV', async () => {
             cleanup();
-            const vfs = await VirtualFileSystem.acquire(TEST_USER, false);
+            const vfs = await VirtualFileSystem.acquire(currentUser, false);
             
-            const instrumented = new InstrumentedBackend(DB_PATH);
+            const instrumented = new InstrumentedBackend(currentDb);
             (vfs as any).backend = instrumented;
             
             // Save same file multiple times rapidly
@@ -149,9 +165,9 @@ export default function (test: any) {
 
         test('exports follow same rate limiting as KV', async () => {
             cleanup();
-            const vfs = await VirtualFileSystem.acquire(TEST_USER, false);
+            const vfs = await VirtualFileSystem.acquire(currentUser, false);
             
-            const instrumented = new InstrumentedBackend(DB_PATH);
+            const instrumented = new InstrumentedBackend(currentDb);
             (vfs as any).backend = instrumented;
             
             // Export same file multiple times rapidly (different keys)
@@ -176,8 +192,8 @@ export default function (test: any) {
             // Simulate two parallel requests for the same user
             const results = await Promise.all([
                 run(async () => {
-                    const vfs = await VirtualFileSystem.acquire(TEST_USER, false);
-                    const instrumented = new InstrumentedBackend(DB_PATH);
+                    const vfs = await VirtualFileSystem.acquire(currentUser, false);
+                    const instrumented = new InstrumentedBackend(currentDb);
                     (vfs as any).backend = instrumented;
                     
                     await vfs.remember('sharedKey', 'value1');
@@ -191,8 +207,8 @@ export default function (test: any) {
                     // Small delay to ensure first request starts first
                     await new Promise(resolve => setTimeout(resolve, 10));
                     
-                    const vfs = await VirtualFileSystem.acquire(TEST_USER, false);
-                    const instrumented = new InstrumentedBackend(DB_PATH);
+                    const vfs = await VirtualFileSystem.acquire(currentUser, false);
+                    const instrumented = new InstrumentedBackend(currentDb);
                     (vfs as any).backend = instrumented;
                     
                     await vfs.remember('sharedKey', 'value2');
@@ -264,9 +280,9 @@ export default function (test: any) {
 
         test('mixed operations on same and different keys', async () => {
             cleanup();
-            const vfs = await VirtualFileSystem.acquire(TEST_USER, false);
+            const vfs = await VirtualFileSystem.acquire(currentUser, false);
             
-            const instrumented = new InstrumentedBackend(DB_PATH);
+            const instrumented = new InstrumentedBackend(currentDb);
             (vfs as any).backend = instrumented;
             
             // Mix of same and different keys
@@ -290,9 +306,9 @@ export default function (test: any) {
 
         test('rate limit resets after 1 second', async () => {
             cleanup();
-            const vfs = await VirtualFileSystem.acquire(TEST_USER, false);
+            const vfs = await VirtualFileSystem.acquire(currentUser, false);
             
-            const instrumented = new InstrumentedBackend(DB_PATH);
+            const instrumented = new InstrumentedBackend(currentDb);
             (vfs as any).backend = instrumented;
             
             // Write key

@@ -268,8 +268,12 @@ export class VirtualFileSystem {
     }
 
     async release(): Promise<void> {
+        let flushError: unknown;
         try {
             await this.flush();
+        } catch (e) {
+            // Keep the error so we can rethrow it after the lock is released.
+            flushError = e;
         } finally {
             // Always release the per-userid lock, even if flush() throws.
             // Otherwise the unresolved promise leaves every subsequent request
@@ -277,6 +281,7 @@ export class VirtualFileSystem {
             WriteCoordinator.releaseLock(this.userid);
             await this.backend.close();
         }
+        if (flushError) throw flushError;
     }
 }
 

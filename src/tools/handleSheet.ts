@@ -1,5 +1,5 @@
 import { ToolHandler } from './interface.js';
-import { addWorksheet, removeSheet, renameSheet, setActiveSheet, sheetNames } from '@office-kit/xlsx/workbook';
+import { addWorksheet, getSheet, removeSheet, renameSheet, setActiveSheet, sheetNames } from '@office-kit/xlsx/workbook';
 import z from 'zod';
 import { Context } from '../filesystem/context.js';
 
@@ -49,7 +49,7 @@ export class SheetHandler extends ToolHandler {
         }), outputSchema: z.object({
             filename: z.string().optional(),
             sheet: z.string().optional(),
-            action: z.literal('deleted'),
+            action: z.literal('deleted').optional(),
             sheets: z.array(z.string()).optional(),
             context: context.contextualiseResponseTypes()
         }), annotations: {
@@ -65,7 +65,19 @@ export class SheetHandler extends ToolHandler {
             if (!sheetName) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no sheet specified and no current sheet set' }] });
 
             const wb = await context.getWorkbook(filename);
-            removeSheet(wb, sheetName);
+
+            if(!getSheet(wb, sheetName)) {
+                return context.contextualiseResponse({
+                content: [{ type: 'text', text: `sheet '${sheetName}' not found in workbook '${filename}'` }],
+                structuredContent: {
+                    filename,
+                    sheet: sheetName,
+                    sheets: sheetNames(wb)
+                }
+            });
+            }
+
+            await removeSheet(wb, sheetName);
             await context.setWorkbook(filename, wb);
 
             const currentSheet = await context.getCurrentSheet();
