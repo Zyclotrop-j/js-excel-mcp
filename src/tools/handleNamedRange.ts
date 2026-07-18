@@ -51,7 +51,7 @@ export class NamedRangeHandler extends ToolHandler {
         }), outputSchema: z.object({
             filename: z.string().optional(),
             name: z.string().optional(),
-            action: z.literal('deleted'),
+            action: z.literal('deleted').optional(),
             context: context.contextualiseResponseTypes()
         }), annotations: {
             destructiveHint: true,
