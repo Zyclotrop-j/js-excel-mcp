@@ -3,6 +3,7 @@ import { strict as assert } from 'node:assert';
 import { MockMcpServer, createMockRequestContext } from '../helpers/test-server.js';
 import { createTestContext } from '../helpers/test-context.js';
 import { ConditionalFormatHandler } from '../../src/tools/handleConditionalFormat.js';
+import { CellWriteHandler } from '../../src/tools/handleCells/write.js';
 import { run } from '../../src/util/requestContext.js';
 
 const test = baretest('Conditional Formatting Integration Tests');
@@ -30,6 +31,11 @@ test('setup', async () => {
         workbookTools.expressApp = { get: () => {}, post: () => {} } as any;
         workbookTools.serverOptions = { serverHost: 'http://localhost:3000' };
         await workbookTools.register([]);
+
+        const cellWrite = new CellWriteHandler();
+        cellWrite.server = mockServer as any;
+        cellWrite.context = testContext;
+        await cellWrite.register([]);
 
         const createTool = mockServer.getTool('create_new_workbook');
         const ctx = createMockRequestContext('conditional-format-test');

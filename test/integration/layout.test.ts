@@ -171,7 +171,7 @@ test('merge_cells with no open workbook returns error message', async () => {
 
         const result = await tool.cb({ range: 'A1:B1' }, ctx);
 
-        assert.ok(result.content && result.content.some((c: any) => c.text && c.text.includes('no workbook is currently open')));
+        assert.ok(result.content && result.content.some((c: any) => c.text && c.text.includes("no workbook is currently open")));
     });
 });
 
@@ -192,7 +192,7 @@ test('freeze_panes with unknown sheet returns error message', async () => {
             cellRef: 'B2'
         }, ctx);
 
-        assert.ok(result.content && result.content.some((c: any) => c.text && c.text.includes(\"sheet 'NonExistentSheet' not found\")));
+        assert.ok(result.content && result.content.some((c: any) => c.text && c.text.includes("sheet 'NonExistentSheet' not found")));
     });
 });
 
@@ -223,5 +223,9 @@ test('set_row_height with zero height', async () => {
 });
 
 test('teardown', async () => {
-    await testContext.cleanup();
+    await (await testContext).cleanup();
 });
+
+export default async function () {
+    await test.run();
+}

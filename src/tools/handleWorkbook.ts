@@ -161,7 +161,7 @@ export class WorkbookTools extends ToolHandler {
         }}, async (arg) => {
 
             const filename = arg.filename ?? await context.getCurrentFile();
-            if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }] });
+            if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }], isError: true });
 
             const file = await context.get(filename);
             const { key, ttl } = await Context.exportFile(filename, file);

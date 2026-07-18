@@ -25,14 +25,14 @@ export class NamedRangeHandler extends ToolHandler {
             readOnlyHint: false
         }}, async (arg) => {
             const filename = arg.workbook ?? await context.getCurrentFile();
-            if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }] });
+            if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }], isError: true });
 
             const wb = await context.getWorkbook(filename);
 
             let range = arg.range;
             if (!range.includes('!')) {
                 const currentSheet = await context.getCurrentSheet();
-                if (!currentSheet) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no sheet specified and no current sheet set' }] });
+                if (!currentSheet) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no sheet specified and no current sheet set' }], isError: true });
                 range = `${currentSheet}!${range}`;
             }
 
@@ -60,11 +60,11 @@ export class NamedRangeHandler extends ToolHandler {
             readOnlyHint: false
         }}, async (arg) => {
             const filename = arg.workbook ?? await context.getCurrentFile();
-            if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }] });
+            if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }], isError: true });
 
             const wb = await context.getWorkbook(filename);
             const removed = removeDefinedName(wb, arg.name);
-            if (!removed) return context.contextualiseResponse({ content: [{ type: 'text', text: `named range '${arg.name}' not found` }] });
+            if (!removed) return context.contextualiseResponse({ content: [{ type: 'text', text: `named range '${arg.name}' not found` }], isError: true });
             await context.setWorkbook(filename, wb);
 
             return context.contextualiseResponse({

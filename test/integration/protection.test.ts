@@ -3,6 +3,7 @@ import { strict as assert } from 'node:assert';
 import { MockMcpServer, createMockRequestContext } from '../helpers/test-server.js';
 import { createTestContext } from '../helpers/test-context.js';
 import { ProtectionHandler } from '../../src/tools/handleProtection.js';
+import { CellWriteHandler } from '../../src/tools/handleCells/write.js';
 import { run } from '../../src/util/requestContext.js';
 
 const test = baretest('Protection Integration Tests');
@@ -28,6 +29,11 @@ test('setup', async () => {
         wbTools.expressApp = { get: () => {}, post: () => {} } as any;
         wbTools.serverOptions = { serverHost: 'http://localhost:3000' };
         await wbTools.register([]);
+
+        const cellWrite = new CellWriteHandler();
+        cellWrite.server = mockServer as any;
+        cellWrite.context = testContext;
+        await cellWrite.register([]);
 
         const createTool = mockServer.getTool('create_new_workbook');
         const ctx = createMockRequestContext('protection-test');
@@ -123,6 +129,10 @@ test('protect_sheet error when no workbook is open', async () => {
         assert.ok(result.content);
         assert.ok(result.content && result.content.some((c: any) => c.text && c.text.includes('no workbook is currently open')));
     });
+});
+
+test('teardown', async () => {
+    await testContext.cleanup();
 });
 
 test('teardown', async () => {

@@ -29,19 +29,19 @@ export class SheetOpsHandler extends ToolHandler {
             readOnlyHint: false
         }}, async (arg) => {
             const filename = arg.workbook ?? await context.getCurrentFile();
-            if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }] });
+            if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }], isError: true });
 
             const sourceName = arg.sourceSheet ?? await context.getCurrentSheet();
-            if (!sourceName) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no source sheet specified and no current sheet set' }] });
+            if (!sourceName) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no source sheet specified and no current sheet set' }], isError: true });
 
             const wb = await context.getWorkbook(filename);
             const sourceSheet = wb.sheets.find((s: SheetRef) => s.sheet.title === sourceName);
-            if (!sourceSheet || sourceSheet.kind !== 'worksheet') return context.contextualiseResponse({ content: [{ type: 'text', text: `source sheet '${sourceName}' not found` }] });
+            if (!sourceSheet || sourceSheet.kind !== 'worksheet') return context.contextualiseResponse({ content: [{ type: 'text', text: `source sheet '${sourceName}' not found` }], isError: true });
             const sourceWs: Worksheet = sourceSheet.sheet;
 
             addWorksheet(wb, arg.newName);
             const newSheet = wb.sheets.find((s: SheetRef) => s.sheet.title === arg.newName);
-            if (!newSheet || newSheet.kind !== 'worksheet') return context.contextualiseResponse({ content: [{ type: 'text', text: `failed to create new sheet '${arg.newName}'` }] });
+            if (!newSheet || newSheet.kind !== 'worksheet') return context.contextualiseResponse({ content: [{ type: 'text', text: `failed to create new sheet '${arg.newName}'` }], isError: true });
             const targetWs: Worksheet = newSheet.sheet;
 
             const maxRow = getMaxRow(sourceWs);
@@ -89,15 +89,15 @@ export class SheetOpsHandler extends ToolHandler {
             readOnlyHint: false
         }}, async (arg) => {
             const filename = arg.workbook ?? await context.getCurrentFile();
-            if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }] });
+            if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }], isError: true });
 
             const sheetName = arg.sheet ?? await context.getCurrentSheet();
-            if (!sheetName) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no sheet specified and no current sheet set' }] });
+            if (!sheetName) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no sheet specified and no current sheet set' }], isError: true });
 
             const wb = await context.getWorkbook(filename);
             const names = sheetNames(wb);
-            if (!names.includes(sheetName)) return context.contextualiseResponse({ content: [{ type: 'text', text: `sheet '${sheetName}' not found` }] });
-            if (arg.newIndex < 0 || arg.newIndex >= names.length) return context.contextualiseResponse({ content: [{ type: 'text', text: `index ${arg.newIndex} is out of range (0-${names.length - 1})` }] });
+            if (!names.includes(sheetName)) return context.contextualiseResponse({ content: [{ type: 'text', text: `sheet '${sheetName}' not found` }], isError: true });
+            if (arg.newIndex < 0 || arg.newIndex >= names.length) return context.contextualiseResponse({ content: [{ type: 'text', text: `index ${arg.newIndex} is out of range (0-${names.length - 1})` }], isError: true });
 
             moveSheet(wb, sheetName, arg.newIndex);
             await context.setWorkbook(filename, wb);

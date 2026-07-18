@@ -52,13 +52,13 @@ export class ImageHandler extends ToolHandler {
             readOnlyHint: false
         }}, async (arg) => {
             const filename = arg.workbook ?? await context.getCurrentFile();
-            if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }] });
+            if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }], isError: true });
 
             const wb = await context.getWorkbook(filename);
 
             const sheetName = arg.sheet ?? await context.getCurrentSheet();
             const sheet = wb.sheets.find((s: SheetRef) => s.sheet.title === sheetName);
-            if (!sheet || sheet.kind !== 'worksheet') return context.contextualiseResponse({ content: [{ type: 'text', text: `sheet '${sheetName}' not found` }] });
+            if (!sheet || sheet.kind !== 'worksheet') return context.contextualiseResponse({ content: [{ type: 'text', text: `sheet '${sheetName}' not found` }], isError: true });
             const ws: Worksheet = sheet.sheet;
 
             let bytes: Uint8Array;
@@ -79,7 +79,7 @@ export class ImageHandler extends ToolHandler {
                 bytes = new Uint8Array(buffer);
             } catch (err: any) {
                 const message = err?.message ?? String(err);
-                return context.contextualiseResponse({ content: [{ type: 'text', text: `failed to fetch image: ${message}` }] });
+                return context.contextualiseResponse({ content: [{ type: 'text', text: `failed to fetch image: ${message}` }], isError: true });
             }
 
             const image = loadImage(bytes);

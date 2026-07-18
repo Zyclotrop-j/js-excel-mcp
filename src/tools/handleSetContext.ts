@@ -39,7 +39,8 @@ export class SetContextHandler extends ToolHandler {
                 const open = await context.list();
                 if (!open.includes(arg.workbook)) {
                     return context.contextualiseResponse({
-                        content: [{ type: 'text', text: `workbook '${arg.workbook}' is not open. open workbooks: ${open.join(', ') || 'none'}` }]
+                        content: [{ type: 'text', text: `workbook '${arg.workbook}' is not open. open workbooks: ${open.join(', ') || 'none'}` }],
+                        isError: true
                     });
                 }
                 filename = arg.workbook;
@@ -52,14 +53,16 @@ export class SetContextHandler extends ToolHandler {
             if (arg.sheet !== undefined) {
                 if (!filename) {
                     return context.contextualiseResponse({
-                        content: [{ type: 'text', text: 'cannot set sheet: no workbook is currently open' }]
+                        content: [{ type: 'text', text: 'cannot set sheet: no workbook is currently open' }],
+                        isError: true
                     });
                 }
                 const wb = await context.getWorkbook(filename);
                 const sheets = sheetNames(wb);
                 if (!sheets.includes(arg.sheet)) {
                     return context.contextualiseResponse({
-                        content: [{ type: 'text', text: `sheet '${arg.sheet}' not found in workbook '${filename}'. sheets: ${sheets.join(', ')}` }]
+                        content: [{ type: 'text', text: `sheet '${arg.sheet}' not found in workbook '${filename}'. sheets: ${sheets.join(', ')}` }],
+                        isError: true
                     });
                 }
                 sheetName = arg.sheet;
@@ -71,17 +74,20 @@ export class SetContextHandler extends ToolHandler {
             if (arg.cell !== undefined) {
                 if (!filename) {
                     return context.contextualiseResponse({
-                        content: [{ type: 'text', text: 'cannot set cell: no workbook is currently open' }]
+                        content: [{ type: 'text', text: 'cannot set cell: no workbook is currently open' }],
+                        isError: true
                     });
                 }
                 if (!sheetName) {
                     return context.contextualiseResponse({
-                        content: [{ type: 'text', text: 'cannot set cell: no sheet is currently selected' }]
+                        content: [{ type: 'text', text: 'cannot set cell: no sheet is currently selected' }],
+                        isError: true
                     });
                 }
                 if (!isValidCellRef(arg.cell)) {
                     return context.contextualiseResponse({
-                        content: [{ type: 'text', text: `'${arg.cell}' is not a valid A1 cell reference (e.g. "C5")` }]
+                        content: [{ type: 'text', text: `'${arg.cell}' is not a valid A1 cell reference (e.g. "C5")` }],
+                        isError: true
                     });
                 }
                 await context.setCurrentCell(arg.cell);

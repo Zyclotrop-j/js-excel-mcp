@@ -1,6 +1,6 @@
 import { ToolHandler } from '../interface.js';
 import { getCell, getCellByCoord, findCells, getRangeValues, type Worksheet } from '@office-kit/xlsx/worksheet';
-import { cellValueAsString, getFormulaText, getCoordinate, type Cell } from '@office-kit/xlsx/cell';
+import { cellValueAsPrimitive, cellValueAsString, getFormulaText, getCoordinate, type Cell } from '@office-kit/xlsx/cell';
 import type { SheetRef } from '@office-kit/xlsx/workbook';
 import { encode } from '@toon-format/toon';
 import z from 'zod';
@@ -32,13 +32,13 @@ export class CellReadHandler extends ToolHandler {
             readOnlyHint: true
         }}, async (arg) => {
             const filename = arg.workbook ?? await context.getCurrentFile();
-            if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }] });
+            if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }], isError: true });
 
             const wb = await context.getWorkbook(filename);
 
             const sheetName = arg.sheet ?? await context.getCurrentSheet();
             const sheet = wb.sheets.find((s: SheetRef) => s.sheet.title === sheetName);
-            if (!sheet || sheet.kind !== 'worksheet') return context.contextualiseResponse({ content: [{ type: 'text', text: `sheet '${sheetName}' not found` }] });
+            if (!sheet || sheet.kind !== 'worksheet') return context.contextualiseResponse({ content: [{ type: 'text', text: `sheet '${sheetName}' not found` }], isError: true });
             const ws: Worksheet = sheet.sheet;
 
             let cell;
@@ -48,20 +48,21 @@ export class CellReadHandler extends ToolHandler {
                 cell = getCell(ws, arg.row, arg.col);
             } else {
                 const currentCell = await context.getCurrentCell();
-                if (!currentCell) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no cell reference specified and no current cell set' }] });
+                if (!currentCell) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no cell reference specified and no current cell set' }], isError: true });
                 cell = getCellByCoord(ws, currentCell);
             }
 
-            if (!cell) return context.contextualiseResponse({ content: [{ type: 'text', text: 'cell is empty' }] });
+            if (!cell) return context.contextualiseResponse({ content: [{ type: 'text', text: 'cell is empty' }], isError: true });
 
-            const value = cellValueAsString(cell.value);
+            const value = cell.value;
+            const primitive = cellValueAsPrimitive(value);
             const formula = getFormulaText(cell);
             const ref = getCoordinate(cell);
             await context.setCurrentCell(ref);
 
             return context.contextualiseResponse({
-                content: [{ type: 'text', text: encode({ ref, value, formula: formula ?? null }) }],
-                structuredContent: { ref, value, formula: formula ?? null }
+                content: [{ type: 'text', text: encode({ ref, value: primitive, formula: formula ?? null }) }],
+                structuredContent: { ref, value: cellValueAsString(value), formula: formula ?? null }
             });
         });
 
@@ -80,13 +81,13 @@ export class CellReadHandler extends ToolHandler {
             readOnlyHint: true
         }}, async (arg) => {
             const filename = arg.workbook ?? await context.getCurrentFile();
-            if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }] });
+            if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }], isError: true });
 
             const wb = await context.getWorkbook(filename);
 
             const sheetName = arg.sheet ?? await context.getCurrentSheet();
             const sheet = wb.sheets.find((s: SheetRef) => s.sheet.title === sheetName);
-            if (!sheet || sheet.kind !== 'worksheet') return context.contextualiseResponse({ content: [{ type: 'text', text: `sheet '${sheetName}' not found` }] });
+            if (!sheet || sheet.kind !== 'worksheet') return context.contextualiseResponse({ content: [{ type: 'text', text: `sheet '${sheetName}' not found` }], isError: true });
             const ws: Worksheet = sheet.sheet;
 
             const query = arg.query.toLowerCase();
@@ -125,13 +126,13 @@ export class CellReadHandler extends ToolHandler {
             readOnlyHint: true
         }}, async (arg) => {
             const filename = arg.workbook ?? await context.getCurrentFile();
-            if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }] });
+            if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }], isError: true });
 
             const wb = await context.getWorkbook(filename);
 
             const sheetName = arg.sheet ?? await context.getCurrentSheet();
             const sheet = wb.sheets.find((s: SheetRef) => s.sheet.title === sheetName);
-            if (!sheet || sheet.kind !== 'worksheet') return context.contextualiseResponse({ content: [{ type: 'text', text: `sheet '${sheetName}' not found` }] });
+            if (!sheet || sheet.kind !== 'worksheet') return context.contextualiseResponse({ content: [{ type: 'text', text: `sheet '${sheetName}' not found` }], isError: true });
             const ws: Worksheet = sheet.sheet;
 
             const values = getRangeValues(ws, arg.range);

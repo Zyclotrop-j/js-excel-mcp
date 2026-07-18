@@ -25,7 +25,7 @@ export class SheetHandler extends ToolHandler {
             readOnlyHint: false
         }}, async (arg) => {
             const filename = arg.workbook ?? await context.getCurrentFile();
-            if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }] });
+            if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }], isError: true });
 
             const wb = await context.getWorkbook(filename);
             addWorksheet(wb, arg.name);
@@ -59,16 +59,17 @@ export class SheetHandler extends ToolHandler {
             readOnlyHint: false
         }}, async (arg) => {
             const filename = arg.workbook ?? await context.getCurrentFile();
-            if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }] });
+            if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }], isError: true });
 
             const sheetName = arg.name ?? await context.getCurrentSheet();
-            if (!sheetName) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no sheet specified and no current sheet set' }] });
+            if (!sheetName) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no sheet specified and no current sheet set' }], isError: true });
 
             const wb = await context.getWorkbook(filename);
 
             if(!getSheet(wb, sheetName)) {
                 return context.contextualiseResponse({
                 content: [{ type: 'text', text: `sheet '${sheetName}' not found in workbook '${filename}'` }],
+                isError: true,
                 structuredContent: {
                     filename,
                     sheet: sheetName,
@@ -111,10 +112,10 @@ export class SheetHandler extends ToolHandler {
             readOnlyHint: false
         }}, async (arg) => {
             const filename = arg.workbook ?? await context.getCurrentFile();
-            if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }] });
+            if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }], isError: true });
 
             const sheetName = arg.name ?? await context.getCurrentSheet();
-            if (!sheetName) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no sheet specified and no current sheet set' }] });
+            if (!sheetName) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no sheet specified and no current sheet set' }], isError: true });
 
             const wb = await context.getWorkbook(filename);
             setActiveSheet(wb, sheetName);
@@ -144,7 +145,7 @@ export class SheetHandler extends ToolHandler {
             readOnlyHint: true
         }}, async (arg) => {
             const filename = arg.workbook ?? await context.getCurrentFile();
-            if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }] });
+            if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }], isError: true });
 
             const wb = await context.getWorkbook(filename);
             const names = sheetNames(wb);
@@ -175,10 +176,10 @@ export class SheetHandler extends ToolHandler {
             readOnlyHint: false
         }}, async (arg) => {
             const filename = arg.workbook ?? await context.getCurrentFile();
-            if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }] });
+            if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }], isError: true });
 
             const oldName = arg.oldName ?? await context.getCurrentSheet();
-            if (!oldName) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no sheet specified and no current sheet set' }] });
+            if (!oldName) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no sheet specified and no current sheet set' }], isError: true });
 
             const wb = await context.getWorkbook(filename);
             renameSheet(wb, oldName, arg.newName);

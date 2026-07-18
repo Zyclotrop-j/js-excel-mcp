@@ -14,15 +14,15 @@ import { VirtualFileSystem } from '../../src/filesystem/system.js';
 import { WriteCoordinator } from '../../src/filesystem/writeCoordinator.js';
 import { run, getContext } from '../../src/util/requestContext.js';
 
-const currentUser = 'rate-limit-test';
+const RATE_LIMIT_USER = 'rate-limit-test';
 let testCounter = 0;
 // Each sub-test gets a fresh userid/DB so a leftover (and on Windows, locked)
 // .db file from a previous test can never be re-hydrated into the next one.
-let currentUser = currentUser;
-let currentDb = `data/${currentUser}.db`;
+let currentUser = RATE_LIMIT_USER;
+let currentDb = `data/${RATE_LIMIT_USER}.db`;
 
 function freshUser() {
-    currentUser = `${currentUser}-${testCounter++}`;
+    currentUser = `${RATE_LIMIT_USER}-${testCounter++}`;
     currentDb = `data/${currentUser}.db`;
 }
 

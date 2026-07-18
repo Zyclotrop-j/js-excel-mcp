@@ -3,6 +3,7 @@ import { strict as assert } from 'node:assert';
 import { MockMcpServer, createMockRequestContext } from '../helpers/test-server.js';
 import { createTestContext } from '../helpers/test-context.js';
 import { TableHandler } from '../../src/tools/handleTable.js';
+import { CellWriteHandler } from '../../src/tools/handleCells/write.js';
 import { run } from '../../src/util/requestContext.js';
 
 const test = baretest('Table Integration Tests');
@@ -33,16 +34,10 @@ test('setup', async () => {
         const ctx = createMockRequestContext('table-test');
         await createTool.cb({ filename: 'table-test.xlsx', createDefaultWorksheet: 'Sheet1' }, ctx);
 
-        const setCell = mockServer.getTool('set_cell');
-        await setCell.cb({ cell: 'A1', value: 'Header1' }, ctx);
-        await setCell.cb({ cell: 'B1', value: 'Header2' }, ctx);
-        await setCell.cb({ cell: 'C1', value: 'Header3' }, ctx);
-        await setCell.cb({ cell: 'A2', value: 'Data1' }, ctx);
-        await setCell.cb({ cell: 'B2', value: 'Data2' }, ctx);
-        await setCell.cb({ cell: 'C2', value: 'Data3' }, ctx);
-        await setCell.cb({ cell: 'A3', value: 'Data4' }, ctx);
-        await setCell.cb({ cell: 'B3', value: 'Data5' }, ctx);
-        await setCell.cb({ cell: 'C3', value: 'Data6' }, ctx);
+        const cellWrite = new CellWriteHandler();
+        cellWrite.server = mockServer as any;
+        cellWrite.context = testContext;
+        await cellWrite.register([]);
     });
 });
 

@@ -33,13 +33,13 @@ export class ChartHandler extends ToolHandler {
             readOnlyHint: false
         }}, async (arg) => {
             const filename = arg.workbook ?? await context.getCurrentFile();
-            if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }] });
+            if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }], isError: true });
 
             const wb = await context.getWorkbook(filename);
 
             const sheetName = arg.sheet ?? await context.getCurrentSheet();
             const sheet = wb.sheets.find((s: SheetRef) => s.sheet.title === sheetName);
-            if (!sheet || sheet.kind !== 'worksheet') return context.contextualiseResponse({ content: [{ type: 'text', text: `sheet '${sheetName}' not found` }] });
+            if (!sheet || sheet.kind !== 'worksheet') return context.contextualiseResponse({ content: [{ type: 'text', text: `sheet '${sheetName}' not found` }], isError: true });
             const ws: Worksheet = sheet.sheet;
 
             const parts = arg.dataRange.split(':');
@@ -48,7 +48,7 @@ export class ChartHandler extends ToolHandler {
 
             const startMatch = startRef.match(/^([A-Z]+)(\d+)$/);
             const endMatch = endRef.match(/^([A-Z]+)(\d+)$/);
-            if (!startMatch || !endMatch) return context.contextualiseResponse({ content: [{ type: 'text', text: 'invalid dataRange format' }] });
+            if (!startMatch || !endMatch) return context.contextualiseResponse({ content: [{ type: 'text', text: 'invalid dataRange format' }], isError: true });
 
             const startRow = parseInt(startMatch[2]);
             const endRow = parseInt(endMatch[2]);
@@ -103,13 +103,13 @@ export class ChartHandler extends ToolHandler {
             readOnlyHint: false
         }}, async (arg) => {
             const filename = arg.workbook ?? await context.getCurrentFile();
-            if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }] });
+            if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }], isError: true });
 
             const wb = await context.getWorkbook(filename);
 
             const sheetName = arg.sheet ?? await context.getCurrentSheet();
             const sheet = wb.sheets.find((s: SheetRef) => s.sheet.title === sheetName);
-            if (!sheet || sheet.kind !== 'worksheet') return context.contextualiseResponse({ content: [{ type: 'text', text: `sheet '${sheetName}' not found` }] });
+            if (!sheet || sheet.kind !== 'worksheet') return context.contextualiseResponse({ content: [{ type: 'text', text: `sheet '${sheetName}' not found` }], isError: true });
             const ws: Worksheet = sheet.sheet;
 
             const parts = arg.dataRange.split(':');
@@ -118,7 +118,7 @@ export class ChartHandler extends ToolHandler {
 
             const startMatch = startRef.match(/^([A-Z]+)(\d+)$/);
             const endMatch = endRef.match(/^([A-Z]+)(\d+)$/);
-            if (!startMatch || !endMatch) return context.contextualiseResponse({ content: [{ type: 'text', text: 'invalid dataRange format' }] });
+            if (!startMatch || !endMatch) return context.contextualiseResponse({ content: [{ type: 'text', text: 'invalid dataRange format' }], isError: true });
 
             const startRow = parseInt(startMatch[2]);
             const endRow = parseInt(endMatch[2]);
