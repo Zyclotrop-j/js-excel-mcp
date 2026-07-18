@@ -13,18 +13,32 @@
 
 **Observation:** After creating a workbook, it immediately closes, preventing any operations.
 
-**Reproduction:**
+**Reproduction (consistent across multiple attempts):**
 ```
-create_new_workbook("bug_test.xlsx")
-→ {"filename":"bug_test.xlsx","status":"created","sheets":["Sheet1"]}
-→ context: file: bug_test.xlsx, sheet: Sheet1
+Attempt 1:
+create_new_workbook("retest_critical.xlsx")
+→ {"filename":"retest_critical.xlsx","status":"created","sheets":["Sheet1"]}
+→ context: file: retest_critical.xlsx, sheet: Sheet1
 
-set_cell("A1", "test")
+set_cell("A1", "test value")
 → "no workbook is currently open"
+→ context: no file selected
+
+Attempt 2:
+create_new_workbook("test_immediate.xlsx")
+→ {"filename":"test_immediate.xlsx","status":"created","sheets":["Sheet1"]}
+→ context: file: test_immediate.xlsx, sheet: Sheet1
+
+list_open_workbook()
+→ "files currently open are " (empty list)
 → context: no file selected
 ```
 
+**Pattern:** Workbook creation succeeds and returns correct context, but by the next tool call, the workbook is gone.
+
 **Impact:** Cannot perform any operations on newly created workbooks. Server is unusable.
+
+**Note:** User reports they cannot reproduce this issue. May be environment-specific or related to MCP connection state.
 
 ---
 

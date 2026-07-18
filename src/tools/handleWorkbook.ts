@@ -33,7 +33,7 @@ export class WorkbookTools extends ToolHandler {
             const wb = createWorkbook();
 
             await context.setWorkbook(arg.filename, wb);
-            context.setCurrentFile(arg.filename);
+            await context.setCurrentFile(arg.filename);
 
             if(arg.createDefaultWorksheet) {
                 addWorksheet(wb, arg.createDefaultWorksheet);
@@ -71,7 +71,7 @@ export class WorkbookTools extends ToolHandler {
             const wb = await loadWorkbook(await fromResponse(result));
 
             await context.setWorkbook(arg.filename, wb);
-            context.setCurrentFile(arg.filename);
+            await context.setCurrentFile(arg.filename);
 
             return context.contextualiseResponse({
                 content: [{ type: 'text', text: `import workbook '${arg.filename}' successfully and set active` },

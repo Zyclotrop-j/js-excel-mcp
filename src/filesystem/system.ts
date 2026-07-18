@@ -23,7 +23,9 @@ export class VirtualFileSystem {
 
     static async acquire(userid: string, systemCollection: boolean): Promise<VirtualFileSystem> {
         await WriteCoordinator.acquireLock(userid);
-        return new VirtualFileSystem(userid, systemCollection);
+        const vfs = new VirtualFileSystem(userid, systemCollection);
+        await vfs.hydrate();
+        return vfs;
     }
 
     static selectBackend(dbPath: string): IDatabaseBackend {
