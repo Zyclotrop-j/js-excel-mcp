@@ -148,8 +148,11 @@ test('add_autofilter requires range', async () => {
 
 test('create_excel_table uses current workbook when not specified', async () => {
     await run(async () => {
-        const tool = tableHandler.getTool('create_excel_table');
         const ctx = createMockRequestContext('table-test');
+        const wbTool = mockServer.getTool('create_new_workbook');
+        await wbTool.cb({ filename: 'table-fresh.xlsx', createDefaultWorksheet: 'Sheet1' }, ctx);
+
+        const tool = tableHandler.getTool('create_excel_table');
 
         const result = await tool.cb({
             range: 'A1:C3',
@@ -158,7 +161,7 @@ test('create_excel_table uses current workbook when not specified', async () => 
         }, ctx);
 
         assert.ok(result.structuredContent);
-        assert.equal(result.structuredContent.filename, 'table-test.xlsx');
+        assert.equal(result.structuredContent.filename, 'table-fresh.xlsx');
         assert.equal(result.structuredContent.action, 'created');
     });
 });

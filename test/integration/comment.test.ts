@@ -91,11 +91,11 @@ test('delete_comment reports no comment when cell has none', async () => {
         const tool = mockServer.getTool('delete_comment');
         const ctx = createMockRequestContext('comment-test');
 
-        const result = await tool.cb({ ref: 'B1' }, ctx);
+        const result = await tool.cb({ ref: 'C1' }, ctx);
 
         assert.ok(result.structuredContent);
-        assert.equal(result.structuredContent.ref, 'B1');
-        assert.ok(result.content.some((c: any) => c.text && c.text.includes('no comment found on cell B1')));
+        assert.equal(result.structuredContent.ref, 'C1');
+        assert.ok(result.content.some((c: any) => c.text && c.text.includes('no comment found on cell C1')));
     });
 });
 

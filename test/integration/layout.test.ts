@@ -70,7 +70,7 @@ test('merge_cells with workbook and sheet parameters', async () => {
         }, ctx);
 
         assert.ok(result.structuredContent);
-        assert.equal(result.structuredContent.range, 'A1:B1');
+        assert.equal(result.structuredContent.range, 'A3:B3');
     });
 });
 

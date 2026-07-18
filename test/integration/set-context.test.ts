@@ -5,7 +5,10 @@ import { createTestContext } from '../helpers/test-context.js';
 import { SetContextHandler } from '../../src/tools/handleSetContext.js';
 import { WorkbookTools } from '../../src/tools/handleWorkbook.js';
 import { CellWriteHandler } from '../../src/tools/handleCells/write.js';
+import { SheetHandler } from '../../src/tools/handleSheet.js';
 import { run } from '../../src/util/requestContext.js';
+
+const test = baretest('Set Context Integration Tests');
 
 let mockServer: MockMcpServer;
 let testContext: ReturnType<typeof createTestContext>;
@@ -26,6 +29,16 @@ test('setup', async () => {
         cellWrite.server = mockServer as any;
         cellWrite.context = testContext;
         await cellWrite.register([]);
+
+        const sheetHandler = new SheetHandler();
+        sheetHandler.server = mockServer as any;
+        sheetHandler.context = testContext;
+        await sheetHandler.register([]);
+
+        const setContextHandler = new SetContextHandler();
+        setContextHandler.server = mockServer as any;
+        setContextHandler.context = testContext;
+        await setContextHandler.register([]);
 
         const createTool = mockServer.getTool('create_new_workbook');
         const ctx = createMockRequestContext('set-context-test');

@@ -75,30 +75,30 @@ test('add_named_range accepts sheet prefix in range', async () => {
 
 test('add_named_range without workbook error', async () => {
     await run(async () => {
-        // Create a separate context without an open workbook
-        const separateContext = createTestContext('no-workbook-test');
+        const separateContext = await createTestContext('no-workbook-test');
         const separateMockServer = new MockMcpServer();
-        
+
+        const wbToolsMod = await import('../../src/tools/handleWorkbook.js');
+        const wbTools = new wbToolsMod.WorkbookTools();
+        wbTools.server = separateMockServer as any;
+        wbTools.context = separateContext;
+        wbTools.expressApp = { get: () => {}, post: () => {} } as any;
+        wbTools.serverOptions = { serverHost: 'http://localhost:3000' };
+        await wbTools.register([]);
+
         const separateNamedRangeHandler = new NamedRangeHandler();
         separateNamedRangeHandler.server = separateMockServer as any;
         separateNamedRangeHandler.context = separateContext;
         await separateNamedRangeHandler.register([]);
 
-        const createTool = separateMockServer.getTool('create_new_workbook');
-        const ctx = createMockRequestContext('no-workbook-test');
-        
-        // Create workbook in separate context
-        await createTool.cb({ filename: 'no-wb-test.xlsx', createDefaultWorksheet: 'Sheet1' }, ctx);
-
         const tool = separateMockServer.getTool('add_named_range');
-        
-        // Now use a different userId context without workbook open
+
         const noWbCtx = createMockRequestContext('different-user');
         const result = await tool.cb({ name: 'TestRange', range: 'A1:B10' }, noWbCtx);
 
-        // Should return error about no workbook
         assert.ok(result.content);
-        assert.ok(result.content.some((c: any) => c.text.includes('no workbook is currently open')));
+        assert.ok(result.content.some((c: any) => c.text && c.text.includes('no workbook is currently open')));
+        await separateContext.cleanup();
     });
 });
 

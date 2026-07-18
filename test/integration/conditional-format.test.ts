@@ -190,19 +190,21 @@ test('add_cell_value_rule with unknown sheet (error)', async () => {
 
 test('add_color_scale without open workbook (error)', async () => {
     await run(async () => {
-        const testContextNoWb = createTestContext('cf-test-no-wb');
+        const testContextNoWb = await createTestContext('cf-test-no-wb');
+        const mockServerNoWb = new MockMcpServer();
         const conditionalFormatHandlerNoWb = new ConditionalFormatHandler();
+        conditionalFormatHandlerNoWb.server = mockServerNoWb as any;
         conditionalFormatHandlerNoWb.context = testContextNoWb;
         await conditionalFormatHandlerNoWb.register([]);
 
-        const toolNoWb = new MockMcpServer().getTool('add_color_scale');
-
+        const toolNoWb = mockServerNoWb.getTool('add_color_scale');
         const ctxNoWb = createMockRequestContext('cf-test-no-wb');
 
         const result = await toolNoWb.cb({ range: 'A1:D4', lowColor: 'FF0000', midColor: 'FFFF00', highColor: '00FF00' }, ctxNoWb);
 
         assert.ok(result.content);
         assert.ok(result.content.some((c:any)=> c.text && c.text.includes('no workbook is currently open')));
+        await testContextNoWb.cleanup();
     });
 });
 

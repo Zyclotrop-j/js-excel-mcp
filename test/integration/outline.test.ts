@@ -14,7 +14,7 @@ let outlineHandler: OutlineHandler;
 test('setup', async () => {
     await run(async () => {
         mockServer = new MockMcpServer();
-        testContext = createTestContext('outline-test');
+        testContext = await createTestContext('outline-test');
 
         outlineHandler = new OutlineHandler();
         outlineHandler.server = mockServer as any;

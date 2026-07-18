@@ -3,21 +3,26 @@
  *
  * DEMO ONLY - NOT FOR PRODUCTION
  *
- * This configuration uses in-memory SQLite and auto-approves all logins.
- * For production use, configure a proper database and authentication flow.
+ * This configuration uses a file-backed SQLite database at `data/_auth.db`
+ * and auto-approves all logins. For production use, configure a proper
+ * database and authentication flow.
  */
-
-import { randomBytes } from 'node:crypto';
 
 import type { BetterAuthOptions } from 'better-auth';
 import { betterAuth } from 'better-auth';
 import { mcp } from 'better-auth/plugins';
 import Database from 'better-sqlite3';
 
-// Generate a random password for the demo user (new each time the server starts)
-const DEMO_PASSWORD = randomBytes(24).toString('base64url');
+// Hardcoded demo password — a fixed credential committed to source for demo
+// builds only (per the demo-only posture of this auth server). Auto-login
+// `/sign-in` uses this; the auth server binds to 'localhost' in `authServer.ts`
+// so the credential is not reachable from outside the host. It does NOT
+// rotate per server start.
+const DEMO_PASSWORD = 'ernCjBsavZjKxznbu_1g1g';
 
-// Create the in-memory database once (module-level singleton)
+// Open the database once (module-level singleton) — file-backed SQLite at
+// `data/_auth.db` so demo sessions persist across server restarts. This avoids
+// re-creating the schema on every server start.
 // This avoids the type export issue and ensures the same DB is used
 let _db: InstanceType<typeof Database> | null = null;
 
@@ -151,7 +156,7 @@ function initializeSchema(db: InstanceType<typeof Database>): void {
         );
     `);
 
-    console.log('[Auth] In-memory database schema initialized');
+    console.log('[Auth] Database schema initialized (data/_auth.db)');
     console.log('[Auth] ========================================');
     console.log('[Auth] Demo user credentials (auto-login):');
     console.log(`[Auth]   Email:    ${DEMO_USER_CREDENTIALS.email}`);
@@ -160,9 +165,9 @@ function initializeSchema(db: InstanceType<typeof Database>): void {
 }
 
 /**
- * Demo user credentials for auto-login.
- * Password is randomly generated each time the server starts.
- * Used by authServer.ts to create and sign in the demo user.
+ * Demo user credentials for auto-login. The password is a fixed value
+ * committed to source (see `DEMO_PASSWORD` above); it does NOT rotate per
+ * server start. Used by authServer.ts to create and sign in the demo user.
  */
 export const DEMO_USER_CREDENTIALS = {
     email: 'demo@example.com',
@@ -190,8 +195,9 @@ interface CreateDemoAuthOptions {
 export function createDemoAuth(options: CreateDemoAuthOptions) {
     const { baseURL, resource, loginPage = '/sign-in', demoMode } = options;
 
-    // Use in-memory SQLite database for demo purposes
-    // Note: All data is lost on restart - demo only!
+    // File-backed SQLite at data/_auth.db — see getDatabase(). Demo data
+    // currently persists across server restarts; clear data/_auth.db between
+    // demo runs to reset.
     const db = getDatabase();
 
     // MCP plugin configuration
