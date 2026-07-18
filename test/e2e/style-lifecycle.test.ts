@@ -148,6 +148,7 @@ test('chain multiple styles on one cell', async () => {
 });
 
 test('style operations use current cell when no ref given', async () => {
+    await run(async () => {
     const ctx = createMockRequestContext('style-lifecycle-e2e');
 
     await mockServer.getTool('set_cell').cb({ cell: 'G1', value: 'Current Cell Style' }, ctx);
@@ -156,6 +157,7 @@ test('style operations use current cell when no ref given', async () => {
     const boldResult = await mockServer.getTool('set_cell_bold').cb({ bold: true }, ctx);
     assert.equal(boldResult.structuredContent.ref, 'G1');
     assert.equal(boldResult.structuredContent.bold, true);
+    });
 });
 
 export default function registerTests(testInstance: ReturnType<typeof baretest>) {

@@ -18,7 +18,7 @@ export class WorkbookTools extends ToolHandler {
             createDefaultWorksheet: z.union([
                 z.literal(false),
                 z.string(),
-            ]).default('Sheet1').meta({description: "Specify the sheet default sheet's name or pass false to create the workbook without a default sheet")
+            ]).default('Sheet1').meta({description: "Specify the sheet default sheet's name or pass false to create the workbook without a default sheet"})
         }), outputSchema: z.object({
             filename: z.string(),
             status: z.string(),

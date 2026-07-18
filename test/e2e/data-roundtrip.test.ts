@@ -11,6 +11,7 @@ import { WorkbookTools } from '../../src/tools/handleWorkbook.js';
 import { CellTools } from '../../src/tools/handleCell.js';
 import { SheetTools } from '../../src/tools/handleSheet.js';
 import { Context } from '../../src/filesystem/context.js';
+import { run } from '../../src/util/requestContext.js';
 
 const test = baretest('Data Roundtrip E2E');
 
@@ -19,6 +20,7 @@ let testContext: ReturnType<typeof createTestContext>;
 let originalFetch: typeof globalThis.fetch;
 
 test('setup', async () => {
+    await run(async () => {
     mockServer = new MockMcpServer();
     testContext = createTestContext('data-roundtrip-e2e');
 
@@ -40,6 +42,7 @@ test('setup', async () => {
     await sheetTools.register([]);
 
     originalFetch = globalThis.fetch;
+    });
 });
 
 test('teardown', async () => {
@@ -48,6 +51,7 @@ test('teardown', async () => {
 });
 
 test('write cells → read back → data matches', async () => {
+    await run(async () => {
     const ctx = createMockRequestContext('data-roundtrip-e2e');
 
     await mockServer.getTool('create_new_workbook').cb({ filename: 'roundtrip.xlsx' }, ctx);
@@ -69,6 +73,7 @@ test('write cells → read back → data matches', async () => {
         const result = await mockServer.getTool('get_cell').cb({ cell }, ctx);
         assert.equal(result.structuredContent.value, value, `Cell ${cell} roundtrip failed`);
     }
+    });
 });
 
 test('write cells on multiple sheets → read back → data persists across sheets', async () => {
