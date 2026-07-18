@@ -12,10 +12,11 @@ export default function (test: any) {
 
     async function withContext(fn: (mockServer: MockMcpServer) => Promise<void>) {
         const mockServer = new MockMcpServer();
-        const testContext = await createTestContext('encoding-props');
+        let testContext;
         const mockCtx = { authInfo: { extra: { userId: 'encoding-props' } } };
 
         await run(async () => {
+            testContext = await createTestContext('encoding-props');
             const reqCtx = getContext();
             reqCtx.context = testContext;
             reqCtx.virtualFileSystem = testContext.virtualFileSystem;
@@ -57,7 +58,7 @@ export default function (test: any) {
         await withContext(async (mockServer) => {
             const ctx = createMockRequestContext('encoding-props');
             await fc.assert(
-                fc.property(
+                fc.asyncProperty(
                     fc.constantFrom(
                         'caf\u00e9', 'na\u00efve', 'r\u00e9sum\u00e9', '\u00fcber', '\u00e4-\u00f6-\u00fc', '\u00df,\u00e7,\u00f8', '\u014d\u0259-\u014b-\u0272\u026f',
                         'DY\u0192?D,D\u0186D\u0187,', 'U.O\u0190O-O"O\u01af', 'I"I\u0130I1I\u0131 I\u0130I\u0131I.', 'dY`<dYZ%', '\u00a3,\u20ac100', '\u00a92024'
@@ -77,7 +78,7 @@ export default function (test: any) {
         await withContext(async (mockServer) => {
             const ctx = createMockRequestContext('encoding-props');
             await fc.assert(
-                fc.property(
+                fc.asyncProperty(
                     fc.constantFrom('  ', '\t', ' \t ', '  hello  '),
                     async (value) => {
                         await mockServer.getTool('set_cell').cb({ ref: 'A1', value }, ctx);
@@ -94,7 +95,7 @@ export default function (test: any) {
         await withContext(async (mockServer) => {
             const ctx = createMockRequestContext('encoding-props');
             await fc.assert(
-                fc.property(
+                fc.asyncProperty(
                     fc.constantFrom('=', '+', '-', '@', '#', '$', '%', '&', '!', '?', '~', '`'),
                     async (value) => {
                         await mockServer.getTool('set_cell').cb({ ref: 'A1', value }, ctx);
@@ -111,7 +112,7 @@ export default function (test: any) {
         await withContext(async (mockServer) => {
             const ctx = createMockRequestContext('encoding-props');
             await fc.assert(
-                fc.property(
+                fc.asyncProperty(
                     fc.string({ minLength: 1, maxLength: 20 }).filter(s =>
                         s.trim().length > 0 && /^[\w\s.-]+$/.test(s)
                     ),
@@ -130,7 +131,7 @@ export default function (test: any) {
         await withContext(async (mockServer) => {
             const ctx = createMockRequestContext('encoding-props');
             await fc.assert(
-                fc.property(
+                fc.asyncProperty(
                     fc.array(fc.string({ minLength: 1, maxLength: 5 }).filter(s => /^[a-z]+$/.test(s)), { minLength: 2, maxLength: 4 }),
                     async (words) => {
                         const value = words.join(' ');
@@ -148,7 +149,7 @@ export default function (test: any) {
         await withContext(async (mockServer) => {
             const ctx = createMockRequestContext('encoding-props');
             await fc.assert(
-                fc.property(
+                fc.asyncProperty(
                     fc.string({ minLength: 50, maxLength: 200 }).filter(s => s.trim().length > 0),
                     async (value) => {
                         await mockServer.getTool('set_cell').cb({ ref: 'A1', value }, ctx);
@@ -165,7 +166,7 @@ export default function (test: any) {
         await withContext(async (mockServer) => {
             const ctx = createMockRequestContext('encoding-props');
             await fc.assert(
-                fc.property(
+                fc.asyncProperty(
                     fc.constantFrom('\ud83d\ude80%', '\ud83d\udd25s?', '\u2603\u0299.', '\u2764\ufe0f"\u2764\ufe0f', '\u00fc\u0278.', '\u00e4?O', '\u01b9s\u026f,\u0272?', 'dY"\u2019\u2019'),
                     async (value) => {
                         await mockServer.getTool('set_cell').cb({ ref: 'A1', value }, ctx);

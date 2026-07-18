@@ -10,10 +10,11 @@ export default function (test: any) {
 
     async function withContext(fn: (mockServer: MockMcpServer) => Promise<void>) {
         const mockServer = new MockMcpServer();
-        const testContext = await createTestContext('sheet-props');
+        let testContext;
         const mockCtx = { authInfo: { extra: { userId: 'sheet-props' } } };
 
         await run(async () => {
+            testContext = await createTestContext('sheet-props');
             const reqCtx = getContext();
             reqCtx.context = testContext;
             reqCtx.virtualFileSystem = testContext.virtualFileSystem;
@@ -32,7 +33,7 @@ export default function (test: any) {
             await sheetHandler.register([]);
 
             const ctx = createMockRequestContext('sheet-props');
-            await mockServer.getTool('create_new_workbook').cb({ filename: 'sheet-test.xlsx' }, ctx);
+            await mockServer.getTool('create_new_workbook').cb({ filename: 'sheet-test.xlsx', createDefaultWorksheet: 'Sheet1' }, ctx);
 
             await fn(mockServer);
         });
@@ -63,7 +64,7 @@ export default function (test: any) {
         await withContext(async (mockServer) => {
             const ctx = createMockRequestContext('sheet-props');
             await fc.assert(
-                fc.property(
+                fc.asyncProperty(
                     fc.integer({ min: 1, max: 4 }),
                     async (n) => {
                         const listBefore = await mockServer.getTool('list_sheets').cb({}, ctx);
@@ -115,11 +116,13 @@ export default function (test: any) {
         await withContext(async (mockServer) => {
             const ctx = createMockRequestContext('sheet-props');
             await fc.assert(
-                fc.property(
+                fc.asyncProperty(
                     fc.string({ minLength: 3, maxLength: 8 }).filter(s => /^[A-Za-z0-9]+$/.test(s)),
                     fc.string({ minLength: 3, maxLength: 8 }).filter(s => /^[A-Za-z0-9]+$/.test(s)),
                     async (original, renamed) => {
                         if (original === renamed) return;
+                        await mockServer.getTool('delete_sheet').cb({ name: original }, ctx);
+                        await mockServer.getTool('delete_sheet').cb({ name: renamed }, ctx);
                         await mockServer.getTool('create_sheet').cb({ name: original }, ctx);
                         await mockServer.getTool('rename_sheet').cb({ oldName: original, newName: renamed }, ctx);
 

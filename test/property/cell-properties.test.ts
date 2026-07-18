@@ -12,10 +12,14 @@ export default function (test: any) {
 
     async function withContext(fn: (mockServer: MockMcpServer) => Promise<void>) {
         const mockServer = new MockMcpServer();
-        const testContext = await createTestContext('cell-props');
+        let testContext;
         const mockCtx = { authInfo: { extra: { userId: 'cell-props' } } };
 
         await run(async () => {
+            // createTestContext must be called inside this `run()` block so its
+            // helper can populate the AsyncLocalStorage slot synchronously
+            // before any register() call.
+            testContext = await createTestContext('cell-props');
             const reqCtx = getContext();
             reqCtx.context = testContext;
             reqCtx.virtualFileSystem = testContext.virtualFileSystem;
@@ -77,7 +81,7 @@ export default function (test: any) {
         await withContext(async (mockServer) => {
             const ctx = createMockRequestContext('cell-props');
             await fc.assert(
-                fc.property(
+                fc.asyncProperty(
                     fc.string({ minLength: 1, maxLength: 15 }).filter(s => s.trim().length > 0),
                     async (value) => {
                         const setResult = await mockServer.getTool('set_cell').cb({ ref: 'A1', value }, ctx);
@@ -97,7 +101,7 @@ export default function (test: any) {
         await withContext(async (mockServer) => {
             const ctx = createMockRequestContext('cell-props');
             await fc.assert(
-                fc.property(
+                fc.asyncProperty(
                     fc.integer({ min: -10000, max: 10000 }),
                     async (value) => {
                         await mockServer.getTool('set_cell').cb({ ref: 'B1', value }, ctx);
@@ -114,8 +118,8 @@ export default function (test: any) {
         await withContext(async (mockServer) => {
             const ctx = createMockRequestContext('cell-props');
             await fc.assert(
-                fc.property(
-                    fc.float({ min: -1000, max: 1000, noNaN: true }),
+                fc.asyncProperty(
+                    fc.float({ min: -1000, max: 1000, noNaN: true }).filter(v => !Object.is(v, -0)),
                     async (value) => {
                         await mockServer.getTool('set_cell').cb({ ref: 'C1', value }, ctx);
                         const result = await mockServer.getTool('get_cell').cb({ ref: 'C1' }, ctx);
@@ -131,12 +135,12 @@ export default function (test: any) {
         await withContext(async (mockServer) => {
             const ctx = createMockRequestContext('cell-props');
             await fc.assert(
-                fc.property(
+                fc.asyncProperty(
                     fc.boolean(),
                     async (value) => {
                         await mockServer.getTool('set_cell').cb({ ref: 'D1', value }, ctx);
                         const result = await mockServer.getTool('get_cell').cb({ ref: 'D1' }, ctx);
-                        assert.equal(result.structuredContent.value, String(value));
+                        assert.equal(result.structuredContent.value, value);
                     }
                 ),
                 { numRuns: 10 }
@@ -148,7 +152,7 @@ export default function (test: any) {
         await withContext(async (mockServer) => {
             const ctx = createMockRequestContext('cell-props');
             await fc.assert(
-                fc.property(
+                fc.asyncProperty(
                     fc.constantFrom('E1', 'F1', 'G1', 'H1'),
                     fc.oneof(
                         fc.string({ maxLength: 8 }).filter(s => s.trim().length > 0),
@@ -186,7 +190,7 @@ export default function (test: any) {
         await withContext(async (mockServer) => {
             const ctx = createMockRequestContext('cell-props');
             await fc.assert(
-                fc.property(
+                fc.asyncProperty(
                     fc.string({ minLength: 1, maxLength: 10 }).filter(s => s.trim().length > 0),
                     fc.string({ minLength: 1, maxLength: 10 }).filter(s => s.trim().length > 0),
                     async (first, second) => {

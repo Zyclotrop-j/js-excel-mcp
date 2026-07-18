@@ -1,9 +1,19 @@
 import { ToolHandler } from './interface.js';
-import { addWorksheet, sheetNames, moveSheet, validateSheetTitle, type SheetRef, type Workbook } from '@office-kit/xlsx/workbook';
+import { addWorksheet, sheetNames, moveSheet, type SheetRef, type Workbook } from '@office-kit/xlsx/workbook';
 import { copyRange, getMaxCol, getMaxRow, type Worksheet } from '@office-kit/xlsx/worksheet';
 import { columnLetterFromIndex } from '@office-kit/xlsx/utils';
 import z from 'zod';
 import { Context } from '../filesystem/context.js';
+
+// Mirror office-kit's validateSheetTitle rules without depending on its
+// un-exported symbol. Returns null for an acceptable title, or a reason string.
+function invalidSheetName(title: string | undefined): string | null {
+    if (typeof title !== 'string' || title.length === 0 || title.length > 31) return 'must be 1..31 chars';
+    if (/[:\\/?*[\]]/.test(title)) return 'must not contain : \\ / ? * [ ]';
+    if (title.startsWith("'") || title.endsWith("'")) return "must not start or end with an apostrophe";
+    if (title.toLowerCase() === 'history') return '"History" is reserved by Excel';
+    return null;
+}
 
 export class SheetOpsHandler extends ToolHandler {
     async register(allTools: ToolHandler[]): Promise<void> {
@@ -51,7 +61,7 @@ export class SheetOpsHandler extends ToolHandler {
                 });
             }
 
-            const titleReason = validateSheetTitle(arg.newName);
+            const titleReason = invalidSheetName(arg.newName);
             if (titleReason) {
                 return context.contextualiseResponse({
                     content: [{ type: 'text', text: `invalid sheet name '${arg.newName}': ${titleReason}` }],

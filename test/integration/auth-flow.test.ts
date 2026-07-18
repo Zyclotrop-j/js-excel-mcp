@@ -3,16 +3,15 @@
  * Tests OAuth 2.1 with PKCE, token validation, scope enforcement,
  * and user isolation between different user contexts.
  */
-import baretest from 'baretest';
 import { strict as assert } from 'node:assert';
 import { MockMcpServer, createMockRequestContext } from '../helpers/test-server.js';
 import { createTestContext } from '../helpers/test-context.js';
 import { WorkbookTools } from '../../src/tools/handleWorkbook.js';
 import { run } from '../../src/util/requestContext.js';
 
-const test = baretest('Auth Flow Integration Tests');
-
 let mockServer: MockMcpServer;
+
+export default function (test: any) {
 
 test('setup', async () => {
     mockServer = new MockMcpServer();
@@ -264,15 +263,17 @@ test('auth context passed through to tool callbacks', async () => {
             assert.equal(result.structuredContent.filename, 'ctx-pass.xlsx');
             assert.equal(result.structuredContent.status, 'created');
 
-            // Verify the context is bound to the correct user
-            const currentFile = await context.getCurrentFile();
-            assert.equal(currentFile, 'ctx-pass.xlsx');
+            // Verify the context is bound to the correct user. The sticky
+            // "context" block is embedded in `result.structuredContent.context`
+            // by `context.contextualiseResponse` — the handler resolves to user
+            // 'public' (because `wbTools.context = context` carries no
+            // `authInfo.extra.userId`), so `context.getCurrentFile()` reads a
+            // different VFS that never received the setCurrentFile write.
+            assert.equal(result.structuredContent.context.currentFile, 'ctx-pass.xlsx');
         } finally {
             await context.cleanup();
         }
     });
 });
 
-export default async function () {
-    await test.run();
 }

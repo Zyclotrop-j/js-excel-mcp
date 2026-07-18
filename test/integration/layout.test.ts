@@ -1,4 +1,3 @@
-import baretest from 'baretest';
 import { strict as assert } from 'node:assert';
 import { MockMcpServer, createMockRequestContext } from '../helpers/test-server.js';
 import { createTestContext } from '../helpers/test-context.js';
@@ -6,11 +5,11 @@ import { LayoutHandler } from '../../src/tools/handleLayout.js';
 import { CellWriteHandler } from '../../src/tools/handleCells/write.js';
 import { run } from '../../src/util/requestContext.js';
 
-const test = baretest('Layout Integration Tests');
-
 let mockServer: MockMcpServer;
 let testContext: ReturnType<typeof createTestContext>;
 let layoutHandler: LayoutHandler;
+
+export default function (test: any) {
 
 test('setup', async () => {
     await run(async () => {
@@ -171,7 +170,7 @@ test('merge_cells with no open workbook returns error message', async () => {
         layoutHandler.server = mockServer as any;
         layoutHandler.context = freshContext;
         await layoutHandler.register([]);
-        
+
         const tool = mockServer.getTool('merge_cells');
         const ctx = createMockRequestContext('layout-test-merge-error');
 
@@ -188,7 +187,7 @@ test('freeze_panes with unknown sheet returns error message', async () => {
         layoutHandler.server = mockServer as any;
         layoutHandler.context = freshContext;
         await layoutHandler.register([]);
-        
+
         const tool = mockServer.getTool('freeze_panes');
         const ctx = createMockRequestContext('layout-test-freeze-error');
 
@@ -228,10 +227,8 @@ test('set_row_height with zero height', async () => {
     });
 });
 
-test('teardown', async () => {
+test.after(async () => {
     await (await testContext).cleanup();
 });
 
-export default async function () {
-    await test.run();
 }

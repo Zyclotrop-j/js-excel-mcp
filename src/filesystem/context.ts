@@ -25,12 +25,11 @@ export class Context {
     }
     static async getContext(userid: string) {
         const reqCtx = getContext();
-        if(!reqCtx.context) {
-            const vfs = await VirtualFileSystem.acquire(userid, false);
-            reqCtx.virtualFileSystem = vfs;
-            reqCtx.release = async () => { await vfs.release(); };
-            reqCtx.context = new Context(vfs, userid);
-        }
+        if (reqCtx.context) return reqCtx.context;
+        const vfs = await VirtualFileSystem.acquire(userid, false);
+        reqCtx.virtualFileSystem = vfs;
+        reqCtx.release = async () => { await vfs.release(); };
+        reqCtx.context = new Context(vfs, userid);
         return reqCtx.context;
     }
     get(fileName: string) {

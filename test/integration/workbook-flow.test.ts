@@ -2,7 +2,6 @@
  * Integration tests for Workbook flow tools.
  * Tests the complete workbook lifecycle: create, import, list, close, export.
  */
-import baretest from 'baretest';
 import { strict as assert } from 'node:assert';
 import { MockMcpServer, createMockRequestContext } from '../helpers/test-server.js';
 import { createTestContext } from '../helpers/test-context.js';
@@ -10,11 +9,11 @@ import { WorkbookTools } from '../../src/tools/handleWorkbook.js';
 import { Context } from '../../src/filesystem/context.js';
 import { run } from '../../src/util/requestContext.js';
 
-const test = baretest('Workbook Flow Integration Tests');
-
 let mockServer: MockMcpServer;
 let testContext: ReturnType<typeof createTestContext>;
 let workbookTools: WorkbookTools;
+
+export default function (test: any) {
 
 test('setup', async () => {
     await run(async () => {
@@ -33,7 +32,7 @@ test('setup', async () => {
     });
 });
 
-test('teardown', async () => {
+test.after(async () => {
     await (await testContext).cleanup();
 });
 
@@ -50,9 +49,17 @@ test('create_new_workbook creates workbook and sets as current', async () => {
         assert.ok(Array.isArray(result.structuredContent.sheets));
         assert.equal(result.structuredContent.sheets.length, 1); // Default sheet
 
-        // Verify it's set as current file
-        const currentFile = await (await testContext).getCurrentFile();
-        assert.equal(currentFile, 'test-workbook.xlsx');
+        // Verify it's set as current file. The sticky "context" block is embedded
+        // in `result.structuredContent.context` by `context.contextualiseResponse`
+        // (see handleWorkbook.registerTool's outputSchema) — this reflects the
+        // handler's own context instance. The previous assertion read via
+        // `(await testContext).getCurrentFile()`, but `testContext` was created in
+        // `setup`'s separate `run()` block and holds a different VFS instance that
+        // never received the handler's setCurrentFile write (handler falls back to
+        // user 'public' because `workbookTools.context = testContext` carries no
+        // `authInfo.extra.userId`). Reading the embedded context avoids the stale
+        // cross-VFS read.
+        assert.equal(result.structuredContent.context.currentFile, 'test-workbook.xlsx');
     });
 });
 
@@ -120,9 +127,9 @@ test('close_workbook handles missing file gracefully', async () => {
 
         const result = await tool.cb({ filename: 'nonexistent.xlsx' }, ctx);
 
-        // Should not throw, should return error in content
         assert.ok(result.content);
-        assert.ok(result.content.some((c: any) => c.text.includes('not found') || c.text.includes('error')));
+        assert.ok(result.content.some((c: any) => c.text.includes("doesn't exist")));
+        assert.equal(result.isError, true);
     });
 });
 
@@ -183,6 +190,4 @@ test('import_workbook_from_url is registered', async () => {
     assert.ok(mockServer.hasTool('import_workbook_from_url'));
 });
 
-export default async function () {
-    await test.run();
 }

@@ -41,7 +41,8 @@ This document outlines the comprehensive test plan for the js-excel-mcp project,
 | `context.ts` | `test/filesystem/context.test.ts` | ✅ Implemented | Context caching, file/sheet/cell state |
 | `system.ts` | `test/filesystem/system.test.ts` | ✅ Implemented | Virtual filesystem operations |
 | `IDatabaseBackend.ts` | `test/filesystem/IDatabaseBackend.test.ts` | ✅ Implemented | Interface contract tests for DatabaseBackend & MemoryBackend |
-| `rateLimiting.ts` | `test/filesystem/rateLimiting.test.ts` | ✅ Implemented | Write-once-per-second-per-key rate limiting |
+| `rateLimiting.ts` | `test/filesystem/rateLimiting.test.ts` | ✅ Implemented | Write-once-per-second-per-key rate limiting (10 tests; all PASS as of 2026-07-18) |
+| **`cloudflareBackend.ts`** | `test/filesystem/mocked-cloudflare-backend.test.ts` (**NEW**) | ✅ Implemented | Smoke test (transaction passthrough, close no-op, KV insert/select round-trip ×2) |
 
 **Test Cases for Context:**
 - [x] getContext returns same instance for same user
@@ -166,18 +167,18 @@ Each tool handler has corresponding integration tests using MockMcpServer.
 
 | Feature | Test File | Status | Test Cases |
 |---------|-----------|--------|------------|
-| User isolation | `test/integration/auth-flow.test.ts` | ✅ Implemented | User A workbook not visible to B, independent current files, close isolation, concurrent users |
-| Token structure | `test/integration/auth-flow.test.ts` | ✅ Implemented | Required fields, independence |
-| Context passing | `test/integration/auth-flow.test.ts` | ✅ Implemented | authInfo passed through to tool callbacks |
+| User isolation | `test/integration/auth-flow.test.ts` | ✅ Wired | User A workbook not visible to B, independent current files, close isolation, concurrent users |
+| Token structure | `test/integration/auth-flow.test.ts` | ✅ Wired | Required fields, independence |
+| Context passing | `test/integration/auth-flow.test.ts` | ✅ Wired | authInfo passed through to tool callbacks |
 
-#### 3.9 Bug Regression Tests
+#### 3.9 Bug Regression Tests (all use Pattern A but are NOT wired into the runner — see §6)
 
 | Bug | Test File | Status | Test Cases |
 |-----|-----------|--------|------------|
-| BUG-1: hydrate() on acquire() | `test/integration/bug1-hydrate.test.ts` | ✅ Implemented | acquire() calls hydrate(), cross-request context preserves state |
-| BUG-2: add_cell_value_rule types | `test/integration/bug2-cell-value-rule.test.ts` | ✅ Implemented | Schema accepts numeric, string, boolean values |
-| BUG-3: set_rich_text parts | `test/integration/bug3-rich-text.test.ts` | ✅ Implemented | Schema rejects invalid parts, accepts valid parts, happy path callbacks |
-| BUG-4: close_workbook no-args | `test/integration/bug4-close-workbook.test.ts` | ✅ Implemented | Sticky context, schema validation, graceful errors |
+| BUG-1: hydrate() on acquire() | `test/integration/bug1-hydrate.test.ts` | 🟡 Orphaned — Pattern A but not wired into `run-integration.ts` (see §6) | acquire() calls hydrate(), cross-request context preserves state |
+| BUG-2: add_cell_value_rule types | `test/integration/bug2-cell-value-rule.test.ts` | 🟡 Orphaned — Pattern A but not wired | Schema accepts numeric, string, boolean values |
+| BUG-3: set_rich_text parts | `test/integration/bug3-rich-text.test.ts` | 🟡 Orphaned — Pattern A but not wired | Schema rejects invalid parts, accepts valid parts, happy path callbacks |
+| BUG-4: close_workbook no-args | `test/integration/bug4-close-workbook.test.ts` | 🟡 Orphaned — Pattern A but not wired | Sticky context, schema validation, graceful errors |
 
 ---
 
@@ -198,36 +199,45 @@ Each tool handler has corresponding integration tests using MockMcpServer.
 
 | Property | Test File | Status | Description |
 |----------|-----------|--------|-------------|
-| Cell round-trips | `test/property/cell-properties.test.ts` | ✅ Implemented | String/int/float/bool round-trips, independence, overwrite, empty string |
-| Range operations | `test/property/range-properties.test.ts` | ✅ Implemented | set_cells/get_range round-trips, row/column/2D grid |
-| Sheet operations | `test/property/sheet-properties.test.ts` | ✅ Implemented | Create/list/rename/delete/select, N sheets |
-| Style properties | `test/property/style-properties.test.ts` | ✅ Implemented | Bold/font/bg/alignment/border round-trips, value preservation |
-| VFS operations | `test/property/vfs-properties.test.ts` | ✅ Implemented | Create/list/close workbooks, current file, reuse name |
-| Encoding round-trips | `test/property/encoding-properties.test.ts` | ✅ Implemented | Unicode, whitespace, special chars, emoji, long strings |
-| Cursor properties | `test/property/cursor-properties.test.ts` | ✅ Implemented | Move right/left/down/up, return to start, multi-move, cursor reflects position |
+| Cell round-trips | `test/property/cell-properties.test.ts` | 🔴 regression | String/int/float/bool round-trips; `write then read string` case currently fails (`'!' !== 'D'`) — test-harness isolation bug, live MCP server unaffected |
+| Range operations | `test/property/range-properties.test.ts` | ⚠️ blocked | Blocked by cell-properties crash before its turn |
+| Sheet operations | `test/property/sheet-properties.test.ts` | ⚠️ blocked | Same |
+| Style properties | `test/property/style-properties.test.ts` | ⚠️ blocked | Same |
+| VFS operations | `test/property/vfs-properties.test.ts` | ⚠️ blocked | Same |
+| Encoding round-trips | `test/property/encoding-properties.test.ts` | ⚠️ blocked | Same |
+| Cursor properties | `test/property/cursor-properties.test.ts` | ⚠️ blocked | Same; also has weak invariants (truthy-only assertions) |
+| **Cursor V2** | `test/property/cursor-properties-v2.test.ts` (**NEW**) | ✅ in isolation (3 tests) | Real position invariants (N right + N left returns to start; N down lands on row R+N) |
 
 ---
 
-### 6. Tests Not Yet Implemented
+### 6. Tests Exist But Are Orphaned (Pattern B — Not Loaded by Runner)
 
-The following tool categories lack dedicated integration tests (some are covered in E2E):
+The following `.test.ts` files EXIST in `test/integration/` but use the detached **Pattern B** wiring pattern (`const test = baretest(...)` + `export default async function () { await test.run(); }`). They are NOT invoked by `test/run-integration.ts` and therefore silently don't run. Some were touched by a parallel agent (see `test/findings/SESSION_STATUS.md`) with test-body fixes, but the PATTERN was never converted to A — they remain orphaned.
 
 | Tool Category | Test File | Status | Notes |
 |---------------|-----------|--------|-------|
-| Layout (`merge_cells`, `freeze_panes`, `set_column_width`, `set_row_height`) | `test/integration/layout.test.ts` | 🔴 Not Started | Tested in E2E style-lifecycle |
-| Charts (`add_bar_chart`, `add_line_chart`) | `test/integration/chart.test.ts` | 🔴 Not Started | Tested in E2E chain-scenarios |
-| Tables (`create_excel_table`, `add_autofilter`) | `test/integration/table.test.ts` | 🔴 Not Started | Tested in e2e-results.md |
-| Protection (`protect_sheet`, `lock_cell`) | `test/integration/protection.test.ts` | 🔴 Not Started | Tested in e2e-results.md |
-| Conditional Formatting (`add_cell_value_rule`, `add_color_scale`) | `test/integration/conditional-format.test.ts` | 🔴 Not Started | Partially covered in bug2 tests |
-| Comments (`add_comment`, `delete_comment`) | `test/integration/comment.test.ts` | 🔴 Not Started | Tested in e2e-results.md |
-| Hyperlinks (`set_cell_hyperlink`) | `test/integration/hyperlink.test.ts` | 🔴 Not Started | Tested in e2e-results.md |
-| Images (`insert_image`) | `test/integration/image.test.ts` | 🔴 Not Started | Tested in e2e-results.md |
-| Named Ranges (`add_named_range`, `delete_named_range`) | `test/integration/named-range.test.ts` | 🔴 Not Started | Tested in e2e-results.md |
-| Outline (`group_rows`, `group_columns`) | `test/integration/outline.test.ts` | 🔴 Not Started | Tested in e2e-results.md |
-| Print (`set_print_area`, `set_page_setup`) | `test/integration/print.test.ts` | 🔴 Not Started | Tested in e2e-results.md |
-| Number Formats (`set_cell_currency`, `set_cell_percent`, `set_cell_date_format`, `set_cell_number_format`) | `test/integration/number-format.test.ts` | 🔴 Not Started | Tested in E2E & e2e-results.md |
-| Rich Text (`set_rich_text`) | `test/integration/rich-text.test.ts` | 🔴 Not Started | Covered in bug3 tests |
-| Set Context (`set_context`) | `test/integration/set-context.test.ts` | 🔴 Not Started | |
+| Layout (`merge_cells`, `freeze_panes`, `set_column_width`, `set_row_height`) | `test/integration/layout.test.ts` | 🟡 Orphaned | Tested in E2E style-lifecycle; body touched this session; needs Pattern A conversion |
+| Charts (`add_bar_chart`, `add_line_chart`) | `test/integration/chart.test.ts` | 🟡 Orphaned | Tested in E2E chain-scenarios; needs Pattern A conversion |
+| Tables (`create_excel_table`, `add_autofilter`) | `test/integration/table.test.ts` | 🟡 Orphaned | Tested in e2e-results.md; body touched this session; needs Pattern A conversion |
+| Protection (`protect_sheet`, `lock_cell`) | `test/integration/protection.test.ts` | 🟡 Orphaned | Tested in e2e-results.md; needs Pattern A conversion |
+| Conditional Formatting (`add_cell_value_rule`, `add_color_scale`) | `test/integration/conditional-format.test.ts` | 🟡 Orphaned | Partially covered in bug2; body touched this session; needs Pattern A conversion |
+| Comments (`add_comment`, `delete_comment`) | `test/integration/comment.test.ts` | 🟡 Orphaned | Body touched this session; needs Pattern A conversion |
+| Hyperlinks (`set_cell_hyperlink`) | `test/integration/hyperlink.test.ts` | 🟡 Orphaned | Needs Pattern A conversion |
+| Images (`insert_image`) | `test/integration/image.test.ts` | 🟡 Orphaned | Needs Pattern A conversion (image fetch has no timeout — flag in `FINDINGS_SUMMARY.md`) |
+| Named Ranges (`add_named_range`, `delete_named_range`) | `test/integration/named-range.test.ts` | 🟡 Orphaned | Body touched this session; needs Pattern A conversion |
+| Outline (`group_rows`, `group_columns`) | `test/integration/outline.test.ts` | 🟡 Orphaned | Body touched this session; needs Pattern A conversion |
+| Print (`set_print_area`, `set_page_setup`) | `test/integration/print.test.ts` | 🟡 Orphaned | Needs Pattern A conversion |
+| Number Formats (`set_cell_currency`, `set_cell_percent`, `set_cell_date_format`, `set_cell_number_format`) | `test/integration/number-format.test.ts` | 🟡 Orphaned | Needs Pattern A conversion |
+| Rich Text (`set_rich_text`) | `test/integration/rich-text.test.ts` | 🟡 Orphaned | Covered in bug3; needs Pattern A conversion |
+| Set Context (`set_context`) | `test/integration/set-context.test.ts` | 🟡 Orphaned | Body touched this session; needs Pattern A conversion |
+| BUG-1: hydrate | `test/integration/bug1-hydrate.test.ts` | 🟡 Orphaned | Uses Pattern A — can be wired with one import line |
+| BUG-2: cell_value_rule | `test/integration/bug2-cell-value-rule.test.ts` | 🟡 Orphaned | Uses Pattern A — can be wired with one import line |
+| BUG-3: rich_text | `test/integration/bug3-rich-text.test.ts` | 🟡 Orphaned | Uses Pattern A — can be wired with one import line |
+| BUG-4: close_workbook | `test/integration/bug4-close-workbook.test.ts` | 🟡 Orphaned | Uses Pattern A — can be wired with one import line |
+
+**Wiring fix is mechanical:**
+1. Convert each Pattern B file: replace `const test = baretest(...)` + `export default async function () { await test.run(); }` with `export default function (test: any) { /* keep test(...) calls */ }`.
+2. Add import + `xxxTests(test);` line to `test/run-integration.ts`.
 
 ---
 
@@ -291,42 +301,39 @@ npm run test:mutation
 - [x] Unit tests for filesystem/context.ts
 - [x] Unit tests for filesystem/system.ts
 - [x] Unit tests for filesystem/IDatabaseBackend.ts (both backends)
-- [x] Unit tests for filesystem/rateLimiting.ts
+- [x] Unit tests for filesystem/rateLimiting.ts (10 tests, all PASS as of 2026-07-18)
+- [x] Unit tests for filesystem/cloudflareBackend.ts (smoke, 4 tests — NEW 2026-07-18)
 - [x] Unit tests for meta/mcpdescription.ts
 - [x] Test runner infrastructure (baretest) — all 4 runners
 - [x] Test helpers (context, server mock, assertions)
-- [x] Integration tests: workbook flow (9 tests)
-- [x] Integration tests: sheet ops flow (13 tests)
-- [x] Integration tests: cell ops flow (14 tests)
-- [x] Integration tests: style flow (11 tests)
-- [x] Integration tests: chain flow (4 tests)
-- [x] Integration tests: data validation flow (7 tests)
-- [x] Integration tests: export-import flow (10 tests)
-- [x] Integration tests: auth flow (10 tests)
-- [x] Integration tests: bug regressions (22 tests across 4 bugs)
-- [x] E2E tests: workbook lifecycle (4 tests)
-- [x] E2E tests: sheet lifecycle (3 tests)
-- [x] E2E tests: cell lifecycle (7 tests)
-- [x] E2E tests: style lifecycle (7 tests)
-- [x] E2E tests: data roundtrip (6 tests)
-- [x] E2E tests: chain scenarios (7 tests)
-- [x] Property tests: cell, range, sheet, style, vfs, encoding, cursor (62 tests)
+- [x] Integration tests: workbook flow (wired, but mid-suite crash — see below)
+- [x] Integration tests: sheet ops flow
+- [x] Integration tests: cell ops flow
+- [x] Integration tests: style flow
+- [x] Integration tests: chain flow
+- [x] Integration tests: data validation flow
+- [x] Integration tests: export-import flow
+- [x] Integration tests: auth flow
+- [x] Integration tests: discovery (NEW 2026-07-18, 4 tests, isolation PASS)
+- [x] Integration tests: auth server (NEW 2026-07-18, 3 tests, isolation PASS)
+- [x] E2E tests: workbook lifecycle
+- [x] E2E tests: sheet lifecycle
+- [x] E2E tests: cell lifecycle
+- [x] E2E tests: style lifecycle
+- [x] E2E tests: data roundtrip
+- [x] E2E tests: chain scenarios
+- [x] Property tests: cell, range, sheet, style, vfs, encoding, cursor (cell currently 🔴 — see §5)
+- [x] Property tests: cursor properties V2 (NEW 2026-07-18, 3 tests, isolation PASS)
+- [x] Bug regression tests exist for BUG-1..BUG-4 (Pattern A but orphaned — see §6)
 
-### Not Yet Implemented 🔴
-- [ ] Layout integration tests
-- [ ] Chart integration tests
-- [ ] Table integration tests
-- [ ] Protection integration tests
-- [ ] Conditional format integration tests (beyond bug2)
-- [ ] Comment integration tests
-- [ ] Hyperlink integration tests
-- [ ] Image integration tests
-- [ ] Named range integration tests
-- [ ] Outline integration tests
-- [ ] Print integration tests
-- [ ] Number format integration tests
-- [ ] Rich text integration tests (beyond bug3)
-- [ ] Set context integration tests
+### Stale — runner does NOT load these Pattern B files (see §6 for details)
+- [ ] Convert 18 Pattern B integration files to Pattern A and import into `run-integration.ts`:
+  - [ ] 14 Pattern B: layout, chart, table, protection, conditional-format, comment, hyperlink, image, named-range, outline, print, number-format, rich-text, set-context
+  - [ ] 4 Pattern A but unwired: bug1-hydrate, bug2-cell-value-rule, bug3-rich-text, bug4-close-workbook
+
+### Open regressions to investigate
+- [ ] `cell-properties.test.ts:88` — `write then read string round-trips` asserts `'!' !== 'D'` (test-harness isolation issue; live MCP server is unaffected — verified by direct `set_cell`/`get_cell` round-trip of `'D'`, `'!'`, `'='` values)
+- [ ] `workbook-flow.test.ts:55` — `Expected 'test-workbook.xlsx', got null` (baseline crash; possibly tied to src/ in-flight changes)
 
 ---
 
@@ -341,5 +348,5 @@ npm run test:mutation
 
 ---
 
-*Last Updated: 2026-07-18*
-*Version: 2.0*
+*Last Updated: 2026-07-18 (post-action session)*
+*Version: 2.1*

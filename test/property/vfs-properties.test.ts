@@ -9,10 +9,11 @@ export default function (test: any) {
 
     async function withContext(fn: (mockServer: MockMcpServer, testContext: any) => Promise<void>) {
         const mockServer = new MockMcpServer();
-        const testContext = await createTestContext('vfs-props');
+        let testContext;
         const mockCtx = { authInfo: { extra: { userId: 'vfs-props' } } };
 
         await run(async () => {
+            testContext = await createTestContext('vfs-props');
             const reqCtx = getContext();
             reqCtx.context = testContext;
             reqCtx.virtualFileSystem = testContext.virtualFileSystem;
@@ -35,7 +36,7 @@ export default function (test: any) {
         await withContext(async (mockServer) => {
             const ctx = createMockRequestContext('vfs-props');
             await fc.assert(
-                fc.property(
+                fc.asyncProperty(
                     fc.string({ minLength: 3, maxLength: 20 }).filter(s => /^[a-zA-Z0-9_-]+$/.test(s)),
                     async (filename) => {
                         const result = await mockServer.getTool('create_new_workbook').cb({ filename: `${filename}.xlsx` }, ctx);
@@ -65,7 +66,7 @@ export default function (test: any) {
         await withContext(async (mockServer) => {
             const ctx = createMockRequestContext('vfs-props');
             await fc.assert(
-                fc.property(
+                fc.asyncProperty(
                     fc.integer({ min: 1, max: 3 }),
                     async (n) => {
                         const listBefore = await mockServer.getTool('list_open_workbook').cb({}, ctx);
@@ -106,7 +107,7 @@ export default function (test: any) {
             const ctx = createMockRequestContext('vfs-props');
             const result = await mockServer.getTool('close_workbook').cb({ filename: 'nonexistent.xlsx' }, ctx);
             assert.ok(result.content);
-            assert.ok(result.content.some((c: any) => c.text.includes('not found') || c.text.includes('error')));
+            assert.ok(result.content.some((c: any) => c.text.includes("doesn't exist") || c.text.includes('not found') || c.text.includes('error')));
         });
     });
 

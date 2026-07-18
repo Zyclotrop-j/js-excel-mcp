@@ -15,9 +15,10 @@ import z from 'zod';
 
 async function setupBug2() {
     const mockServer = new MockMcpServer();
-    const testContext = createTestContext('bug2-cvr-test');
+    let testContext;
 
     await run(async () => {
+        testContext = createTestContext('bug2-cvr-test');
         const cfHandler = new ConditionalFormatHandler();
         cfHandler.server = mockServer as any;
         cfHandler.context = testContext;

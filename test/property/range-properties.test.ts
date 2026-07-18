@@ -24,10 +24,11 @@ export default function (test: any) {
 
     async function withContext(fn: (mockServer: MockMcpServer) => Promise<void>) {
         mockServer = new MockMcpServer();
-        const testContext = await createTestContext('range-props');
+        let testContext;
         const mockCtx = { authInfo: { extra: { userId: 'range-props' } } };
 
         await run(async () => {
+            testContext = await createTestContext('range-props');
             const reqCtx = getContext();
             reqCtx.context = testContext;
             reqCtx.virtualFileSystem = testContext.virtualFileSystem;
@@ -87,7 +88,7 @@ export default function (test: any) {
         await withContext(async (mockServer) => {
             const ctx = createMockRequestContext('range-props');
             await fc.assert(
-                fc.property(
+                fc.asyncProperty(
                     fc.oneof(fc.string({ maxLength: 5 }).filter(s => s.trim().length > 0), fc.integer({ min: 0, max: 100 })),
                     async (value) => {
                         const values = [[value]];
@@ -106,7 +107,7 @@ export default function (test: any) {
         await withContext(async (mockServer) => {
             const ctx = createMockRequestContext('range-props');
             await fc.assert(
-                fc.property(
+                fc.asyncProperty(
                     fc.integer({ min: 1, max: 5 }),
                     async (n) => {
                         const values = Array.from({ length: n }, (_, i) => [i]);
@@ -123,7 +124,7 @@ export default function (test: any) {
         await withContext(async (mockServer) => {
             const ctx = createMockRequestContext('range-props');
             await fc.assert(
-                fc.property(
+                fc.asyncProperty(
                     fc.array(fc.oneof(fc.string({ maxLength: 3 }).filter(s => s.trim().length > 0), fc.integer({ min: 0, max: 99 })), { minLength: 2, maxLength: 5 }),
                     async (row) => {
                         const endCol = colLetter(row.length - 1);
@@ -145,7 +146,7 @@ export default function (test: any) {
         await withContext(async (mockServer) => {
             const ctx = createMockRequestContext('range-props');
             await fc.assert(
-                fc.property(
+                fc.asyncProperty(
                     fc.array(fc.oneof(fc.string({ maxLength: 3 }).filter(s => s.trim().length > 0), fc.integer({ min: 0, max: 99 })), { minLength: 2, maxLength: 5 }),
                     async (col) => {
                         const range = `A1:A${col.length}`;
@@ -167,7 +168,7 @@ export default function (test: any) {
         await withContext(async (mockServer) => {
             const ctx = createMockRequestContext('range-props');
             await fc.assert(
-                fc.property(
+                fc.asyncProperty(
                     fc.array(fc.array(fc.oneof(fc.string({ maxLength: 3 }), fc.integer({ min: 0, max: 99 })), { minLength: 1, maxLength: 3 }), { minLength: 1, maxLength: 3 }),
                     async (values) => {
                         const rows = values.length;

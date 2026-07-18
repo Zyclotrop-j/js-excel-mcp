@@ -1,4 +1,3 @@
-import baretest from 'baretest';
 import { strict as assert } from 'node:assert';
 import { MockMcpServer, createMockRequestContext } from '../helpers/test-server.js';
 import { createTestContext } from '../helpers/test-context.js';
@@ -8,10 +7,10 @@ import { CellWriteHandler } from '../../src/tools/handleCells/write.js';
 import { SheetHandler } from '../../src/tools/handleSheet.js';
 import { run } from '../../src/util/requestContext.js';
 
-const test = baretest('Set Context Integration Tests');
-
 let mockServer: MockMcpServer;
 let testContext: ReturnType<typeof createTestContext>;
+
+export default function (test: any) {
 
 test('setup', async () => {
     await run(async () => {
@@ -49,7 +48,7 @@ test('setup', async () => {
     });
 });
 
-test('teardown', async () => {
+test.after(async () => {
     await (await testContext).cleanup();
 });
 
@@ -144,6 +143,4 @@ test('set_context errors when no workbook is open', async () => {
     });
 });
 
-export default async function () {
-    await test.run();
 }

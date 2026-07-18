@@ -1,15 +1,15 @@
-import baretest from 'baretest';
 import { strict as assert } from 'node:assert';
 import { MockMcpServer, createMockRequestContext } from '../helpers/test-server.js';
 import { createTestContext } from '../helpers/test-context.js';
 import { StyleHandler } from '../../src/tools/handleStyle.js';
+import { CellWriteHandler } from '../../src/tools/handleCells/write.js';
 import { run } from '../../src/util/requestContext.js';
-
-const test = baretest('Style Flow Integration Tests');
 
 let mockServer: MockMcpServer;
 let testContext: ReturnType<typeof createTestContext>;
 let styleHandler: StyleHandler;
+
+export default function (test: any) {
 
 test('setup', async () => {
     await run(async () => {
@@ -20,6 +20,11 @@ test('setup', async () => {
         styleHandler.server = mockServer as any;
         styleHandler.context = testContext;
         await styleHandler.register([]);
+
+        const cellWriteHandler = new CellWriteHandler();
+        cellWriteHandler.server = mockServer as any;
+        cellWriteHandler.context = testContext;
+        await cellWriteHandler.register([]);
 
         const workbookTools = await import('../../src/tools/handleWorkbook.js');
         const wbTools = new workbookTools.WorkbookTools();
@@ -34,13 +39,13 @@ test('setup', async () => {
         await createTool.cb({ filename: 'style-test.xlsx', createDefaultWorksheet: 'Sheet1' }, ctx);
 
         const setCell = mockServer.getTool('set_cell');
-        await setCell.cb({ cell: 'A1', value: 'Styled' }, ctx);
-        await setCell.cb({ cell: 'B1', value: 'Bold' }, ctx);
-        await setCell.cb({ cell: 'C1', value: 'Aligned' }, ctx);
+        await setCell.cb({ ref: 'A1', value: 'Styled' }, ctx);
+        await setCell.cb({ ref: 'B1', value: 'Bold' }, ctx);
+        await setCell.cb({ ref: 'C1', value: 'Aligned' }, ctx);
     });
 });
 
-test('teardown', async () => {
+test.after(async () => {
     await (await testContext).cleanup();
 });
 
@@ -191,6 +196,4 @@ test('set_cell_border removes border with none', async () => {
     });
 });
 
-export default async function () {
-    await test.run();
 }

@@ -1,4 +1,3 @@
-import baretest from 'baretest';
 import { strict as assert } from 'node:assert';
 import { MockMcpServer, createMockRequestContext } from '../helpers/test-server.js';
 import { createTestContext } from '../helpers/test-context.js';
@@ -6,13 +5,13 @@ import { ConditionalFormatHandler } from '../../src/tools/handleConditionalForma
 import { CellWriteHandler } from '../../src/tools/handleCells/write.js';
 import { run } from '../../src/util/requestContext.js';
 
-const test = baretest('Conditional Formatting Integration Tests');
-
 let mockServer: MockMcpServer;
 let testContext: ReturnType<typeof createTestContext>;
 let conditionalFormatHandler: ConditionalFormatHandler;
 
 let workbookTools: any;
+
+export default function (test: any) {
 
 test('setup', async () => {
     await run(async () => {
@@ -55,10 +54,6 @@ test('setup', async () => {
             }
         }
     });
-});
-
-test('teardown', async () => {
-    await testContext.cleanup();
 });
 
 test('add_color_scale happy path', async () => {
@@ -203,15 +198,13 @@ test('add_color_scale without open workbook (error)', async () => {
         const result = await toolNoWb.cb({ range: 'A1:D4', lowColor: 'FF0000', midColor: 'FFFF00', highColor: '00FF00' }, ctxNoWb);
 
         assert.ok(result.content);
-        assert.ok(result.content.some((c:any)=> c.text && c.text.includes('no workbook is currently open')));
+        assert.ok(result.content.some((c:any)=> c.text.includes('no workbook is currently open')));
         await testContextNoWb.cleanup();
     });
 });
 
-test('teardown', async () => {
+test.after(async () => {
     await (await testContext).cleanup();
 });
 
-export default async function () {
-    await test.run();
 }

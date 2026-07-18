@@ -1,15 +1,14 @@
-import baretest from 'baretest';
 import { strict as assert } from 'node:assert';
 import { MockMcpServer, createMockRequestContext } from '../helpers/test-server.js';
 import { createTestContext } from '../helpers/test-context.js';
 import { ValidationHandler } from '../../src/tools/handleValidation.js';
 import { run } from '../../src/util/requestContext.js';
 
-const test = baretest('Data Validation Flow Integration Tests');
-
 let mockServer: MockMcpServer;
 let testContext: ReturnType<typeof createTestContext>;
 let validationHandler: ValidationHandler;
+
+export default function (test: any) {
 
 test('setup', async () => {
     await run(async () => {
@@ -35,7 +34,7 @@ test('setup', async () => {
     });
 });
 
-test('teardown', async () => {
+test.after(async () => {
     await (await testContext).cleanup();
 });
 
@@ -158,6 +157,4 @@ test('add_dropdown_validation handles single option', async () => {
     });
 });
 
-export default async function () {
-    await test.run();
 }

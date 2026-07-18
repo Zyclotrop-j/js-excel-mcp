@@ -1,4 +1,3 @@
-import baretest from 'baretest';
 import { strict as assert } from 'node:assert';
 import { MockMcpServer, createMockRequestContext } from '../helpers/test-server.js';
 import { createTestContext } from '../helpers/test-context.js';
@@ -6,11 +5,11 @@ import { PrintHandler } from '../../src/tools/handlePrint.js';
 import { CellWriteHandler } from '../../src/tools/handleCells/write.js';
 import { run } from '../../src/util/requestContext.js';
 
-const test = baretest('Print Integration Tests');
-
 let mockServer: MockMcpServer;
 let testContext: ReturnType<typeof createTestContext>;
 let printHandler: PrintHandler;
+
+export default function (test: any) {
 
 test('setup', async () => {
     await run(async () => {
@@ -47,7 +46,7 @@ test('setup', async () => {
     });
 });
 
-test('teardown', async () => {
+test.after(async () => {
     await (await testContext).cleanup();
 });
 
@@ -117,6 +116,4 @@ test('set_page_setup without open workbook returns error', async () => {
     });
 });
 
-export default async function () {
-    await test.run();
 }

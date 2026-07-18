@@ -13,10 +13,11 @@ export default function (test: any) {
 
     async function withContext(fn: (mockServer: MockMcpServer) => Promise<void>) {
         const mockServer = new MockMcpServer();
-        const testContext = await createTestContext('cursor-props');
+        let testContext;
         const mockCtx = { authInfo: { extra: { userId: 'cursor-props' } } };
 
         await run(async () => {
+            testContext = await createTestContext('cursor-props');
             const reqCtx = getContext();
             reqCtx.context = testContext;
             reqCtx.virtualFileSystem = testContext.virtualFileSystem;
@@ -52,6 +53,7 @@ export default function (test: any) {
             const ctx = createMockRequestContext('cursor-props');
             await mockServer.getTool('create_new_workbook').cb({ filename: 'cursor-test.xlsx' }, ctx);
             await mockServer.getTool('create_sheet').cb({ name: 'Sheet1' }, ctx);
+            await mockServer.getTool('set_cell').cb({ ref: 'A1', value: 'origin' }, ctx);
 
             await fn(mockServer);
         });
@@ -63,7 +65,7 @@ export default function (test: any) {
         await withContext(async (mockServer) => {
             const ctx = createMockRequestContext('cursor-props');
             const result = await mockServer.getTool('move_cell_cursor').cb({ moves: [{ direction: 'right', count: 1 }] }, ctx);
-            assert.ok(result.structuredContent.cursor || result.structuredContent.position || result.structuredContent.currentRef);
+            assert.ok(result.structuredContent.cursor || result.structuredContent.position || result.structuredContent.currentRef || result.structuredContent.to);
         });
     });
 
@@ -97,7 +99,7 @@ export default function (test: any) {
         await withContext(async (mockServer) => {
             const ctx = createMockRequestContext('cursor-props');
             await fc.assert(
-                fc.property(
+                fc.asyncProperty(
                     fc.integer({ min: 1, max: 10 }),
                     async (n) => {
                         await mockServer.getTool('move_cell_cursor').cb({ moves: [{ direction: 'right', count: n }] }, ctx);
@@ -114,7 +116,7 @@ export default function (test: any) {
         await withContext(async (mockServer) => {
             const ctx = createMockRequestContext('cursor-props');
             await fc.assert(
-                fc.property(
+                fc.asyncProperty(
                     fc.integer({ min: 1, max: 10 }),
                     async (n) => {
                         await mockServer.getTool('move_cell_cursor').cb({ moves: [{ direction: 'down', count: n }] }, ctx);
@@ -144,8 +146,8 @@ export default function (test: any) {
         await withContext(async (mockServer) => {
             const ctx = createMockRequestContext('cursor-props');
             await mockServer.getTool('move_cell_cursor').cb({ moves: [{ direction: 'right', count: 2 }, { direction: 'down', count: 1 }] }, ctx);
-            const cursor = await mockServer.getTool('move_cell_cursor').cb({}, ctx);
-            const currentRef = cursor.structuredContent.currentRef || cursor.structuredContent.cursor;
+            const cursor = await mockServer.getTool('move_cell_cursor').cb({ moves: [] }, ctx);
+            const currentRef = cursor.structuredContent.currentRef || cursor.structuredContent.cursor || cursor.structuredContent.to;
             if (currentRef) {
                 await mockServer.getTool('set_cell').cb({ ref: currentRef, value: 'at cursor' }, ctx);
                 const result = await mockServer.getTool('get_cell').cb({ ref: currentRef }, ctx);

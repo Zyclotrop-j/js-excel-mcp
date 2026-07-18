@@ -1,4 +1,3 @@
-import baretest from 'baretest';
 import { strict as assert } from 'node:assert';
 import { MockMcpServer, createMockRequestContext } from '../helpers/test-server.js';
 import { createTestContext } from '../helpers/test-context.js';
@@ -6,11 +5,11 @@ import { HyperlinkHandler } from '../../src/tools/handleHyperlink.js';
 import { CellWriteHandler } from '../../src/tools/handleCells/write.js';
 import { run } from '../../src/util/requestContext.js';
 
-const test = baretest('Hyperlink Integration Tests');
-
 let mockServer: MockMcpServer;
 let testContext: ReturnType<typeof createTestContext>;
 let hyperlinkHandler: HyperlinkHandler;
+
+export default function (test: any) {
 
 test('setup', async () => {
     await run(async () => {
@@ -116,10 +115,8 @@ test('set_cell_hyperlink errors when url is missing', async () => {
     });
 });
 
-test('teardown', async () => {
+test.after(async () => {
     await (await testContext).cleanup();
 });
 
-export default async function () {
-    await test.run();
 }

@@ -2,18 +2,17 @@
  * Integration tests for Named Range tools.
  * Tests named range management: defining and deleting named ranges.
  */
-import baretest from 'baretest';
 import { strict as assert } from 'node:assert';
 import { MockMcpServer, createMockRequestContext } from '../helpers/test-server.js';
 import { createTestContext } from '../helpers/test-context.js';
 import { NamedRangeHandler } from '../../src/tools/handleNamedRange.js';
 import { run } from '../../src/util/requestContext.js';
 
-const test = baretest('Named Range Integration Tests');
-
 let mockServer: MockMcpServer;
 let testContext: ReturnType<typeof createTestContext>;
 let namedRangeHandler: NamedRangeHandler;
+
+export default function (test: any) {
 
 test('setup', async () => {
     await run(async () => {
@@ -42,7 +41,7 @@ test('setup', async () => {
     });
 });
 
-test('teardown', async () => {
+test.after(async () => {
     await (await testContext).cleanup();
 });
 
@@ -146,12 +145,12 @@ test('add_named_range without current sheet error', async () => {
 
         const createTool = mockServer.getTool('create_new_workbook');
         const ctx = createMockRequestContext('named-range-test');
-        
+
         // Create a workbook without a default sheet
         await createTool.cb({ filename: 'no-sheet.xlsx', createDefaultWorksheet: false }, ctx);
 
         const tool = mockServer.getTool('add_named_range');
-        
+
         // Try to add a named range without specifying sheet in range
         // Note: Depending on implementation, this might fail if no current sheet
         const result = await tool.cb({ name: 'TestRange', range: 'A1:B10' }, ctx);
@@ -186,10 +185,10 @@ test('delete_named_range with explicit workbook parameter', async () => {
         await createTool.cb({ filename: 'wb2.xlsx', createDefaultWorksheet: 'Sheet1' }, ctx);
 
         // Add named range to specific workbook by specifying workbook parameter
-        const result = await addTool.cb({ 
-            workbook: 'wb2.xlsx', 
-            name: 'Wb2Range', 
-            range: 'A1:B10' 
+        const result = await addTool.cb({
+            workbook: 'wb2.xlsx',
+            name: 'Wb2Range',
+            range: 'A1:B10'
         }, ctx);
 
         assert.ok(result.structuredContent);
@@ -209,6 +208,4 @@ test('delete_named_range with explicit workbook parameter', async () => {
     });
 });
 
-export default async function () {
-    await test.run();
 }

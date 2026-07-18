@@ -28,7 +28,6 @@ This server implements the Model Context Protocol to let AI assistants and other
 - **TypeScript** — strict type safety
 - **@modelcontextprotocol/sdk** — MCP server framework
 - **@modelcontextprotocol/express** — Express MCP transport
-- **@modelcontextprotocol/fastify** — Fastify MCP transport (alternative)
 - **@office-kit/xlsx** — Excel file manipulation (workbook, worksheet, styles, cell, io)
 - **better-sqlite3** — per-user virtual filesystem (production)
 - **memfs** — in-memory filesystem (testing)
@@ -37,7 +36,7 @@ This server implements the Model Context Protocol to let AI assistants and other
 - **@toon-format/toon** — token-efficient encoding
 - **@cfworker/json-schema** — JSON schema validation
 - **lru-cache** — caching
-- **Express / Fastify** — HTTP transports
+- **Express** — HTTP transport
 - **Node.js** — primary runtime
 - **Cloudflare Workers** — alternative deployment target
 
@@ -106,6 +105,7 @@ MCP_BASEHOST=http://localhost npm run dev
 - `import_workbook_from_url` — fetch an existing `.xlsx`
 - `close_workbook` — drop a workbook from the session
 - `export_workbook_to_url` — get a download URL with TTL
+- `list_open_workbook` — lists all open workbooks in the session
 
 **Sheet Operations**
 - `list_sheets`, `select_sheet`, `create_sheet`, `rename_sheet`, `delete_sheet`, `copy_sheet`, `move_sheet`
@@ -125,7 +125,7 @@ MCP_BASEHOST=http://localhost npm run dev
 
 **Layout & Structure**
 - `merge_cells`, `freeze_panes`, `set_column_width`, `set_row_height`
-- `create_excel_table`, `add_autofilter`, `add_named_range`
+- `create_excel_table`, `add_autofilter`, `add_named_range`, `delete_named_range`
 
 **Data Validation & Protection**
 - `add_dropdown_validation`, `add_number_validation`
@@ -240,7 +240,7 @@ The `detect_headers` tool can use MCP sampling to ask the host LLM which rows/co
 ## Documentation
 
 - [TOOL_BUILDING_GUIDE.md](TOOL_BUILDING_GUIDE.md) — how to add new tools
-- [EXCELJS_FEATURES_LIST.md](EXCELJS_FEATURES_LIST.md) — full feature matrix reference
+- [OFFICEKIT_FEATURES_LIST.md](OFFICEKIT_FEATURES_LIST.md) — full feature matrix reference
 - [officekit-xlsx-llms.txt](officekit-xlsx-llms.txt) — `@office-kit/xlsx` API reference
 - [Agents.md](Agents.md) — PM2 management, development conventions
 - [TEST_PLAN.md](TEST_PLAN.md) — test strategy and coverage goals

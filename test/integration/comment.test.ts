@@ -1,4 +1,3 @@
-import baretest from 'baretest';
 import { strict as assert } from 'node:assert';
 import { MockMcpServer, createMockRequestContext } from '../helpers/test-server.js';
 import { createTestContext } from '../helpers/test-context.js';
@@ -6,11 +5,11 @@ import { CommentHandler } from '../../src/tools/handleComment.js';
 import { CellWriteHandler } from '../../src/tools/handleCells/write.js';
 import { run } from '../../src/util/requestContext.js';
 
-const test = baretest('Comment Integration Tests');
-
 let mockServer: MockMcpServer;
 let testContext: ReturnType<typeof createTestContext>;
 let commentHandler: CommentHandler;
+
+export default function (test: any) {
 
 test('setup', async () => {
     await run(async () => {
@@ -135,10 +134,8 @@ test('delete_comment errors with no open workbook', async () => {
     });
 });
 
-test('teardown', async () => {
+test.after(async () => {
     await (await testContext).cleanup();
 });
 
-export default async function () {
-    await test.run();
 }

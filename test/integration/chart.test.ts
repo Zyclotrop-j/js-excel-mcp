@@ -1,4 +1,3 @@
-import baretest from 'baretest';
 import { strict as assert } from 'node:assert';
 import { MockMcpServer, createMockRequestContext } from '../helpers/test-server.js';
 import { createTestContext } from '../helpers/test-context.js';
@@ -6,11 +5,11 @@ import { ChartHandler } from '../../src/tools/handleChart.js';
 import { CellWriteHandler } from '../../src/tools/handleCells/write.js';
 import { run } from '../../src/util/requestContext.js';
 
-const test = baretest('Chart Integration Tests');
-
 let mockServer: MockMcpServer;
 let testContext: ReturnType<typeof createTestContext>;
 let chartHandler: ChartHandler;
+
+export default function (test: any) {
 
 test('setup', async () => {
     await run(async () => {
@@ -197,10 +196,8 @@ test('add_bar_chart with invalid dataRange fails', async () => {
     });
 });
 
-test('teardown', async () => {
+test.after(async () => {
     await (await testContext).cleanup();
 });
 
-export default async function () {
-    await test.run();
 }

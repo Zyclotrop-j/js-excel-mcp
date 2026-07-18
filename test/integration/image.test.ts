@@ -1,15 +1,14 @@
-import baretest from 'baretest';
 import { strict as assert } from 'node:assert';
 import { MockMcpServer, createMockRequestContext } from '../helpers/test-server.js';
 import { createTestContext } from '../helpers/test-context.js';
 import { ImageHandler } from '../../src/tools/handleImage.js';
 import { run } from '../../src/util/requestContext.js';
 
-const test = baretest('Image Integration Tests');
-
 let mockServer: MockMcpServer;
 let testContext: ReturnType<typeof createTestContext>;
 let imageHandler: ImageHandler;
+
+export default function (test: any) {
 
 test('setup', async () => {
     await run(async () => {
@@ -35,7 +34,7 @@ test('setup', async () => {
     });
 });
 
-test('teardown', async () => {
+test.after(async () => {
     await (await testContext).cleanup();
 });
 
@@ -98,7 +97,7 @@ test('insert_image with invalid URL attempts fetch', async () => {
         assert.ok(result.content);
         assert.ok(result.content.length > 0);
         assert.ok(result.content[0].type === 'text');
-        assert.ok(result.content[0].text.includes('failed to fetch image') || 
+        assert.ok(result.content[0].text.includes('failed to fetch image') ||
                   result.content[0].text.includes('could not find the image'));
     });
 });
@@ -134,6 +133,4 @@ test('insert_image with imageUrl only (anchorCell is required via tool registrat
     });
 });
 
-export default async function () {
-    await test.run();
 }

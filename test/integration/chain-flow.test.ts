@@ -1,15 +1,14 @@
-import baretest from 'baretest';
 import { strict as assert } from 'node:assert';
 import { MockMcpServer, createMockRequestContext } from '../helpers/test-server.js';
 import { createTestContext } from '../helpers/test-context.js';
 import { ChainHandler } from '../../src/tools/handleChain.js';
 import { run } from '../../src/util/requestContext.js';
 
-const test = baretest('Chain Flow Integration Tests');
-
 let mockServer: MockMcpServer;
 let testContext: ReturnType<typeof createTestContext>;
 let chainHandler: ChainHandler;
+
+export default function (test: any) {
 
 test('setup', async () => {
     await run(async () => {
@@ -41,13 +40,15 @@ test('setup', async () => {
         w.context = testContext;
         await w.register([]);
 
+        chainHandler.toolSet = [wbTools, r, w, chainHandler];
+
         const createTool = mockServer.getTool('create_new_workbook');
         const ctx = createMockRequestContext('chain-flow-test');
         await createTool.cb({ filename: 'chain-test.xlsx', createDefaultWorksheet: 'Sheet1' }, ctx);
     });
 });
 
-test('teardown', async () => {
+test.after(async () => {
     await (await testContext).cleanup();
 });
 
@@ -58,9 +59,9 @@ test('chain_operations writes multiple cells sequentially', async () => {
 
         const result = await tool.cb({
             operations: [
-                { tool: 'set_cell', args: { cell: 'A1', value: 'First' }, label: 'write A1' },
-                { tool: 'set_cell', args: { cell: 'B1', value: 'Second' }, label: 'write B1' },
-                { tool: 'set_cell', args: { cell: 'C1', value: 'Third' }, label: 'write C1' }
+                { tool: 'set_cell', args: { ref: 'A1', value: 'First' }, label: 'write A1' },
+                { tool: 'set_cell', args: { ref: 'B1', value: 'Second' }, label: 'write B1' },
+                { tool: 'set_cell', args: { ref: 'C1', value: 'Third' }, label: 'write C1' }
             ]
         }, ctx);
 
@@ -89,11 +90,11 @@ test('chain_operations writes multiple cells sequentially', async () => {
         assert.equal(r2.status, 'ok');
 
         const getTool = mockServer.getTool('get_cell');
-        const a1 = await getTool.cb({ cell: 'A1' }, ctx);
+        const a1 = await getTool.cb({ ref: 'A1' }, ctx);
         assert.equal(a1.structuredContent.value, 'First');
-        const b1 = await getTool.cb({ cell: 'B1' }, ctx);
+        const b1 = await getTool.cb({ ref: 'B1' }, ctx);
         assert.equal(b1.structuredContent.value, 'Second');
-        const c1 = await getTool.cb({ cell: 'C1' }, ctx);
+        const c1 = await getTool.cb({ ref: 'C1' }, ctx);
         assert.equal(c1.structuredContent.value, 'Third');
     });
 });
@@ -105,10 +106,10 @@ test('chain_operations writes cells then reads them back in chain', async () => 
 
         const result = await tool.cb({
             operations: [
-                { tool: 'set_cell', args: { cell: 'D1', value: 42 } },
-                { tool: 'set_cell', args: { cell: 'E1', value: '=D1*2' } },
-                { tool: 'get_cell', args: { cell: 'D1' } },
-                { tool: 'get_cell', args: { cell: 'E1' } }
+                { tool: 'set_cell', args: { ref: 'D1', value: 42 } },
+                { tool: 'set_cell', args: { ref: 'E1', value: '=D1*2' } },
+                { tool: 'get_cell', args: { ref: 'D1' } },
+                { tool: 'get_cell', args: { ref: 'E1' } }
             ]
         }, ctx);
 
@@ -135,9 +136,9 @@ test('chain_operations stops on error when stopOnError is true', async () => {
 
         const result = await tool.cb({
             operations: [
-                { tool: 'set_cell', args: { cell: 'F1', value: 'ok' } },
+                { tool: 'set_cell', args: { ref: 'F1', value: 'ok' } },
                 { tool: 'nonexistent_tool', args: {} },
-                { tool: 'set_cell', args: { cell: 'G1', value: 'should not reach' } }
+                { tool: 'set_cell', args: { ref: 'G1', value: 'should not reach' } }
             ],
             stopOnError: true
         }, ctx);
@@ -161,9 +162,9 @@ test('chain_operations continues on error when stopOnError is false', async () =
 
         const result = await tool.cb({
             operations: [
-                { tool: 'set_cell', args: { cell: 'H1', value: 'ok' }, label: 'first ok' },
+                { tool: 'set_cell', args: { ref: 'H1', value: 'ok' }, label: 'first ok' },
                 { tool: 'nonexistent_tool', args: {} },
-                { tool: 'set_cell', args: { cell: 'I1', value: 'still runs' }, label: 'third runs' }
+                { tool: 'set_cell', args: { ref: 'I1', value: 'still runs' }, label: 'third runs' }
             ],
             stopOnError: false
         }, ctx);
@@ -175,11 +176,9 @@ test('chain_operations continues on error when stopOnError is false', async () =
         assert.equal(result.structuredContent.stoppedOnError, false);
 
         const getTool = mockServer.getTool('get_cell');
-        const i1 = await getTool.cb({ cell: 'I1' }, ctx);
+        const i1 = await getTool.cb({ ref: 'I1' }, ctx);
         assert.equal(i1.structuredContent.value, 'still runs');
     });
 });
 
-export default async function () {
-    await test.run();
 }

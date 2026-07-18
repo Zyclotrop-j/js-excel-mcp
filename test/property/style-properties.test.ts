@@ -13,10 +13,11 @@ export default function (test: any) {
 
     async function withContext(fn: (mockServer: MockMcpServer) => Promise<void>) {
         const mockServer = new MockMcpServer();
-        const testContext = await createTestContext('style-props');
+        let testContext;
         const mockCtx = { authInfo: { extra: { userId: 'style-props' } } };
 
         await run(async () => {
+            testContext = await createTestContext('style-props');
             const reqCtx = getContext();
             reqCtx.context = testContext;
             reqCtx.virtualFileSystem = testContext.virtualFileSystem;
@@ -63,7 +64,7 @@ export default function (test: any) {
         await withContext(async (mockServer) => {
             const ctx = createMockRequestContext('style-props');
             await fc.assert(
-                fc.property(
+                fc.asyncProperty(
                     fc.constantFrom('A1', 'B2', 'C3', 'D4'),
                     fc.boolean(),
                     async (ref, bold) => {
@@ -97,7 +98,7 @@ export default function (test: any) {
         await withContext(async (mockServer) => {
             const ctx = createMockRequestContext('style-props');
             await fc.assert(
-                fc.property(
+                fc.asyncProperty(
                     fc.constantFrom('A1', 'B1', 'C1'),
                     fc.integer({ min: 6, max: 72 }),
                     async (ref, fontSize) => {
@@ -115,7 +116,7 @@ export default function (test: any) {
         await withContext(async (mockServer) => {
             const ctx = createMockRequestContext('style-props');
             await fc.assert(
-                fc.property(
+                fc.asyncProperty(
                     fc.constantFrom('Arial', 'Courier New', 'Times New Roman', 'Verdana'),
                     async (fontName) => {
                         const result = await mockServer.getTool('set_cell_font').cb({ ref: 'A1', fontName }, ctx);
@@ -131,7 +132,7 @@ export default function (test: any) {
         await withContext(async (mockServer) => {
             const ctx = createMockRequestContext('style-props');
             await fc.assert(
-                fc.property(
+                fc.asyncProperty(
                     fc.constantFrom('FFFF0000', 'FF00FF00', 'FF0000FF'),
                     async (fontColor) => {
                         const result = await mockServer.getTool('set_cell_font').cb({ ref: 'A1', fontColor }, ctx);
@@ -147,7 +148,7 @@ export default function (test: any) {
         await withContext(async (mockServer) => {
             const ctx = createMockRequestContext('style-props');
             await fc.assert(
-                fc.property(
+                fc.asyncProperty(
                     fc.constantFrom('FFFFFF00', 'FFFF0000', 'FF00FF00'),
                     async (color) => {
                         const result = await mockServer.getTool('set_cell_background_color').cb({ ref: 'A1', color }, ctx);
@@ -177,7 +178,7 @@ export default function (test: any) {
         await withContext(async (mockServer) => {
             const ctx = createMockRequestContext('style-props');
             await fc.assert(
-                fc.property(
+                fc.asyncProperty(
                     fc.constantFrom('left', 'center', 'right'),
                     async (horizontal) => {
                         const result = await mockServer.getTool('set_cell_alignment').cb({ ref: 'A1', horizontal }, ctx);

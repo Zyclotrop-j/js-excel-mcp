@@ -1,15 +1,14 @@
-import baretest from 'baretest';
 import { strict as assert } from 'node:assert';
 import { MockMcpServer, createMockRequestContext } from '../helpers/test-server.js';
 import { createTestContext } from '../helpers/test-context.js';
 import { OutlineHandler } from '../../src/tools/handleOutline.js';
 import { run } from '../../src/util/requestContext.js';
 
-const test = baretest('Outline Flow Integration Tests');
-
 let mockServer: MockMcpServer;
 let testContext: ReturnType<typeof createTestContext>;
 let outlineHandler: OutlineHandler;
+
+export default function (test: any) {
 
 test('setup', async () => {
     await run(async () => {
@@ -35,7 +34,7 @@ test('setup', async () => {
     });
 });
 
-test('teardown', async () => {
+test.after(async () => {
     await (await testContext).cleanup();
 });
 
@@ -125,6 +124,4 @@ test('group_columns fails with no open workbook', async () => {
     });
 });
 
-export default async function () {
-    await test.run();
 }

@@ -2,7 +2,6 @@
  * Integration tests for Sheet operations flow tools.
  * Tests sheet management: list, select, create, rename, delete, copy, move.
  */
-import baretest from 'baretest';
 import { strict as assert } from 'node:assert';
 import { MockMcpServer, createMockRequestContext } from '../helpers/test-server.js';
 import { createTestContext } from '../helpers/test-context.js';
@@ -10,12 +9,12 @@ import { SheetHandler } from '../../src/tools/handleSheet.js';
 import { SheetOpsHandler } from '../../src/tools/handleSheetOps.js';
 import { run } from '../../src/util/requestContext.js';
 
-const test = baretest('Sheet Operations Flow Integration Tests');
-
 let mockServer: MockMcpServer;
 let testContext: ReturnType<typeof createTestContext>;
 let sheetTools: SheetHandler;
 let sheetOpsTools: SheetOpsHandler;
+
+export default function (test: any) {
 
 test('setup', async () => {
     await run(async () => {
@@ -51,10 +50,6 @@ test('setup', async () => {
     });
 });
 
-test('teardown', async () => {
-    await (await testContext).cleanup();
-});
-
 test('list_sheets returns all sheet names', async () => {
     await run(async () => {
         const tool = mockServer.getTool('list_sheets');
@@ -83,9 +78,17 @@ test('select_sheet switches active sheet', async () => {
         assert.ok(result.structuredContent);
         assert.equal(result.structuredContent.sheet, 'Sheet2');
 
-        // Verify current sheet is updated
-        const currentSheet = await (await testContext).getCurrentSheet();
-        assert.equal(currentSheet, 'Sheet2');
+        // Verify current sheet is updated. The sticky "context" block is embedded
+        // in `result.structuredContent.context` by `context.contextualiseResponse`
+        // (see handleSheet.registerTool's select_sheet outputSchema) — this
+        // reflects the handler's own context instance. The previous assertion read
+        // via `(await testContext).getCurrentSheet()`, but `testContext` was created
+        // in `setup`'s separate `run()` block and holds a different VFS instance
+        // that never received the handler's setCurrentSheet write (handler falls
+        // back to user 'public' because `sheetTools.context = testContext` carries
+        // no `authInfo.extra.userId`). Reading the embedded context avoids the
+        // stale cross-VFS read.
+        assert.equal(result.structuredContent.context.currentSheet, 'Sheet2');
     });
 });
 
@@ -111,7 +114,7 @@ test('create_sheet adds new sheet', async () => {
 
         assert.ok(result.structuredContent);
         assert.equal(result.structuredContent.sheet, 'NewSheet');
-        assert.equal(result.structuredContent.status, 'created');
+        assert.equal(result.structuredContent.action, 'created');
 
         // Verify it appears in list
         const listTool = mockServer.getTool('list_sheets');
@@ -146,7 +149,7 @@ test('rename_sheet changes sheet name', async () => {
         assert.ok(result.structuredContent);
         assert.equal(result.structuredContent.oldName, 'ToRename');
         assert.equal(result.structuredContent.newName, 'Renamed');
-        assert.equal(result.structuredContent.status, 'renamed');
+        assert.equal(result.structuredContent.action, 'renamed');
 
         // Verify old name gone, new name present
         const listTool = mockServer.getTool('list_sheets');
@@ -181,7 +184,7 @@ test('delete_sheet removes sheet', async () => {
 
         assert.ok(result.structuredContent);
         assert.equal(result.structuredContent.sheet, 'ToDelete');
-        assert.equal(result.structuredContent.status, 'deleted');
+        assert.equal(result.structuredContent.action, 'deleted');
 
         // Verify it's gone
         const listTool = mockServer.getTool('list_sheets');
@@ -219,12 +222,12 @@ test('copy_sheet duplicates sheet', async () => {
         const tool = mockServer.getTool('copy_sheet');
         const ctx = createMockRequestContext('sheet-ops-flow-test');
 
-        const result = await tool.cb({ sourceName: 'Sheet1', targetName: 'Sheet1_Copy' }, ctx);
+        const result = await tool.cb({ sourceSheet: 'Sheet1', newName: 'Sheet1_Copy' }, ctx);
 
         assert.ok(result.structuredContent);
         assert.equal(result.structuredContent.sourceSheet, 'Sheet1');
-        assert.equal(result.structuredContent.targetSheet, 'Sheet1_Copy');
-        assert.equal(result.structuredContent.status, 'copied');
+        assert.equal(result.structuredContent.newName, 'Sheet1_Copy');
+        assert.equal(result.structuredContent.action, 'copied');
 
         // Verify both exist
         const listTool = mockServer.getTool('list_sheets');
@@ -244,12 +247,12 @@ test('move_sheet changes sheet position', async () => {
         await createTool.cb({ name: 'SheetC' }, ctx);
 
         const moveTool = mockServer.getTool('move_sheet');
-        const result = await moveTool.cb({ name: 'SheetC', position: 1 }, ctx); // Move to second position
+        const result = await moveTool.cb({ sheet: 'SheetC', newIndex: 1 }, ctx); // Move to second position
 
         assert.ok(result.structuredContent);
         assert.equal(result.structuredContent.sheet, 'SheetC');
-        assert.equal(result.structuredContent.position, 1);
-        assert.equal(result.structuredContent.status, 'moved');
+        assert.equal(result.structuredContent.newIndex, 1);
+        assert.equal(result.structuredContent.action, 'moved');
 
         // Verify order
         const listTool = mockServer.getTool('list_sheets');
@@ -260,6 +263,8 @@ test('move_sheet changes sheet position', async () => {
     });
 });
 
-export default async function () {
-    await test.run();
+test.after(async () => {
+    await (await testContext).cleanup();
+});
+
 }

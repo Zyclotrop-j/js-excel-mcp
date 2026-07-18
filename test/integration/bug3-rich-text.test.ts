@@ -17,9 +17,10 @@ import z from 'zod';
 
 async function setupBug3() {
     const mockServer = new MockMcpServer();
-    const testContext = createTestContext('bug3-richtext-test');
+    let testContext;
 
     await run(async () => {
+        testContext = createTestContext('bug3-richtext-test');
         const richTextHandler = new RichTextHandler();
         richTextHandler.server = mockServer as any;
         richTextHandler.context = testContext;

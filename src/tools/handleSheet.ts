@@ -1,7 +1,17 @@
 import { ToolHandler } from './interface.js';
-import { addWorksheet, getSheet, removeSheet, renameSheet, setActiveSheet, sheetNames, validateSheetTitle } from '@office-kit/xlsx/workbook';
+import { addWorksheet, getSheet, removeSheet, renameSheet, setActiveSheet, sheetNames } from '@office-kit/xlsx/workbook';
 import z from 'zod';
 import { Context } from '../filesystem/context.js';
+
+// Mirror office-kit's validateSheetTitle rules without depending on its
+// un-exported symbol. Returns null for an acceptable title, or a reason string.
+function invalidSheetName(title: string | undefined): string | null {
+    if (typeof title !== 'string' || title.length === 0 || title.length > 31) return 'must be 1..31 chars';
+    if (/[:\\/?*[\]]/.test(title)) return 'must not contain : \\ / ? * [ ]';
+    if (title.startsWith("'") || title.endsWith("'")) return "must not start or end with an apostrophe";
+    if (title.toLowerCase() === 'history') return '"History" is reserved by Excel';
+    return null;
+}
 
 export class SheetHandler extends ToolHandler {
     async register(allTools: ToolHandler[]): Promise<void> {
@@ -28,7 +38,7 @@ export class SheetHandler extends ToolHandler {
             if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }], isError: true });
 
             const wb = await context.getWorkbook(filename);
-            const titleReason = validateSheetTitle(arg.name);
+            const titleReason = invalidSheetName(arg.name);
             if (titleReason) {
                 return context.contextualiseResponse({
                     content: [{ type: 'text', text: `invalid sheet name '${arg.name}': ${titleReason}` }],
@@ -99,6 +109,18 @@ export class SheetHandler extends ToolHandler {
                     sheets: sheetNames(wb)
                 }
             });
+            }
+
+            if (sheetNames(wb).length <= 1) {
+                return context.contextualiseResponse({
+                    content: [{ type: 'text', text: `cannot delete last sheet '${sheetName}' in workbook '${filename}'` }],
+                    isError: true,
+                    structuredContent: {
+                        filename,
+                        sheet: sheetName,
+                        sheets: sheetNames(wb)
+                    }
+                });
             }
 
             await removeSheet(wb, sheetName);
@@ -245,7 +267,7 @@ export class SheetHandler extends ToolHandler {
                 });
             }
 
-            const titleReason = validateSheetTitle(arg.newName);
+            const titleReason = invalidSheetName(arg.newName);
             if (titleReason) {
                 return context.contextualiseResponse({
                     content: [{ type: 'text', text: `invalid sheet name '${arg.newName}': ${titleReason}` }],

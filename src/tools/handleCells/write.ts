@@ -5,7 +5,7 @@ import type { SheetRef } from '@office-kit/xlsx/workbook';
 import z from 'zod';
 import { Context } from '../../filesystem/context.js';
 
-const cellValueSchema = z.union([z.string(), z.number(), z.boolean(), z.null()]);
+const cellValueSchema = z.union([z.string(), z.number(), z.boolean(), z.null(), z.object({ kind: z.literal('error'), code: z.enum(['#NULL!', '#DIV/0!', '#VALUE!', '#REF!', '#NAME?', '#NUM!', '#N/A', '#GETTING_DATA']) })]);
 
 export class CellWriteHandler extends ToolHandler {
     async register(allTools: ToolHandler[]): Promise<void> {
@@ -13,7 +13,7 @@ export class CellWriteHandler extends ToolHandler {
 
         const context = await Context.getContext((this.context.authInfo?.extra?.userId as string) ?? 'public');
 
-        this.registerTool('set_cell', { description: 'set the content of a cell (string, number, boolean, or null)', inputSchema: z.object({
+        this.registerTool('set_cell', { description: 'set the content of a cell (string, number, boolean, null, or error)', inputSchema: z.object({
             workbook: z.string().optional(),
             sheet: z.string().optional(),
             ref: z.string().optional(),

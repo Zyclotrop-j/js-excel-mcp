@@ -12,6 +12,7 @@ import styleProps from './property/style-properties.test.js';
 import vfsProps from './property/vfs-properties.test.js';
 import encodingProps from './property/encoding-properties.test.js';
 import cursorProps from './property/cursor-properties.test.js';
+import cursorPropertiesV2 from './property/cursor-properties-v2.test.js';
 
 cellProps(test);
 rangeProps(test);
@@ -20,6 +21,7 @@ styleProps(test);
 vfsProps(test);
 encodingProps(test);
 cursorProps(test);
+cursorPropertiesV2(test);
 
 !(async function () {
     await test.run();

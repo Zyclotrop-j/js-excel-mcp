@@ -47,7 +47,7 @@ export class CellReadHandler extends ToolHandler {
             col: z.number().optional()
         }), outputSchema: z.object({
             ref: z.string().optional(),
-            value: z.union([z.string(), z.number(), z.boolean(), z.null()]).optional(),
+            value: cellNativeValueSchema.optional(),
             nativeValue: cellNativeValueSchema.optional(),
             formula: z.string().nullable().optional(),
             context: context.contextualiseResponseTypes()
@@ -86,9 +86,18 @@ export class CellReadHandler extends ToolHandler {
             const ref = getCoordinate(cell);
             await context.setCurrentCell(ref);
 
+            // cellValueAsPrimitive collapses non-primitive kinds (error / duration /
+            // rich-text / formula) to null. For those, surface the raw cell value in
+            // the `value` field so callers can read error cells back as
+            // { kind: 'error', code: '#N/A' } etc. instead of null. Primitives keep
+            // their stable string/number/boolean/null typing.
+            const valueOut = (value !== null && typeof value === 'object' && 'kind' in value)
+                ? value
+                : primitive;
+
             return context.contextualiseResponse({
-                content: [{ type: 'text', text: encode({ ref, value: primitive, formula: formula ?? null }) }],
-                structuredContent: { ref, value: primitive, nativeValue: value instanceof Date ? value.toISOString() : value, formula: formula ?? null }
+                content: [{ type: 'text', text: encode({ ref, value: valueOut, formula: formula ?? null }) }],
+                structuredContent: { ref, value: valueOut, nativeValue: value instanceof Date ? value.toISOString() : value, formula: formula ?? null }
             });
         });
 
