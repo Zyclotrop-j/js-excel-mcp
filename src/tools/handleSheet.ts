@@ -1,5 +1,5 @@
 import { ToolHandler } from './interface.js';
-import { addWorksheet, getSheet, removeSheet, renameSheet, setActiveSheet, sheetNames } from '@office-kit/xlsx/workbook';
+import { addWorksheet, getSheet, removeSheet, renameSheet, setActiveSheet, sheetNames, type Workbook } from '@office-kit/xlsx/workbook';
 import z from 'zod';
 import { Context } from '../filesystem/context.js';
 
@@ -37,7 +37,12 @@ export class SheetHandler extends ToolHandler {
             const filename = arg.workbook ?? await context.getCurrentFile();
             if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }], isError: true });
 
-            const wb = await context.getWorkbook(filename);
+            let wb: Workbook;
+            try {
+                wb = await context.getWorkbook(filename);
+            } catch {
+                return context.contextualiseResponse({ content: [{ type: 'text', text: `workbook '${filename}' doesn't exist` }], isError: true });
+            }
             const titleReason = invalidSheetName(arg.name);
             if (titleReason) {
                 return context.contextualiseResponse({
@@ -97,7 +102,12 @@ export class SheetHandler extends ToolHandler {
             const sheetName = arg.name ?? await context.getCurrentSheet();
             if (!sheetName) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no sheet specified and no current sheet set' }], isError: true });
 
-            const wb = await context.getWorkbook(filename);
+            let wb: Workbook;
+            try {
+                wb = await context.getWorkbook(filename);
+            } catch {
+                return context.contextualiseResponse({ content: [{ type: 'text', text: `workbook '${filename}' doesn't exist` }], isError: true });
+            }
 
             if(!getSheet(wb, sheetName)) {
                 return context.contextualiseResponse({
@@ -163,7 +173,12 @@ export class SheetHandler extends ToolHandler {
             const sheetName = arg.name ?? await context.getCurrentSheet();
             if (!sheetName) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no sheet specified and no current sheet set' }], isError: true });
 
-            const wb = await context.getWorkbook(filename);
+            let wb: Workbook;
+            try {
+                wb = await context.getWorkbook(filename);
+            } catch {
+                return context.contextualiseResponse({ content: [{ type: 'text', text: `workbook '${filename}' doesn't exist` }], isError: true });
+            }
 
             if (!getSheet(wb, sheetName)) {
                 return context.contextualiseResponse({
@@ -206,7 +221,12 @@ export class SheetHandler extends ToolHandler {
             const filename = arg.workbook ?? await context.getCurrentFile();
             if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }], isError: true });
 
-            const wb = await context.getWorkbook(filename);
+            let wb: Workbook;
+            try {
+                wb = await context.getWorkbook(filename);
+            } catch {
+                return context.contextualiseResponse({ content: [{ type: 'text', text: `workbook '${filename}' doesn't exist` }], isError: true });
+            }
             const names = sheetNames(wb);
 
             return context.contextualiseResponse({
@@ -241,7 +261,12 @@ export class SheetHandler extends ToolHandler {
             const oldName = arg.oldName ?? await context.getCurrentSheet();
             if (!oldName) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no sheet specified and no current sheet set' }], isError: true });
 
-            const wb = await context.getWorkbook(filename);
+            let wb: Workbook;
+            try {
+                wb = await context.getWorkbook(filename);
+            } catch {
+                return context.contextualiseResponse({ content: [{ type: 'text', text: `workbook '${filename}' doesn't exist` }], isError: true });
+            }
 
             if (!getSheet(wb, oldName)) {
                 return context.contextualiseResponse({

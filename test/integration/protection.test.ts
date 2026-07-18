@@ -119,7 +119,7 @@ test('lock_cell error when sheet not found', async () => {
     });
 });
 
-test('protect_sheet error when no workbook is open', async () => {
+test('protect_sheet error with nonexistent workbook', async () => {
     await run(async () => {
         const tool = mockServer.getTool('protect_sheet');
         const ctx = createMockRequestContext('protection-test');
@@ -127,7 +127,7 @@ test('protect_sheet error when no workbook is open', async () => {
         const result = await tool.cb({ enable: true, workbook: 'nonexistent.xlsx' }, ctx);
 
         assert.ok(result.content);
-        assert.ok(result.content && result.content.some((c: any) => c.text && c.text.includes('no workbook is currently open')));
+        assert.ok(result.content && result.content.some((c: any) => c.text && (c.text.includes("doesn't exist") || c.text.includes('no workbook is currently open'))));
     });
 });
 

@@ -1,0 +1,24 @@
+Integration Tests • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • [Auth] Database schema initialized (data/_auth.db)
+[Auth] ========================================
+[Auth] Demo user credentials (auto-login):
+[Auth]   Email:    demo@example.com
+[Auth]   Password: ernCjBsavZjKxznbu_1g1g
+[Auth] ========================================
+• • OAuth Authorization Server listening on port 13501
+  Authorization: http://localhost:13501/api/auth/mcp/authorize
+  Token: http://localhost:13501/api/auth/mcp/token
+  Metadata: http://localhost:13501/.well-known/oauth-authorization-server
+• • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • • 
+
+! insert_image with URL attempts to fetch (fails in no-network test environment) 
+
+AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+
+  assert.ok(result.content[0].text.includes('failed to fetch image'))
+
+    at <anonymous> (C:\Users\Janne\scripts\js-excel-mcp\test\integration\image.test.ts:58:16)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async Object.fn (C:\Users\Janne\scripts\js-excel-mcp\test\integration\image.test.ts:44:5)
+    at async self.run (C:\Users\Janne\scripts\js-excel-mcp\node_modules\baretest\baretest.js:31:9)
+    at async <anonymous> (C:\Users\Janne\scripts\js-excel-mcp\test\run-integration.ts:67:5)

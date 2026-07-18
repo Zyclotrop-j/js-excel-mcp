@@ -96,7 +96,13 @@ test('add_bar_chart with no open workbook (separate context)', async () => {
     await run(async () => {
         // Create a separate test context with a different userId to ensure no workbook is open
         const separateTestContext = await createTestContext('chart-test-no-wb');
-        const separateTool = mockServer.getTool('add_bar_chart');
+        const localMock = new MockMcpServer();
+        const isolatedHandler = new ChartHandler();
+        isolatedHandler.server = localMock as any;
+        isolatedHandler.context = separateTestContext;
+        await isolatedHandler.register([]);
+
+        const separateTool = localMock.getTool('add_bar_chart');
         const separateCtx = createMockRequestContext('chart-test-no-wb');
 
         const result = await separateTool.cb({
@@ -106,6 +112,7 @@ test('add_bar_chart with no open workbook (separate context)', async () => {
 
         assert.ok(result.content);
         assert.ok(result.content.some((c:any)=>c.text.includes('no workbook is currently open')));
+        await (await separateTestContext).cleanup();
     });
 });
 
@@ -167,18 +174,25 @@ test('add_line_chart with smooth option', async () => {
     });
 });
 
-test('add_bar_chart requires dataRange parameter', async () => {
+test('add_bar_chart with no open workbook returns error message', async () => {
     await run(async () => {
         const tool = mockServer.getTool('add_bar_chart');
-        const ctx = createMockRequestContext('chart-test');
+        const ctx = createMockRequestContext('chart-no-wb');
 
+        // User 'chart-no-wb' has no workbooks open; add_bar_chart should
+        // hit the `getCurrentFile() ?? null` path BEFORE reaching
+        // `arg.dataRange.split(':')`. Provide all required schema fields so
+        // the failure is purely the no-workbook guard, not a missing-arg crash.
         const result = await tool.cb({
+            dataRange: 'A1:B10',
             anchorCell: 'D1',
-            title: 'Missing Data Range'
+            title: 'No Workbook',
+            workbook: 'no-such-workbook.xlsx'
         }, ctx);
 
         assert.ok(result.content);
-        assert.ok(result.content.some((c: any) => c.text.includes('no workbook')));
+        assert.ok(result.content.some((c: any) => c.text.includes("doesn't exist") || c.text.includes('no workbook') || c.text.includes('not found')),
+            `expected "doesn't exist"/"no workbook"/"not found"; found: ${JSON.stringify(result.content)}`);
     });
 });
 

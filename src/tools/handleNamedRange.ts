@@ -1,5 +1,5 @@
 import { ToolHandler } from './interface.js';
-import { addDefinedName, removeDefinedName } from '@office-kit/xlsx/workbook';
+import { addDefinedName, removeDefinedName, type Workbook } from '@office-kit/xlsx/workbook';
 import z from 'zod';
 import { Context } from '../filesystem/context.js';
 
@@ -27,7 +27,12 @@ export class NamedRangeHandler extends ToolHandler {
             const filename = arg.workbook ?? await context.getCurrentFile();
             if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }], isError: true });
 
-            const wb = await context.getWorkbook(filename);
+            let wb: Workbook;
+            try {
+                wb = await context.getWorkbook(filename);
+            } catch {
+                return context.contextualiseResponse({ content: [{ type: 'text', text: `workbook '${filename}' doesn't exist` }], isError: true });
+            }
 
             let range = arg.range;
             if (!range.includes('!')) {
@@ -62,7 +67,12 @@ export class NamedRangeHandler extends ToolHandler {
             const filename = arg.workbook ?? await context.getCurrentFile();
             if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }], isError: true });
 
-            const wb = await context.getWorkbook(filename);
+            let wb: Workbook;
+            try {
+                wb = await context.getWorkbook(filename);
+            } catch {
+                return context.contextualiseResponse({ content: [{ type: 'text', text: `workbook '${filename}' doesn't exist` }], isError: true });
+            }
             const removed = removeDefinedName(wb, arg.name);
             if (!removed) return context.contextualiseResponse({ content: [{ type: 'text', text: `named range '${arg.name}' not found` }], isError: true });
             await context.setWorkbook(filename, wb);

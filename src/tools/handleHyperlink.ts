@@ -1,6 +1,6 @@
 import { ToolHandler } from './interface.js';
 import { setHyperlink, type Worksheet } from '@office-kit/xlsx/worksheet';
-import type { SheetRef } from '@office-kit/xlsx/workbook';
+import type { SheetRef, Workbook } from '@office-kit/xlsx/workbook';
 import { tupleToCoordinate } from '@office-kit/xlsx/utils';
 import z from 'zod';
 import { Context } from '../filesystem/context.js';
@@ -34,7 +34,12 @@ export class HyperlinkHandler extends ToolHandler {
             const filename = arg.workbook ?? await context.getCurrentFile();
             if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }], isError: true });
 
-            const wb = await context.getWorkbook(filename);
+            let wb: Workbook;
+            try {
+                wb = await context.getWorkbook(filename);
+            } catch {
+                return context.contextualiseResponse({ content: [{ type: 'text', text: `workbook '${filename}' doesn't exist` }], isError: true });
+            }
 
             const sheetName = arg.sheet ?? await context.getCurrentSheet();
             const sheet = wb.sheets.find((s: SheetRef) => s.sheet.title === sheetName);

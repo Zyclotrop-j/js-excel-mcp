@@ -197,7 +197,10 @@ test('create_excel_table with no open workbook', async () => {
             columns: ['Header1', 'Header2', 'Header3']
         }, ctx);
 
-        assert.strictEqual(result.structuredContent, undefined);
+        // Error responses only carry the context block (no `action`); the
+        // text content reports "no workbook is currently open".
+        assert.equal(result.structuredContent.action, undefined);
+        assert(result.isError === true);
         assert(result.content.some(c => c.type === 'text' && c.text.includes('no workbook is currently open')));
     });
 });
@@ -212,7 +215,8 @@ test('add_autofilter with unknown sheet', async () => {
             range: 'A1:C3'
         }, ctx);
 
-        assert.strictEqual(result.structuredContent, undefined);
+        assert.equal(result.structuredContent.action, undefined);
+        assert(result.isError === true);
         assert(result.content.some(c => c.type === 'text' && c.text.includes('not found')));
     });
 });

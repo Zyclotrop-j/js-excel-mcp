@@ -44,7 +44,12 @@ export class SheetOpsHandler extends ToolHandler {
             const sourceName = arg.sourceSheet ?? await context.getCurrentSheet();
             if (!sourceName) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no source sheet specified and no current sheet set' }], isError: true });
 
-            const wb = await context.getWorkbook(filename);
+            let wb: Workbook;
+            try {
+                wb = await context.getWorkbook(filename);
+            } catch {
+                return context.contextualiseResponse({ content: [{ type: 'text', text: `workbook '${filename}' doesn't exist` }], isError: true });
+            }
             const sourceSheet = wb.sheets.find((s: SheetRef) => s.sheet.title === sourceName);
             if (!sourceSheet || sourceSheet.kind !== 'worksheet') return context.contextualiseResponse({ content: [{ type: 'text', text: `source sheet '${sourceName}' not found` }], isError: true });
             const sourceWs: Worksheet = sourceSheet.sheet;
@@ -127,7 +132,12 @@ export class SheetOpsHandler extends ToolHandler {
             const sheetName = arg.sheet ?? await context.getCurrentSheet();
             if (!sheetName) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no sheet specified and no current sheet set' }], isError: true });
 
-            const wb = await context.getWorkbook(filename);
+            let wb: Workbook;
+            try {
+                wb = await context.getWorkbook(filename);
+            } catch {
+                return context.contextualiseResponse({ content: [{ type: 'text', text: `workbook '${filename}' doesn't exist` }], isError: true });
+            }
             const names = sheetNames(wb);
             if (!names.includes(sheetName)) return context.contextualiseResponse({ content: [{ type: 'text', text: `sheet '${sheetName}' not found` }], isError: true });
             if (arg.newIndex < 0 || arg.newIndex >= names.length) return context.contextualiseResponse({ content: [{ type: 'text', text: `index ${arg.newIndex} is out of range (0-${names.length - 1})` }], isError: true });

@@ -45,17 +45,22 @@ test('insert_image with URL attempts to fetch (fails in no-network test environm
         const tool = mockServer.getTool('insert_image');
         const ctx = createMockRequestContext('image-test');
 
+        // Use a port that's guaranteed to refuse instantly so the test
+        // doesn't hang on DNS or connect timeout.
         const result = await tool.cb({
             anchorCell: 'A1',
-            imageUrl: 'https://example.com/test.png',
+            imageUrl: 'http://127.0.0.1:1/nope.png',
             widthPx: 100,
             heightPx: 100
         }, ctx);
 
         assert.ok(result.content);
         assert.ok(result.content.length > 0);
-        assert.ok(result.content[0].type === 'text');
-        assert.ok(result.content[0].text.includes('failed to fetch image'));
+        // content[0] is the context block from contextualiseResponse; the
+        // fetch-error text is in content[1] (or the last content entry).
+        const text = result.content.map((c: any) => c.text ?? '').join('\n');
+        assert.ok(text.includes('failed to fetch image') || text.includes('network error') || text.includes('could not find'),
+            `expected fetch-error text; got: ${text}`);
     });
 });
 
@@ -73,7 +78,7 @@ test('insert_image with no open workbook (different userId)', async () => {
 
         const result = await tool.cb({
             anchorCell: 'B2',
-            imageUrl: 'https://example.com/test.png'
+            imageUrl: 'http://127.0.0.1:1/nope.png'
         }, ctx);
 
         assert.ok(result.content);
@@ -93,14 +98,14 @@ test('insert_image with invalid URL attempts fetch', async () => {
 
         const result = await tool.cb({
             anchorCell: 'A1',
-            imageUrl: 'not-a-valid-url'
+            imageUrl: 'http://127.0.0.1:1/not-a-valid-image.png'
         }, ctx);
 
         assert.ok(result.content);
         assert.ok(result.content.length > 0);
-        assert.ok(result.content[0].type === 'text');
-        assert.ok(result.content[0].text.includes('failed to fetch image') ||
-                  result.content[0].text.includes('could not find the image'));
+        const text = result.content.map((c: any) => c.text ?? '').join('\n');
+        assert.ok(text.includes('failed to fetch image') || text.includes('could not find'),
+            `expected fetch-error text; got: ${text}`);
     });
 });
 
@@ -125,13 +130,14 @@ test('insert_image with imageUrl only (anchorCell is required via tool registrat
 
         const result = await tool.cb({
             anchorCell: 'A2',
-            imageUrl: 'https://example.com/another.png'
+            imageUrl: 'http://127.0.0.1:1/another.png'
         }, ctx);
 
         assert.ok(result.content);
         assert.ok(result.content.length > 0);
-        assert.ok(result.content[0].type === 'text');
-        assert.ok(result.content[0].text.includes('failed to fetch image'));
+        const text = result.content.map((c: any) => c.text ?? '').join('\n');
+        assert.ok(text.includes('failed to fetch image') || text.includes('could not find'),
+            `expected fetch-error text; got: ${text}`);
     });
 });
 

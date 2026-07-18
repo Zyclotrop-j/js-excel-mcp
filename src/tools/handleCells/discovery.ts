@@ -569,7 +569,12 @@ export class CellDiscoveryHandler extends ToolHandler {
             const filename = arg.workbook ?? await context.getCurrentFile();
             if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }], isError: true });
 
-            const wb = await context.getWorkbook(filename);
+            let wb: Workbook;
+            try {
+                wb = await context.getWorkbook(filename);
+            } catch {
+                return context.contextualiseResponse({ content: [{ type: 'text', text: `workbook '${filename}' doesn't exist` }], isError: true });
+            }
             const sheetName = arg.sheet ?? await context.getCurrentSheet();
             const sheet = wb.sheets.find((s: SheetRef) => s.sheet.title === sheetName);
             if (!sheet || sheet.kind !== 'worksheet') return context.contextualiseResponse({ content: [{ type: 'text', text: `sheet '${sheetName}' not found` }], isError: true });
@@ -638,7 +643,12 @@ export class CellDiscoveryHandler extends ToolHandler {
             const filename = arg.workbook ?? await context.getCurrentFile();
             if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }], isError: true });
 
-            const wb = await context.getWorkbook(filename);
+            let wb: Workbook;
+            try {
+                wb = await context.getWorkbook(filename);
+            } catch {
+                return context.contextualiseResponse({ content: [{ type: 'text', text: `workbook '${filename}' doesn't exist` }], isError: true });
+            }
             const sheetName = arg.sheet ?? await context.getCurrentSheet();
             const sheet = wb.sheets.find((s: SheetRef) => s.sheet.title === sheetName);
             if (!sheet || sheet.kind !== 'worksheet') return context.contextualiseResponse({ content: [{ type: 'text', text: `sheet '${sheetName}' not found` }], isError: true });
@@ -721,7 +731,12 @@ export class CellDiscoveryHandler extends ToolHandler {
             const filename = arg.workbook ?? await context.getCurrentFile();
             if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }], isError: true });
 
-            const wb = await context.getWorkbook(filename);
+            let wb: Workbook;
+            try {
+                wb = await context.getWorkbook(filename);
+            } catch {
+                return context.contextualiseResponse({ content: [{ type: 'text', text: `workbook '${filename}' doesn't exist` }], isError: true });
+            }
             const sheetName = arg.sheet ?? await context.getCurrentSheet();
             const sheet = wb.sheets.find((s: SheetRef) => s.sheet.title === sheetName);
             if (!sheet || sheet.kind !== 'worksheet') return context.contextualiseResponse({ content: [{ type: 'text', text: `sheet '${sheetName}' not found` }], isError: true });
@@ -796,7 +811,12 @@ export class CellDiscoveryHandler extends ToolHandler {
             const filename = arg.workbook ?? await context.getCurrentFile();
             if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }], isError: true });
 
-            const wb = await context.getWorkbook(filename);
+            let wb: Workbook;
+            try {
+                wb = await context.getWorkbook(filename);
+            } catch {
+                return context.contextualiseResponse({ content: [{ type: 'text', text: `workbook '${filename}' doesn't exist` }], isError: true });
+            }
             const sheetName = arg.sheet ?? await context.getCurrentSheet();
             const sheet = wb.sheets.find((s: SheetRef) => s.sheet.title === sheetName);
             if (!sheet || sheet.kind !== 'worksheet') return context.contextualiseResponse({ content: [{ type: 'text', text: `sheet '${sheetName}' not found` }], isError: true });

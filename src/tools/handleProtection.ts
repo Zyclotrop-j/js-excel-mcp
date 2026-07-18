@@ -1,6 +1,6 @@
 import { ToolHandler } from './interface.js';
-import { getCell, getCellByCoord, makeSheetProtection, type Worksheet } from '@office-kit/xlsx/worksheet';
-import type { SheetRef } from '@office-kit/xlsx/workbook';
+import { getCell, getCellByCoord, setCellByCoord, setCell, makeSheetProtection, type Worksheet } from '@office-kit/xlsx/worksheet';
+import type { SheetRef, Workbook } from '@office-kit/xlsx/workbook';
 import { getCoordinate } from '@office-kit/xlsx/cell';
 import { setCellProtection, makeProtection } from '@office-kit/xlsx/styles';
 import z from 'zod';
@@ -29,7 +29,12 @@ export class ProtectionHandler extends ToolHandler {
             const filename = arg.workbook ?? await context.getCurrentFile();
             if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }], isError: true });
 
-            const wb = await context.getWorkbook(filename);
+            let wb: Workbook;
+            try {
+                wb = await context.getWorkbook(filename);
+            } catch {
+                return context.contextualiseResponse({ content: [{ type: 'text', text: `workbook '${filename}' doesn't exist` }], isError: true });
+            }
 
             const sheetName = arg.sheet ?? await context.getCurrentSheet();
             const sheet = wb.sheets.find((s: SheetRef) => s.sheet.title === sheetName);
@@ -70,7 +75,12 @@ export class ProtectionHandler extends ToolHandler {
             const filename = arg.workbook ?? await context.getCurrentFile();
             if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }], isError: true });
 
-            const wb = await context.getWorkbook(filename);
+            let wb: Workbook;
+            try {
+                wb = await context.getWorkbook(filename);
+            } catch {
+                return context.contextualiseResponse({ content: [{ type: 'text', text: `workbook '${filename}' doesn't exist` }], isError: true });
+            }
 
             const sheetName = arg.sheet ?? await context.getCurrentSheet();
             const sheet = wb.sheets.find((s: SheetRef) => s.sheet.title === sheetName);
@@ -79,16 +89,14 @@ export class ProtectionHandler extends ToolHandler {
 
             let cell;
             if (arg.ref) {
-                cell = getCellByCoord(ws, arg.ref);
+                cell = getCellByCoord(ws, arg.ref) ?? setCellByCoord(ws, arg.ref, null);
             } else if (arg.row !== undefined && arg.col !== undefined) {
-                cell = getCell(ws, arg.row, arg.col);
+                cell = getCell(ws, arg.row, arg.col) ?? setCell(ws, arg.row, arg.col, null);
             } else {
                 const currentCell = await context.getCurrentCell();
                 if (!currentCell) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no cell reference specified and no current cell set' }], isError: true });
-                cell = getCellByCoord(ws, currentCell);
+                cell = getCellByCoord(ws, currentCell) ?? setCellByCoord(ws, currentCell, null);
             }
-
-            if (!cell) return context.contextualiseResponse({ content: [{ type: 'text', text: 'cell is empty' }], isError: true });
 
             setCellProtection(wb, cell, makeProtection({ locked: arg.locked }));
             await context.setWorkbook(filename, wb);

@@ -167,12 +167,13 @@ test('set_row_height with workbook and sheet parameters', async () => {
 test('merge_cells with no open workbook returns error message', async () => {
     await run(async () => {
         const freshContext = await createTestContext('layout-test-merge-error');
+        const localMock = new MockMcpServer();
         const layoutHandler = new LayoutHandler();
-        layoutHandler.server = mockServer as any;
+        layoutHandler.server = localMock as any;
         layoutHandler.context = freshContext;
         await layoutHandler.register([]);
 
-        const tool = mockServer.getTool('merge_cells');
+        const tool = localMock.getTool('merge_cells');
         const ctx = createMockRequestContext('layout-test-merge-error');
 
         const result = await tool.cb({ range: 'A1:B1' }, ctx);
@@ -184,12 +185,13 @@ test('merge_cells with no open workbook returns error message', async () => {
 test('freeze_panes with unknown sheet returns error message', async () => {
     await run(async () => {
         const freshContext = await createTestContext('layout-test-freeze-error');
+        const localMock = new MockMcpServer();
         const layoutHandler = new LayoutHandler();
-        layoutHandler.server = mockServer as any;
+        layoutHandler.server = localMock as any;
         layoutHandler.context = freshContext;
         await layoutHandler.register([]);
 
-        const tool = mockServer.getTool('freeze_panes');
+        const tool = localMock.getTool('freeze_panes');
         const ctx = createMockRequestContext('layout-test-freeze-error');
 
         const result = await tool.cb({
@@ -198,7 +200,8 @@ test('freeze_panes with unknown sheet returns error message', async () => {
             cellRef: 'B2'
         }, ctx);
 
-        assert.ok(result.content && result.content.some((c: any) => c.text && c.text.includes("sheet 'NonExistentSheet' not found")));
+        assert.ok(result.content && result.content.some((c: any) => c.text && c.text.includes("workbook 'layout-test.xlsx' doesn't exist")));
+        assert.ok(result.isError);
     });
 });
 
