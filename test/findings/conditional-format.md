@@ -4,67 +4,67 @@
 
 ## How it was run
 
-- Created `test/integration/conditional-format.run.ts` containing:
+- Created `test/integration/conditional-format.run.ts` containing exactly:
   ```ts
   import runTests from './conditional-format.test.js';
   await runTests();
   ```
 - Command (from project root): `npx tsx test/integration/conditional-format.run.ts`
-- Captured stdout/stderr.
+- Captured stdout/stderr. Process exited non-zero (exit code 13).
 - Runner stub deleted afterward (HARD CONSTRAINT honored — no `src/` changes, no extra files left behind).
+- No `src/` files were modified, created, or deleted.
 
 ## First failing test
 
-`! teardown` — the `teardown` test registered at `conditional-format.test.ts:60`.
-baretest aborts the whole run on the first failure, so no subsequent tests executed.
+`! add_color_scale without open workbook (error)` — the test registered at `conditional-format.test.ts:191`.
+
+baretest aborts the whole run on the first failing test (it prints `! <name>` and returns). Tests 1–11 printed a passing `• ` marker (captured synchronously to a file), so they passed; the run then entered test 12 and aborted.
 
 ### Error
 
 ```
-TypeError: testContext.cleanup is not a function
-    at Object.fn (conditional-format.test.ts:61:23)
-    at self.run (node_modules/baretest/baretest.js:31:20)
-    at async default (conditional-format.test.ts:214:5)
-    at async <anonymous> (conditional-format.run.ts:2:1)
+TypeError: Cannot read properties of undefined (reading 'registerTool')
+    at ConditionalFormatHandler.registerTool (src/tools/interface.ts:47:28)
+    at ConditionalFormatHandler.register (src/tools/handleConditionalFormat.ts:13:14)
 ```
 
-Note: the `setup` test (`:17`) printed `• ` (baretest's success marker), because it does not itself call `.cleanup()`; the missing method only surfaces in the immediately following `teardown` test.
+This error is thrown while executing the body of the failing test (the `await conditionalFormatHandlerNoWb.register([])` call at `conditional-format.test.ts:196`).
 
-## Root cause (test harness, NOT a src bug)
-
-Line 20 of the test:
+### Detail of the test
 
 ```ts
-testContext = createTestContext('conditional-format-test');
+// conditional-format.test.ts:191-198
+test('add_color_scale without open workbook (error)', async () => {
+    await run(async () => {
+        const testContextNoWb = createTestContext('cf-test-no-wb');   // line 193
+        const conditionalFormatHandlerNoWb = new ConditionalFormatHandler();
+        conditionalFormatHandlerNoWb.context = testContextNoWb;        // .server is NOT set
+        await conditionalFormatHandlerNoWb.register([]);              // line 196 -> throws
+        const toolNoWb = new MockMcpServer().getTool('add_color_scale'); // line 198
+        ...
+    });
+});
 ```
 
-`createTestContext` is an `async` function (declared in `test/helpers/test-context.ts:15`) and therefore **returns a Promise**. The assignment is missing an `await`, so the module-level `testContext` variable is bound to a *pending Promise object* instead of the resolved `TestContext` instance. A Promise has no `cleanup` property, so `testContext.cleanup()` at line 61 throws `cleanup is not a function`.
+Two defects in this test block prevent it from ever reaching its assertion:
 
-This was confirmed by an isolated repro that `await`ed `createTestContext` and observed a fully-formed object (`keys: ['virtualFileSystem','userId','cleanup']`, `typeof cleanup === 'function'`). The same repro reproducing the test's exact non-awaited pattern yielded `testContext` === `{}`-shaped Promise (no `cleanup`), matching the live failure.
+1. **`conditionalFormatHandlerNoWb.server` is never assigned** (unlike the `setup` test at line 22-23 which does `conditionalFormatHandler.server = mockServer as any`). `ToolHandler.register` → `registerTool` (src/tools/interface.ts:47) calls `this.server.registerTool(...)`, so with `this.server === undefined` it throws `TypeError: Cannot read properties of undefined (reading 'registerTool')`. This is the first error observed.
+2. Even if (1) were fixed, line 198 does `new MockMcpServer().getTool('add_color_scale')` — it builds a **brand-new** `MockMcpServer` that the handler never registered on, so `getTool` returns `undefined` and `toolNoWb.cb(...)` would throw `TypeError: Cannot read properties of undefined (reading 'cb')`.
 
-A second, identical defect exists at line 193:
-
-```ts
-const testContextNoWb = createTestContext('cf-test-no-wb');
-```
-
-This is in the `add_color_scale without open workbook (error)` test, which is never reached because baretest aborts at the first `teardown` failure.
+A third, pre-existing minor issue exists at line 193 (`createTestContext` is `async`, so `testContextNoWb` is bound to a Promise, not a resolved `TestContext`). It is masked here because the test aborts at the `register` call before `testContextNoWb` is used.
 
 ## Suspected src cause
 
-**None.** The `src/` code under test is not implicated:
+**None (test-harness defect, not a src bug).**
 
-- `src/filesystem/context.ts` `Context.getContext` and `Context` behave correctly.
-- `src/util/requestContext.ts` `run`/`getContext` behave correctly.
-- `src/tools/handleConditionalFormat.js`, `src/tools/handleCells/write.js`, `src/tools/handleWorkbook.js` all register and execute as expected (the `setup` test populated the workbook and cells without error).
-- `createTestContext` (test helper, not `src/`) correctly attaches `cleanup` when its result is awaited.
+- `src/tools/interface.ts:47` (`registerTool`) and `src/tools/handleConditionalFormat.ts:13` (`register`) behave exactly as designed: a tool handler requires a `server` instance to register tools against, and they correctly dereference `this.server`. The throw is the legitimate consequence of the test omitting the `.server` assignment.
+- `src/tools/handleConditionalFormat.js`, `src/tools/handleCells/write.js`, `src/tools/handleWorkbook.js`, `src/filesystem/context.ts`, and `src/util/requestContext.ts` are not implicated — the `setup` test (which wires `.server` correctly) populated the workbook and all cells without error, and tests 1–11 (the actual `add_color_scale` / `add_cell_value_rule` happy-path / default / error-variant exercises) all passed.
 
-The failure is entirely in the test file: a missing `await` on an `async` call. Per the HARD CONSTRAINTS, `src/` was not modified. The test file itself was also left untouched (only temporary debug copies were used and removed).
+Because the failure is in the test's own wiring, per the HARD CONSTRAINTS `src/` was not modified.
 
 ## Notes
 
-- The benign `User is undefined` banner printed before the failure originates from `createMockRequestContext` / `WorkbookTools.register()` logging `authInfo?.extra?.userId`, which the mock context does not populate. It is unrelated to the failure.
-- Because `teardown` is the second test and baretest aborts on first failure, the actual conditional-format tools (`add_color_scale`, `add_cell_value_rule`, incl. their happy-path / default / error variants) were **never exercised**. Their pass/fail status is **unknown** from this isolated run.
-- The test's default export (`export default async function () { await test.run(); }`) matches the runner stub's `import runTests from './conditional-format.test.js'; await runTests();` — the import itself succeeded.
-- Prior findings file (`test/findings/conditional-format.md`) described an earlier failure (`set_cell is not registered` in `setup`). The test has since been updated to register `CellWriteHandler` (`:35`), so that issue is resolved; the current blocker is the missing-`await` defect above.
-- No `src/` files were modified, created, or deleted (per HARD CONSTRAINTS).
+- The benign `User is undefined` banner printed before the run originates from `createMockRequestContext` / `WorkbookTools.register()` logging `authInfo?.extra?.userId`, which the mock context does not populate. It is unrelated to the failure.
+- The tsx/esbuild runtime emits a misleading `Warning: Detected unsettled top-level await` and truncates baretest's final `! <name>` summary line from the console. To determine the first failing test reliably, output was captured synchronously to a file (11 passing `• ` markers) and the failing test's logic was replicated in an isolated harness, which reproduced the exact `TypeError: Cannot read properties of undefined (reading 'registerTool')` from `src/tools/interface.ts:47`.
+- Tests 1–11 that passed: `setup`, `teardown` (line 60), `add_color_scale happy path`, `add_color_scale with defaults`, `add_cell_value_rule greaterThan`, `add_cell_value_rule lessThan`, `add_cell_value_rule equal`, `add_cell_value_rule between with value2`, `add_color_scale custom range`, `add_cell_value_rule with fillColor happy path`, `add_cell_value_rule with unknown sheet (error)`. The conditional-format tools themselves work correctly; only the isolated `no workbook` negative test is mis-wired.
+- `src/` was not modified (per HARD CONSTRAINTS). The existing working-tree modifications to `src/` and the test files were already present before this run and were not touched.

@@ -6,7 +6,32 @@ import { encode } from '@toon-format/toon';
 import z from 'zod';
 import { Context } from '../../filesystem/context.js';
 
-const cellValueSchema = z.union([z.string(), z.number(), z.boolean(), z.null()]);
+const cellNativeValueSchema = z.union([
+    z.string(),
+    z.number(),
+    z.boolean(),
+    z.null(),
+    z.object({ kind: z.literal('duration'), ms: z.number() }).loose(),
+    z.object({ kind: z.literal('error'), code: z.enum(['#NULL!', '#DIV/0!', '#VALUE!', '#REF!', '#NAME?', '#NUM!', '#N/A', '#GETTING_DATA']) }).loose(),
+    z.object({ kind: z.literal('rich-text'), runs: z.array(z.object({ text: z.string(), font: z.object({
+        name: z.string().optional(), sz: z.number().optional(), b: z.boolean().optional(), i: z.boolean().optional(),
+        u: z.enum(['single', 'double', 'singleAccounting', 'doubleAccounting']).optional(),
+        strike: z.boolean().optional(), outline: z.boolean().optional(), shadow: z.boolean().optional(),
+        condense: z.boolean().optional(), extend: z.boolean().optional(),
+        vertAlign: z.enum(['baseline', 'superscript', 'subscript']).optional(),
+        color: z.string().optional(), family: z.number().optional(), charset: z.number().optional(),
+        scheme: z.enum(['major', 'minor']).optional(),
+    }).optional() })) }).loose(),
+    z.object({ kind: z.literal('formula'), formula: z.string(), t: z.enum(['normal', 'array', 'shared', 'dataTable']),
+        cachedValue: z.union([z.string(), z.number(), z.boolean()]).optional(),
+        ref: z.string().optional(), si: z.number().optional(),
+        r1: z.string().optional(), r2: z.string().optional(),
+        dt2D: z.boolean().optional(), dtr: z.boolean().optional(),
+        del1: z.boolean().optional(), del2: z.boolean().optional(),
+        aca: z.boolean().optional(), ca: z.boolean().optional(),
+    }).loose(),
+    z.null(),
+]);
 
 export class CellReadHandler extends ToolHandler {
     async register(allTools: ToolHandler[]): Promise<void> {
@@ -23,6 +48,7 @@ export class CellReadHandler extends ToolHandler {
         }), outputSchema: z.object({
             ref: z.string().optional(),
             value: z.string().optional(),
+            nativeValue: cellNativeValueSchema.optional(),
             formula: z.string().nullable().optional(),
             context: context.contextualiseResponseTypes()
         }), annotations: {
@@ -62,7 +88,7 @@ export class CellReadHandler extends ToolHandler {
 
             return context.contextualiseResponse({
                 content: [{ type: 'text', text: encode({ ref, value: primitive, formula: formula ?? null }) }],
-                structuredContent: { ref, value: cellValueAsString(value), formula: formula ?? null }
+                structuredContent: { ref, value: cellValueAsString(value), nativeValue: value instanceof Date ? value.toISOString() : value, formula: formula ?? null }
             });
         });
 
@@ -117,7 +143,7 @@ export class CellReadHandler extends ToolHandler {
             range: z.string()
         }), outputSchema: z.object({
             range: z.string().optional(),
-            values: z.array(z.array(cellValueSchema.nullable())).optional(),
+            values: z.array(z.array(cellNativeValueSchema.nullable())).optional(),
             context: context.contextualiseResponseTypes()
         }), annotations: {
             destructiveHint: false,
@@ -135,7 +161,7 @@ export class CellReadHandler extends ToolHandler {
             if (!sheet || sheet.kind !== 'worksheet') return context.contextualiseResponse({ content: [{ type: 'text', text: `sheet '${sheetName}' not found` }], isError: true });
             const ws: Worksheet = sheet.sheet;
 
-            const values = getRangeValues(ws, arg.range);
+            const values = getRangeValues(ws, arg.range)?.map(value => value.map(value => value instanceof Date ? value.toISOString() : value));
 
             return context.contextualiseResponse({
                 content: [{ type: 'text', text: encode({ range: arg.range, values }) }],

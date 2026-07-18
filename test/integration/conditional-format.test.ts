@@ -17,7 +17,7 @@ let workbookTools: any;
 test('setup', async () => {
     await run(async () => {
         mockServer = new MockMcpServer();
-        testContext = createTestContext('conditional-format-test');
+        testContext = await createTestContext('conditional-format-test');
 
         conditionalFormatHandler = new ConditionalFormatHandler();
         conditionalFormatHandler.server = mockServer as any;
@@ -207,7 +207,7 @@ test('add_color_scale without open workbook (error)', async () => {
 });
 
 test('teardown', async () => {
-    await testContext.cleanup();
+    await (await testContext).cleanup();
 });
 
 export default async function () {

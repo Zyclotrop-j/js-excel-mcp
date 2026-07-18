@@ -69,7 +69,7 @@ export class RichTextHandler extends ToolHandler {
             }
 
             const runs = arg.parts.map((p) => {
-                const font: Record<string, unknown> = {};
+                const font: InlineFont = {};
                 if (p.bold) font.b = true;
                 if (p.italic) font.i = true;
                 if (p.underline) font.u = 'single';
@@ -78,12 +78,12 @@ export class RichTextHandler extends ToolHandler {
                 if (p.fontName) font.name = p.fontName;
 
                 return Object.keys(font).length > 0
-                    ? makeTextRun(p.text, font as InlineFont)
+                    ? makeTextRun(p.text, font)
                     : makeTextRun(p.text);
             });
 
             const richText = makeRichText(runs);
-            const cell = setCell(ws, row, col, richText);
+            const cell = setCell(ws, row, col, { kind: 'rich-text', runs: richText });
 
             await context.setWorkbook(filename, wb);
             const ref = getCoordinate(cell);

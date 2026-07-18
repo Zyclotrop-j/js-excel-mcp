@@ -3,6 +3,7 @@ import { strict as assert } from 'node:assert';
 import { MockMcpServer, createMockRequestContext } from '../helpers/test-server.js';
 import { createTestContext } from '../helpers/test-context.js';
 import { CommentHandler } from '../../src/tools/handleComment.js';
+import { CellWriteHandler } from '../../src/tools/handleCells/write.js';
 import { run } from '../../src/util/requestContext.js';
 
 const test = baretest('Comment Integration Tests');
@@ -28,6 +29,11 @@ test('setup', async () => {
         wbTools.expressApp = { get: () => {}, post: () => {} } as any;
         wbTools.serverOptions = { serverHost: 'http://localhost:3000' };
         await wbTools.register([]);
+
+        const cellWrite = new CellWriteHandler();
+        cellWrite.server = mockServer as any;
+        cellWrite.context = testContext;
+        await cellWrite.register([]);
 
         const createTool = mockServer.getTool('create_new_workbook');
         const ctx = createMockRequestContext('comment-test');

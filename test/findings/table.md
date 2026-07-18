@@ -1,76 +1,37 @@
-# Table Integration Test — Findings
+# Test Findings: table.test.ts
 
-**Date:** 2026-07-18
-**Test file:** `test/integration/table.test.ts`
-**Run file:** `test/integration/table.run.ts` (transient, created + deleted per task)
-**Command:** `npx tsx test/integration/table.run.ts` (from project root)
+**Result:** FAIL
 
-## Result: FAIL (import-time failure — no tests executed)
+**Test command:** `npx tsx test/integration/table.run.ts`
 
-The test file could not be loaded under the prescribed harness. The runner harness
-expects `table.test.ts` to export a default async function named `runTests` (used as
-`import runTests from './table.test.js'; await runTests();`), but `table.test.ts`
-provides **no default export**. (It also never calls `test.run()` itself, so the suite
-would not execute even as a direct entry point — see Notes.)
+## Failures
 
-### Error
+### First failing test: `create_excel_table uses current workbook when not specified`
 
+**Error:**
 ```
-C:\Users\Janne\scripts\js-excel-mcp\test\integration\table.run.ts:1
-import runTests from './table.test.js';
-       ^
-SyntaxError: The requested module './table.test.js' does not provide an export named 'default'
-    at #asyncInstantiate (node:internal/modules/esm/module_job:319:21)
-    at async ModuleJob.run (node:internal/modules/esm/module_job:422:5)
-    ...
-Node.js v24.14.1
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
++ actual - expected
++ 'table-test2.xlsx'
+- 'table-test.xlsx'
+    at test/integration/table.test.ts:161:16
+    (await tool.cb({ range: 'A1:C3', name: 'CurrentWorkbookTable', columns: [...] }, ctx))
+    assert.equal(result.structuredContent.filename, 'table-test.xlsx');
 ```
 
-Because the failure occurs during module instantiation, **baretest never runs** and
-**no individual test is reported** (no `! <test>` and no `✓ N`). The very first
-thing that fails is the `import`, before any test body executes.
+baretest aborts on the FIRST failing test (prints `! <name>`). The run stopped here; remaining tests (e.g. `add_autofilter uses current sheet when not specified`, `create_excel_table with no open workbook`, `add_autofilter with unknown sheet`, `teardown`) were NOT executed.
 
-### Suspected cause (test-harness, not src)
+## Suspected src cause
 
- - Other integration tests in the same folder (e.g. `chart.test.ts`, `workbook-flow.test.ts`,
-   `style-flow.test.ts`, etc.) end with a default-exported runner, e.g.:
+The test relies on the server's sticky "current workbook" context remaining `table-test.xlsx` after an earlier test (`add_autofilter on specified sheet`) created a *second* workbook `table-test2.xlsx` (with `createDefaultWorksheet: 'DataSheet'`) and operated on it by passing `workbook`/`sheet` explicitly.
 
-   ```ts
-   export default async function () {
-       await test.run();
-   }
-   ```
+The failing test calls `create_excel_table` with **no** `workbook` argument and expects the current workbook to still be `table-test.xlsx`. Instead the handler resolved the current workbook to `table-test2.xlsx`. This points to a state-management bug in the sticky context (`src/util/requestContext.js` or the workbook/context layer) where creating/operating on an explicitly-named different workbook mutates the saved "current workbook" pointer, rather than leaving it unchanged when the target workbook is passed explicitly.
 
-   `table.test.ts` defines its `baretest` suite (`const test = baretest('Table Integration Tests');`)
-   and declares all 12 tests, but **never calls `test.run()`** and **has no `export default`**.
+> NOTE: Per HARD CONSTRAINTS, `src/` was NOT modified. This is logged for follow-up.
 
- - Verified against `node_modules/baretest/baretest.js`: baretest does **NOT** auto-run on
-   process exit. `test.run()` must be invoked explicitly. So this file would not execute its
-   suite even if run as a direct entry point — the suite is registered but never run.
+## Notes
 
- - Under the harness contract (`import runTests from './table.test.js'; await runTests();`),
-   the missing default export causes a hard `SyntaxError` at module load, before any test runs.
-
- - This is a **test-file structural defect** (in `test/`, not `src/`). No `src/` file was
-   touched or required to diagnose it. Per task constraints, `src/` was not modified.
-
-### Notes
-
-- All 12 declared tests in `table.test.ts` were never reached:
-  1. `setup`
-  2. `create_excel_table creates a table in the range`
-  3. `create_excel_table with minimal options`
-  4. `create_excel_table requires name and columns`
-  5. `add_autofilter adds autofilter to specified range`
-  6. `add_autofilter on specified sheet`
-  7. `add_autofilter requires range`
-  8. `create_excel_table uses current workbook when not specified`
-  9. `add_autofilter uses current sheet when not specified`
-  10. `create_excel_table with no open workbook`
-  11. `add_autofilter with unknown sheet`
-  12. `teardown`
-- The `npm warn Unknown project config "strict-peer-dependencies"` line is an unrelated
-  npmrc warning emitted by `npx`; it is not part of the test failure.
-- To make this test importable under the harness contract, `table.test.ts` would need
-  a default export that invokes `await test.run()`. That change belongs in `test/` and was
-  deliberately **not** applied here (task scope: run in isolation + log findings only).
+- The 6 tests before the failure passed (`setup`, `create_excel_table creates a table in the range`, `create_excel_table with minimal options`, `create_excel_table requires name and columns`, `add_autofilter adds autofilter to specified range`, `add_autofilter on specified sheet`). They printed as `•` (dots) and were not individually labeled by baretest's minimal output.
+- A warning was emitted by npm (`Unknown project config "strict-peer-dependencies"`), unrelated to the test result.
+- A `User is undefined` line appeared in stdout before the test output — appears to be incidental logging from the test harness, not a failure.
+- The `teardown` test (which calls `testContext.cleanup()`) did NOT run because baretest aborted early, so any test-created resources may not have been cleaned up by the suite.

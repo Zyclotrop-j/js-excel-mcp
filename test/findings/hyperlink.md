@@ -6,39 +6,40 @@
 
 ## Result: FAIL
 
-baretest aborts on the **first** failing test. The run stopped at the very first test.
+baretest aborts on the **first** failing test. The run stopped at the 5th test (`setup` through the 4 passing hyperlink tests ran first, then execution halted).
 
 ### First failing test
 
-`setup`
+`set_cell_hyperlink errors when no workbook is open`
+
+(The 4 preceding tests passed: `setup`, `set_cell_hyperlink sets a hyperlink with ref and url`, `set_cell_hyperlink sets a hyperlink with display and tooltip`, `set_cell_hyperlink resolves cell via row and col`.)
 
 ### Error
 
 ```
-! setup
+! set_cell_hyperlink errors when no workbook is open
 
-Error: Tool 'set_cell' is not registered
-    at MockMcpServer.getTool (test/helpers/test-server.ts:29:23)
-    at <anonymous> (test/integration/hyperlink.test.ts:36:36)
-    at async Object.fn (test/integration/hyperlink.test.ts:15:5)
-    at async self.run (node_modules/baretest/baretest.js:31:9)
-    at async default (test/integration/hyperlink.test.ts:118:5)
-    at async <anonymous> (test/integration/hyperlink.run.ts:2:1)
+AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+  assert.ok(result.content.some((c: any) => c.text && c.text.includes('no workbook is currently open')))
+
+    at <anonymous> (test/integration/hyperlink.test.ts:99:16)
 ```
+
+The test expects that calling `set_cell_hyperlink` with a context that has no open workbook returns a content message containing the string `no workbook is currently open`. The actual `result.content` did not contain any text matching that string — i.e. the handler did not produce the expected "no workbook open" error message.
 
 ### Suspected src cause (NOT fixed — diagnostic only)
 
-The `setup` test registers only two handlers:
+The `set_cell_hyperlink` handler (in `src/tools/handleHyperlink.ts`) is expected to detect a missing/closed workbook and return an MCP error content block whose text includes `no workbook is currently open`. The test received a `result` (it did not throw, and `result.content` was present) but the text did not match.
 
-1. `HyperlinkHandler` (`src/tools/handleHyperlink.ts`) — registers `set_cell_hyperlink`.
-2. `WorkbookTools` (`src/tools/handleWorkbook.ts`) — registers workbook-level tools (`create_new_workbook`, `import_workbook_from_url`, etc.).
+Likely one of:
+- The handler, when no workbook is open, returns a different message string (or an empty/structured-only response) instead of the literal `no workbook is currently open` text.
+- The handler may not be enforcing the "no open workbook" guard for the no-workbook context path at all, returning something other than the expected error content.
 
-It then calls `mockServer.getTool('set_cell')`, but **`set_cell` is registered by `CellsTools`** in `src/tools/handleCells/write.ts` (line 16), which is **not** registered in the test's `setup`. Since `MockMcpServer.getTool` throws when a tool name is absent, `setup` fails immediately, so none of the 7 tests in the file were actually exercised.
-
-Because baretest stops at the first failure, the actual `set_cell_hyperlink` behavior (the file's real subject) was never reached.
+This is a suspected **src** defect in the hyperlink handler's missing-workbook error behavior, not a test-wiring issue. No src files were modified per the hard constraint; the failure is logged for follow-up.
 
 ### Notes
 
 - A benign `console.log` line `User is undefined` is printed during `setup`. It comes from `src/tools/handleWorkbook.ts` (`console.log(\`User is ${this.context.authInfo?.extra?.userId}\`)`) and reflects that the mock test context does not populate `authInfo.extra.userId`. It is unrelated to the failure.
-- The failure is in **test setup wiring** (the test does not register the handler that owns `set_cell`), not in the hyperlink handler's production code. No src files were modified.
-- Per the hard constraint, src was not touched. The issue is logged as a suspected test-side omission (missing `CellsTools` registration in `setup`).
+- The next test (`set_cell_hyperlink errors when url is missing`) was not reached because baretest aborts on first failure.
+- Per the hard constraint, `src/` was not modified. The issue is logged as a suspected src-side defect in the hyperlink handler's "no workbook open" error handling.

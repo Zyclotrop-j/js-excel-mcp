@@ -2,10 +2,10 @@ import baretest from 'baretest';
 import { strict as assert } from 'node:assert';
 import { MockMcpServer, createMockRequestContext } from '../helpers/test-server.js';
 import { createTestContext } from '../helpers/test-context.js';
+import { SetContextHandler } from '../../src/tools/handleSetContext.js';
+import { WorkbookTools } from '../../src/tools/handleWorkbook.js';
 import { CellWriteHandler } from '../../src/tools/handleCells/write.js';
-import { CreateWorksheetHandler } from '../../src/tools/handleWorksheet.js';
-
-const test = baretest('Set Context Integration Tests');
+import { run } from '../../src/util/requestContext.js';
 
 let mockServer: MockMcpServer;
 let testContext: ReturnType<typeof createTestContext>;
@@ -15,17 +15,17 @@ test('setup', async () => {
         mockServer = new MockMcpServer();
         testContext = createTestContext('set-context-test');
 
-        const setContextHandler = new SetContextHandler();
-        setContextHandler.server = mockServer as any;
-        setContextHandler.context = testContext;
-        await setContextHandler.register([]);
-
         const wbTools = new WorkbookTools();
         wbTools.server = mockServer as any;
         wbTools.context = testContext;
         wbTools.expressApp = { get: () => {}, post: () => {} } as any;
         wbTools.serverOptions = { serverHost: 'http://localhost:3000' };
         await wbTools.register([]);
+
+        const cellWrite = new CellWriteHandler();
+        cellWrite.server = mockServer as any;
+        cellWrite.context = testContext;
+        await cellWrite.register([]);
 
         const createTool = mockServer.getTool('create_new_workbook');
         const ctx = createMockRequestContext('set-context-test');

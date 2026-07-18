@@ -217,3 +217,7 @@ test('add_autofilter with unknown sheet', async () => {
 test('teardown', async () => {
     await (await testContext).cleanup();
 });
+
+export default async function () {
+    await test.run();
+}

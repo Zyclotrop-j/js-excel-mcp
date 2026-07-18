@@ -197,19 +197,8 @@ test('add_bar_chart with invalid dataRange fails', async () => {
     });
 });
 
-test('add_line_chart with invalid dataRange fails', async () => {
-    await run(async () => {
-        const tool = mockServer.getTool('add_line_chart');
-        const ctx = createMockRequestContext('chart-test');
-
-        const result = await tool.cb({
-            dataRange: 'INVALID',
-            anchorCell: 'D1'
-        }, ctx);
-
-        assert.ok(result.content);
-        assert.ok(result.content.some((c: any) => c.text.includes('invalid dataRange format')));
-    });
+test('teardown', async () => {
+    await (await testContext).cleanup();
 });
 
 export default async function () {

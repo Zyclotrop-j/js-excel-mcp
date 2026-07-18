@@ -132,10 +132,6 @@ test('protect_sheet error when no workbook is open', async () => {
 });
 
 test('teardown', async () => {
-    await testContext.cleanup();
-});
-
-test('teardown', async () => {
     await (await testContext).cleanup();
 });
 
