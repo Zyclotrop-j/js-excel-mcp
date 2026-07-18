@@ -32,11 +32,14 @@ export class WorkbookTools extends ToolHandler {
         }}, async (arg) => {
             const wb = createWorkbook();
 
+            if(arg.createDefaultWorksheet) {
+                addWorksheet(wb, arg.createDefaultWorksheet);
+            }
+
             await context.setWorkbook(arg.filename, wb);
             await context.setCurrentFile(arg.filename);
 
             if(arg.createDefaultWorksheet) {
-                addWorksheet(wb, arg.createDefaultWorksheet);
                 await context.setCurrentSheet(arg.createDefaultWorksheet);
             }
 
