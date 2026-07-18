@@ -20,6 +20,7 @@ test('setup', async () => {
     await run(async () => {
         mockServer = new MockMcpServer();
         testContext = createTestContext('sheet-ops-flow-test');
+        await testContext;
 
         // Create SheetTools instance
         sheetTools = new SheetHandler();

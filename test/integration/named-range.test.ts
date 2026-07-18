@@ -18,6 +18,7 @@ test('setup', async () => {
     await run(async () => {
         mockServer = new MockMcpServer();
         testContext = createTestContext('named-range-test');
+        await testContext;
 
         // Create NamedRangeHandler instance with mock server and test context
         namedRangeHandler = new NamedRangeHandler();

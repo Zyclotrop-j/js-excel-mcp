@@ -15,6 +15,7 @@ test('setup', async () => {
     await run(async () => {
         mockServer = new MockMcpServer();
         testContext = createTestContext('layout-test');
+        await testContext;
 
         layoutHandler = new LayoutHandler();
         layoutHandler.server = mockServer as any;
@@ -165,7 +166,7 @@ test('set_row_height with workbook and sheet parameters', async () => {
 
 test('merge_cells with no open workbook returns error message', async () => {
     await run(async () => {
-        const freshContext = createTestContext('layout-test-merge-error');
+        const freshContext = await createTestContext('layout-test-merge-error');
         const layoutHandler = new LayoutHandler();
         layoutHandler.server = mockServer as any;
         layoutHandler.context = freshContext;
@@ -182,7 +183,7 @@ test('merge_cells with no open workbook returns error message', async () => {
 
 test('freeze_panes with unknown sheet returns error message', async () => {
     await run(async () => {
-        const freshContext = createTestContext('layout-test-freeze-error');
+        const freshContext = await createTestContext('layout-test-freeze-error');
         const layoutHandler = new LayoutHandler();
         layoutHandler.server = mockServer as any;
         layoutHandler.context = freshContext;

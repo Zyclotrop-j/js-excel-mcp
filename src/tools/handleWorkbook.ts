@@ -213,7 +213,12 @@ export class WorkbookTools extends ToolHandler {
             const filename = arg.filename ?? await context.getCurrentFile();
             if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }], isError: true });
 
-            const file = await context.get(filename);
+            let file: Uint8Array;
+            try {
+                file = await context.get(filename);
+            } catch {
+                return context.contextualiseResponse({ content: [{ type: 'text', text: `workbook '${filename}' doesn't exist` }], isError: true });
+            }
             const { key, ttl } = await Context.exportFile(filename, file);
 
             if(arg.autoclose) {
@@ -249,14 +254,20 @@ export class WorkbookTools extends ToolHandler {
             { title: 'Open Workbooks', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
             async (uri, variables) => {
                 const name = variables.name as string;
-                const data = await context.get(name);
-                return {
-                    contents: [{
-                        uri: uri.href,
-                        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                        blob: Buffer.from(data).toString('base64')
-                    }]
-                };
+                try {
+                    const data = await context.get(name);
+                    return {
+                        contents: [{
+                            uri: uri.href,
+                            mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                            blob: Buffer.from(data).toString('base64')
+                        }]
+                    };
+                } catch {
+                    // Resource not found — return empty contents (MCP clients treat
+                    // an empty `contents` array as "no such resource").
+                    return { contents: [] };
+                }
             }
         );
 

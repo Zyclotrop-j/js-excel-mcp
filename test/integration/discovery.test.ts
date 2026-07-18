@@ -18,10 +18,11 @@ import { SheetHandler } from '../../src/tools/handleSheet.js';
 export default function (test: any) {
     async function withContext(fn: (mockServer: MockMcpServer) => Promise<void>) {
         const mockServer = new MockMcpServer();
-        const testContext = await createTestContext('discovery-it');
         const mockCtx = { authInfo: { extra: { userId: 'discovery-it' } } };
+        let testContext: any;
 
         await run(async () => {
+            testContext = await createTestContext('discovery-it');
             const reqCtx = getContext();
             reqCtx.context = testContext;
             reqCtx.virtualFileSystem = testContext.virtualFileSystem;

@@ -15,6 +15,7 @@ test('setup', async () => {
     await run(async () => {
         mockServer = new MockMcpServer();
         testContext = createTestContext('protection-test');
+        await testContext;
 
         protectionHandler = new ProtectionHandler();
         protectionHandler.server = mockServer as any;

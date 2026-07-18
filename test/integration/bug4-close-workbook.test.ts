@@ -18,7 +18,7 @@ async function setupBug4() {
     let testContext;
 
     await run(async () => {
-        testContext = createTestContext('bug4-close-test');
+        testContext = await createTestContext('bug4-close-test');
         const wbTools = new WorkbookTools();
         wbTools.server = mockServer as any;
         wbTools.context = testContext;

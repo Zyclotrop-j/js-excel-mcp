@@ -15,6 +15,7 @@ test('setup', async () => {
     await run(async () => {
         mockServer = new MockMcpServer();
         testContext = createTestContext('style-flow-test');
+        await testContext;
 
         styleHandler = new StyleHandler();
         styleHandler.server = mockServer as any;

@@ -14,6 +14,7 @@ test('setup', async () => {
     await run(async () => {
         mockServer = new MockMcpServer();
         testContext = createTestContext('chain-flow-test');
+        await testContext;
 
         chainHandler = new ChainHandler();
         chainHandler.server = mockServer as any;

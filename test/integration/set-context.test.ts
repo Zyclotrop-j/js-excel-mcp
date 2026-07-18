@@ -16,6 +16,7 @@ test('setup', async () => {
     await run(async () => {
         mockServer = new MockMcpServer();
         testContext = createTestContext('set-context-test');
+        await testContext;
 
         const wbTools = new WorkbookTools();
         wbTools.server = mockServer as any;
@@ -122,7 +123,7 @@ test('set_context errors on a non-existent sheet', async () => {
 
 test('set_context errors when no workbook is open', async () => {
     await run(async () => {
-        const emptyCtx = createTestContext('set-context-empty');
+        const emptyCtx = await createTestContext('set-context-empty');
         const emptyServer = new MockMcpServer();
 
         const setContextHandler = new SetContextHandler();

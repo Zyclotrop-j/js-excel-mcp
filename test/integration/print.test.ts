@@ -15,6 +15,7 @@ test('setup', async () => {
     await run(async () => {
         mockServer = new MockMcpServer();
         testContext = createTestContext('print-test');
+        await testContext;
 
         printHandler = new PrintHandler();
         printHandler.server = mockServer as any;

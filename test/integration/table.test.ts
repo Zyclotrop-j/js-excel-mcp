@@ -15,6 +15,7 @@ test('setup', async () => {
     await run(async () => {
         mockServer = new MockMcpServer();
         testContext = createTestContext('table-test');
+        await testContext;
 
         tableHandler = new TableHandler();
         tableHandler.server = mockServer as any;
@@ -182,7 +183,7 @@ test('add_autofilter uses current sheet when not specified', async () => {
 
 test('create_excel_table with no open workbook', async () => {
     await run(async () => {
-        const newTestContext = createTestContext('table-test-no-wb');
+        const newTestContext = await createTestContext('table-test-no-wb');
         const newTableHandler = new TableHandler();
         newTableHandler.server = mockServer as any;
         newTableHandler.context = newTestContext;

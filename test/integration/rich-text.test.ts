@@ -15,6 +15,7 @@ test('setup', async () => {
     await run(async () => {
         mockServer = new MockMcpServer();
         testContext = createTestContext('rich-text-test');
+        await testContext;
 
         const richTextHandler = new RichTextHandler();
         richTextHandler.server = mockServer as any;

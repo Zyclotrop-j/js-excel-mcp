@@ -20,7 +20,7 @@ async function setupBug3() {
     let testContext;
 
     await run(async () => {
-        testContext = createTestContext('bug3-richtext-test');
+        testContext = await createTestContext('bug3-richtext-test');
         const richTextHandler = new RichTextHandler();
         richTextHandler.server = mockServer as any;
         richTextHandler.context = testContext;

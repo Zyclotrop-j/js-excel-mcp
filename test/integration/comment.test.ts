@@ -15,6 +15,7 @@ test('setup', async () => {
     await run(async () => {
         mockServer = new MockMcpServer();
         testContext = createTestContext('comment-test');
+        await testContext;
 
         commentHandler = new CommentHandler();
         commentHandler.server = mockServer as any;
@@ -100,7 +101,7 @@ test('delete_comment reports no comment when cell has none', async () => {
 
 test('add_comment errors with no open workbook', async () => {
     await run(async () => {
-        const freshContext = createTestContext('comment-no-wb');
+        const freshContext = await createTestContext('comment-no-wb');
         const isolatedHandler = new CommentHandler();
         isolatedHandler.server = mockServer as any;
         isolatedHandler.context = freshContext;
@@ -118,7 +119,7 @@ test('add_comment errors with no open workbook', async () => {
 
 test('delete_comment errors with no open workbook', async () => {
     await run(async () => {
-        const freshContext = createTestContext('comment-no-wb2');
+        const freshContext = await createTestContext('comment-no-wb2');
         const isolatedHandler = new CommentHandler();
         isolatedHandler.server = mockServer as any;
         isolatedHandler.context = freshContext;

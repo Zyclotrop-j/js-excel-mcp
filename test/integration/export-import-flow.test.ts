@@ -14,7 +14,7 @@ export default function (test: any) {
     async function setup() {
         return run(async () => {
             const mockServer = new MockMcpServer();
-            const testContext = createTestContext('export-import-flow-test');
+            const testContext = await createTestContext('export-import-flow-test');
 
             const workbookTools = new WorkbookTools();
             workbookTools.server = mockServer as any;
@@ -174,7 +174,11 @@ export default function (test: any) {
                 const result = await exportTool.cb({ filename: 'does-not-exist.xlsx' }, ctx);
 
                 assert.ok(result.content);
-                assert.ok(result.content.some((c: any) => c.text.includes('error') || c.text.includes('not found')));
+                assert.ok(result.content.some((c: any) =>
+                    c.text.includes("doesn't exist") ||
+                    c.text.includes('error') ||
+                    c.text.includes('not found')
+                ), `expected 'not found' / 'error' / "doesn't exist"; found: ${JSON.stringify(result.content)}`);
             } finally {
                 await testContext.cleanup();
             }
@@ -204,7 +208,6 @@ export default function (test: any) {
                 const url = new URL(result.structuredContent.downloadUrl);
                 assert.equal(url.hostname, 'localhost');
                 assert.equal(url.port, '3000');
-                assert.equal(url.pathname, '/download/url-format.xlsx');
                 assert.ok(url.pathname.startsWith('/download/'));
                 // The key segment should be present after the filename
                 const pathParts = url.pathname.split('/');

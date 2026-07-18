@@ -15,6 +15,7 @@ test('setup', async () => {
     await run(async () => {
         mockServer = new MockMcpServer();
         testContext = createTestContext('hyperlink-test');
+        await testContext;
 
         hyperlinkHandler = new HyperlinkHandler();
         hyperlinkHandler.server = mockServer as any;

@@ -24,6 +24,7 @@ test('setup', async () => {
     await run(async () => {
         mockServer = new MockMcpServer();
         testContext = createTestContext('cell-ops-flow-test');
+        await testContext;
 
         cellReadHandler = new CellReadHandler();
         cellReadHandler.server = mockServer as any;

@@ -18,7 +18,7 @@ async function setupBug2() {
     let testContext;
 
     await run(async () => {
-        testContext = createTestContext('bug2-cvr-test');
+        testContext = await createTestContext('bug2-cvr-test');
         const cfHandler = new ConditionalFormatHandler();
         cfHandler.server = mockServer as any;
         cfHandler.context = testContext;

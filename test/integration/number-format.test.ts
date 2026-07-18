@@ -14,6 +14,7 @@ test('setup', async () => {
     await run(async () => {
         mockServer = new MockMcpServer();
         testContext = createTestContext('number-format-test');
+        await testContext;
 
         const numberFormatHandler = new NumberFormatHandler();
         numberFormatHandler.server = mockServer as any;
@@ -179,7 +180,7 @@ test('set_cell_date_format rejects invalid format value', async () => {
 
 test('set_cell_currency errors when no workbook is open', async () => {
     await run(async () => {
-        const otherContext = createTestContext('number-format-no-wb');
+        const otherContext = await createTestContext('number-format-no-wb');
         const otherServer = new MockMcpServer();
 
         const numberFormatHandler = new NumberFormatHandler();

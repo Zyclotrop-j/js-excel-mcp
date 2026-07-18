@@ -14,6 +14,7 @@ test('setup', async () => {
     await run(async () => {
         mockServer = new MockMcpServer();
         testContext = createTestContext('image-test');
+        await testContext;
 
         imageHandler = new ImageHandler();
         imageHandler.server = mockServer as any;
@@ -60,7 +61,7 @@ test('insert_image with URL attempts to fetch (fails in no-network test environm
 
 test('insert_image with no open workbook (different userId)', async () => {
     await run(async () => {
-        const differentContext = createTestContext('image-test-no-wb');
+        const differentContext = await createTestContext('image-test-no-wb');
         const differentImageHandler = new ImageHandler();
         const differentMockServer = new MockMcpServer();
         differentImageHandler.server = differentMockServer as any;

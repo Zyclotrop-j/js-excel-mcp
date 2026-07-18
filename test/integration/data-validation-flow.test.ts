@@ -14,6 +14,7 @@ test('setup', async () => {
     await run(async () => {
         mockServer = new MockMcpServer();
         testContext = createTestContext('data-validation-flow-test');
+        await testContext;
 
         validationHandler = new ValidationHandler();
         validationHandler.server = mockServer as any;

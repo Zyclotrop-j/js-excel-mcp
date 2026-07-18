@@ -15,6 +15,7 @@ test('setup', async () => {
     await run(async () => {
         mockServer = new MockMcpServer();
         testContext = createTestContext('chart-test');
+        await testContext;
 
         chartHandler = new ChartHandler();
         chartHandler.server = mockServer as any;
@@ -94,7 +95,7 @@ test('add_bar_chart with optional title omitted', async () => {
 test('add_bar_chart with no open workbook (separate context)', async () => {
     await run(async () => {
         // Create a separate test context with a different userId to ensure no workbook is open
-        const separateTestContext = createTestContext('chart-test-no-wb');
+        const separateTestContext = await createTestContext('chart-test-no-wb');
         const separateTool = mockServer.getTool('add_bar_chart');
         const separateCtx = createMockRequestContext('chart-test-no-wb');
 
