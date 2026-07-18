@@ -175,6 +175,12 @@ export class CloudflareBackend implements IDatabaseBackend {
         await this.env.KV.put(this.kvKey(key), value, { metadata: { ttl } });
     }
 
+    async insertOrReplaceExport(key: string, name: string, ttl: string, data: Uint8Array): Promise<void> {
+        await this.env.MY_EXPORTS.put(this.exportKey(key), data, {
+            customMetadata: { ttl, name }
+        });
+    }
+
     async insertOrReplaceFile(name: string, data: Uint8Array, ttl: string): Promise<void> {
         await this.env.MY_BUCKET.put(this.fileKey(name), data, {
             customMetadata: { ttl }

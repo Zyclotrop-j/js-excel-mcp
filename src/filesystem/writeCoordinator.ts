@@ -3,13 +3,17 @@ import { LRUCache } from 'lru-cache';
 export type KVEntry = { value: string; ttl: string };
 export type FileEntry = { data: Uint8Array; ttl: string };
 export type ExportEntry = { name: string; key: string; ttl: string; data: Uint8Array };
-type LockEntry = { promise: Promise<void>; resolve: () => void };
 export type PendingWrite = { kv: Map<string, KVEntry>; files: Map<string, FileEntry>; exports: Map<string, ExportEntry> };
 
 const WRITE_COOLDOWN_MS = 1000;
 
 export class WriteCoordinator {
-    private static vfsLocks = new Map<string, LockEntry>();
+    // Per-userid FIFO queue of release callbacks. The entry at index 0 holds the
+    // lock; everyone else awaits their ticket before proceeding. This serializes
+    // VFS access for a single userid and avoids the lost-wakeup bug of the old
+    // single-promise design (where two waiters could both pass the gate and run
+    // concurrently, racing on the same DB file).
+    private static lockQueues = new Map<string, Array<() => void>>();
     private static lastWriteTimestamps = new LRUCache<string, number>({ max: 10000, ttl: 2000 });
     private static pendingWrites = new LRUCache<string, PendingWrite>({ max: 1000, ttl: 10000 });
 
@@ -26,21 +30,25 @@ export class WriteCoordinator {
     }
 
     static async acquireLock(userid: string): Promise<void> {
-        const existing = WriteCoordinator.vfsLocks.get(userid);
-        if (existing) {
-            await existing.promise;
+        const queue = WriteCoordinator.lockQueues.get(userid) ?? [];
+        let release!: () => void;
+        const ticket = new Promise<void>(r => { release = r; });
+        queue.push(release);
+        WriteCoordinator.lockQueues.set(userid, queue);
+        if (queue.length === 1) {
+            return; // front of the queue — proceed immediately
         }
-        
-        let resolve: () => void;
-        const promise = new Promise<void>(r => { resolve = r; });
-        WriteCoordinator.vfsLocks.set(userid, { promise, resolve: resolve! });
+        await ticket;
     }
 
     static releaseLock(userid: string): void {
-        const lock = WriteCoordinator.vfsLocks.get(userid);
-        if (lock) {
-            lock.resolve();
-            WriteCoordinator.vfsLocks.delete(userid);
+        const queue = WriteCoordinator.lockQueues.get(userid);
+        if (!queue || queue.length === 0) return;
+        queue.shift(); // remove ourselves (we are always at the front)
+        if (queue.length > 0) {
+            queue[0](); // hand the lock to the next waiter
+        } else {
+            WriteCoordinator.lockQueues.delete(userid);
         }
     }
 

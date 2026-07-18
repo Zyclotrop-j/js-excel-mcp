@@ -63,6 +63,10 @@ export class DatabaseBackend implements IDatabaseBackend {
         this.db.prepare('INSERT INTO files (name, data, ttl) VALUES (?, ?, ?)').run(name, Buffer.from(data), ttl);
     }
 
+    async insertOrReplaceExport(key: string, name: string, ttl: string, data: Uint8Array): Promise<void> {
+        this.db.prepare('INSERT OR REPLACE INTO exports (key, name, ttl, data) VALUES (?, ?, ?, ?)').run(key, name, ttl, Buffer.from(data));
+    }
+
     async insertExport(key: string, name: string, ttl: string, data: Uint8Array): Promise<void> {
         this.db.prepare('INSERT INTO exports (key, name, ttl, data) VALUES (?, ?, ?, ?)').run(key, name, ttl, Buffer.from(data));
     }

@@ -1,5 +1,6 @@
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import { VirtualFileSystem } from './system.js'
+import { WriteCoordinator } from './writeCoordinator.js'
 import type { Workbook } from '@office-kit/xlsx/workbook';
 import { fromArrayBuffer, loadWorkbook, workbookToBytes } from '@office-kit/xlsx/io';
 import z from 'zod';
@@ -17,6 +18,7 @@ export class Context {
     static async initSharedFs(): Promise<VirtualFileSystem> {
         if (!Context.sharedFsInitialized) {
             Context.sharedFs = await VirtualFileSystem.acquire('_shared', true);
+            WriteCoordinator.releaseLock('_shared');
             Context.sharedFsInitialized = true;
         }
         return Context.sharedFs;

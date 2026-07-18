@@ -112,6 +112,19 @@ export interface IDatabaseBackend {
     insertOrReplaceFile(name: string, data: Uint8Array, ttl: string): Promise<void> | void;
 
     /**
+     * Inserts or replaces an export entry in the database.
+     *
+     * If an entry with the same key exists, it should be replaced.
+     * Otherwise, a new entry should be inserted.
+     *
+     * @param key - The unique export key
+     * @param name - The associated filename
+     * @param ttl - ISO 8601 timestamp indicating when this entry expires
+     * @param data - The binary export data
+     */
+    insertOrReplaceExport(key: string, name: string, ttl: string, data: Uint8Array): Promise<void> | void;
+
+    /**
      * Retrieves the TTL timestamp for a specific file.
      * 
      * @param name - The filename to query

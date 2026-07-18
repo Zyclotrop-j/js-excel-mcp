@@ -23,9 +23,14 @@ export class VirtualFileSystem {
 
     static async acquire(userid: string, systemCollection: boolean): Promise<VirtualFileSystem> {
         await WriteCoordinator.acquireLock(userid);
-        const vfs = new VirtualFileSystem(userid, systemCollection);
-        await vfs.hydrate();
-        return vfs;
+        try {
+            const vfs = new VirtualFileSystem(userid, systemCollection);
+            await vfs.hydrate();
+            return vfs;
+        } catch (e) {
+            WriteCoordinator.releaseLock(userid);
+            throw e;
+        }
     }
 
     static selectBackend(dbPath: string): IDatabaseBackend {
@@ -98,11 +103,11 @@ export class VirtualFileSystem {
             const writePromises: Promise<void>[] = [];
 
             // KV writes
-            for (const [key, {value, ttl}] of pending.kv) {
+                for (const [key, {value, ttl}] of pending.kv) {
                 const writeKey = WriteCoordinator.formatKVKey(this.userid, key);
                 writePromises.push((async () => {
                     await WriteCoordinator.waitForRateLimit(writeKey);
-                    await this.backend.insertKV(key, value, ttl);
+                    await this.backend.insertOrReplaceKV(key, value, ttl);
                     WriteCoordinator.recordWrite(writeKey);
                 })());
             }
@@ -112,7 +117,7 @@ export class VirtualFileSystem {
                 const writeKey = WriteCoordinator.formatFileKey(this.userid, name);
                 writePromises.push((async () => {
                     await WriteCoordinator.waitForRateLimit(writeKey);
-                    await this.backend.insertFile(name, data, ttl);
+                    await this.backend.insertOrReplaceFile(name, data, ttl);
                     WriteCoordinator.recordWrite(writeKey);
                 })());
             }
@@ -122,7 +127,7 @@ export class VirtualFileSystem {
                 const writeKey = WriteCoordinator.formatExportKey(this.userid, key);
                 writePromises.push((async () => {
                     await WriteCoordinator.waitForRateLimit(writeKey);
-                    await this.backend.insertExport(key, name, ttl, data);
+                    await this.backend.insertOrReplaceExport(key, name, ttl, data);
                     WriteCoordinator.recordWrite(writeKey);
                 })());
             }
@@ -263,9 +268,15 @@ export class VirtualFileSystem {
     }
 
     async release(): Promise<void> {
-        await this.flush();
-        WriteCoordinator.releaseLock(this.userid);
-        await this.backend.close();
+        try {
+            await this.flush();
+        } finally {
+            // Always release the per-userid lock, even if flush() throws.
+            // Otherwise the unresolved promise leaves every subsequent request
+            // for this user blocked forever (MCP -32001 timeouts).
+            WriteCoordinator.releaseLock(this.userid);
+            await this.backend.close();
+        }
     }
 }
 

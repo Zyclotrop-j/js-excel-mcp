@@ -127,6 +127,15 @@ export class MemoryBackend implements IDatabaseBackend {
         this.recordWrite(rateKey);
     }
 
+    async insertOrReplaceExport(key: string, name: string, ttl: string, data: Uint8Array): Promise<void> {
+        this.assertOpen();
+        await this.simulateLatency();
+        const rateKey = `export:${key}`;
+        await this.waitForRateLimit(rateKey);
+        this.exports.set(key, { key, name, ttl, data: Buffer.from(data) });
+        this.recordWrite(rateKey);
+    }
+
     async insertOrReplaceFile(name: string, data: Uint8Array, ttl: string): Promise<void> {
         this.assertOpen();
         await this.simulateLatency();
