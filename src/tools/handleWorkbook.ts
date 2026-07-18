@@ -11,13 +11,13 @@ export class WorkbookTools extends ToolHandler {
     async register(allTools: ToolHandler[]): Promise<void> {
         this.toolSet = allTools;
 
-        console.log(`User is ${this.context.authInfo?.extra?.userId}`);
         const context = await Context.getContext((this.context.authInfo?.extra?.userId as string) ?? 'public');
 
         this.registerTool('create_new_workbook', { description: 'make new excel workbook and open it', inputSchema: z.object({
             filename: z.string().min(1),
             createDefaultWorksheet: z.union([
                 z.literal(false),
+                z.literal(true),
                 z.string(),
             ]).default('Sheet1').meta({description: "Specify the sheet default sheet's name or pass false to create the workbook without a default sheet"})
         }), outputSchema: z.object({
@@ -34,19 +34,20 @@ export class WorkbookTools extends ToolHandler {
             const wb = createWorkbook();
 
             const shouldMakeWorkSheet = arg.createDefaultWorksheet && arg.createDefaultWorksheet !== 'false';
+            const sheetName = arg.createDefaultWorksheet === true ? 'Sheet1' : arg.createDefaultWorksheet;
             if(shouldMakeWorkSheet) {
-                addWorksheet(wb, arg.createDefaultWorksheet);
+                addWorksheet(wb, sheetName);
             }
 
             await context.setWorkbook(arg.filename, wb);
             await context.setCurrentFile(arg.filename);
 
             if(shouldMakeWorkSheet) {
-                await context.setCurrentSheet(`${arg.createDefaultWorksheet}`);
+                await context.setCurrentSheet(`${sheetName}`);
             }
 
             return context.contextualiseResponse({
-                content: [{ type: 'text', text: `new workbook '${arg.filename}' created and set active${shouldMakeWorkSheet ? ` with default sheet '${arg.createDefaultWorksheet}'` : ''}`},
+                content: [{ type: 'text', text: `new workbook '${arg.filename}' created and set active${shouldMakeWorkSheet ? ` with default sheet '${sheetName}'` : ''}`},
                           { type: 'resource', resource: { uri: `workbook://${arg.filename}`, mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', text: JSON.stringify({ filename: arg.filename, status: 'created', sheets: sheetNames(wb) }) }}],
                 structuredContent: {
                     filename: arg.filename,
@@ -192,7 +193,6 @@ export class WorkbookTools extends ToolHandler {
                     filename
                 }
             });
-            console.log(response);
             return response;
         })
 

@@ -66,7 +66,7 @@ test('merge_cells with workbook and sheet parameters', async () => {
         const result = await tool.cb({
             workbook: 'layout-test.xlsx',
             sheet: 'Sheet1',
-            range: 'A1:B1'
+            range: 'A3:B3'
         }, ctx);
 
         assert.ok(result.structuredContent);

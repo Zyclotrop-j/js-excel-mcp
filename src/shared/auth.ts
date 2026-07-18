@@ -15,7 +15,7 @@ import { mcp } from 'better-auth/plugins';
 import Database from 'better-sqlite3';
 
 // Generate a random password for the demo user (new each time the server starts)
-const DEMO_PASSWORD = 'ernCjBsavZjKxznbu_1g1g';
+const DEMO_PASSWORD = randomBytes(24).toString('base64url');
 
 // Create the in-memory database once (module-level singleton)
 // This avoids the type export issue and ensures the same DB is used
@@ -239,7 +239,7 @@ export function createDemoAuth(options: CreateDemoAuthOptions) {
                   }
               }
             : undefined
-    } satisfies BetterAuthOptions);
+    } as unknown as ReturnType<typeof betterAuth>);
 }
 
 /**

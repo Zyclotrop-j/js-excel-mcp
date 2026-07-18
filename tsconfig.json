@@ -3,7 +3,7 @@
     "target": "es2025",
     "module": "NodeNext",
     "lib": ["ES2020", "ES2021", "ES2022", "ES2023"],
-    "outDir": "./dist/types",
+    "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
     "esModuleInterop": true,
@@ -15,7 +15,8 @@
     "sourceMap": true,
     "moduleResolution": "NodeNext",
     "types": [
-      "@cloudflare/workers-types"
+      "@cloudflare/workers-types",
+      "node"
     ]
   },
   "include": ["src/**/*"],

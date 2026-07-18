@@ -88,7 +88,7 @@ export class CellReadHandler extends ToolHandler {
 
             return context.contextualiseResponse({
                 content: [{ type: 'text', text: encode({ ref, value: primitive, formula: formula ?? null }) }],
-                structuredContent: { ref, value: cellValueAsString(value), nativeValue: value instanceof Date ? value.toISOString() : value, formula: formula ?? null }
+                structuredContent: { ref, value: primitive, nativeValue: value instanceof Date ? value.toISOString() : value, formula: formula ?? null }
             });
         });
 
@@ -161,7 +161,7 @@ export class CellReadHandler extends ToolHandler {
             if (!sheet || sheet.kind !== 'worksheet') return context.contextualiseResponse({ content: [{ type: 'text', text: `sheet '${sheetName}' not found` }], isError: true });
             const ws: Worksheet = sheet.sheet;
 
-            const values = getRangeValues(ws, arg.range)?.map(value => value.map(value => value instanceof Date ? value.toISOString() : value));
+            const values = getRangeValues(ws, arg.range)?.map((row: (string | number | boolean | Date | null)[]) => row.map((value: string | number | boolean | Date | null) => value instanceof Date ? value.toISOString() : value));
 
             return context.contextualiseResponse({
                 content: [{ type: 'text', text: encode({ range: arg.range, values }) }],

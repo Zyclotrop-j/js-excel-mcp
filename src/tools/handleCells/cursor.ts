@@ -75,8 +75,10 @@ export class CellCursorHandler extends ToolHandler {
             if (!currentCell) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no current cell set' }], isError: true });
 
             const start = coordinateToTuple(currentCell);
-            const maxRow = getMaxRow(ws);
-            const maxCol = getMaxCol(ws);
+            const dataMaxRow = getMaxRow(ws);
+            const dataMaxCol = getMaxCol(ws);
+            const SHEET_MAX_ROW = 1048576;
+            const SHEET_MAX_COL = 16384;
 
             const clamp = (val: number, min: number, max: number) => Math.max(min, Math.min(max, val));
 
@@ -139,13 +141,13 @@ export class CellCursorHandler extends ToolHandler {
                 return v === '' || v === 'null';
             };
 
-            const SAFETY_CAP = Math.max(maxRow, maxCol, 1000) * 2;
+            const SAFETY_CAP = Math.max(dataMaxRow, dataMaxCol, 1000) * 2;
             const origin = { row: start.row, col: start.col };
 
             for (const move of arg.moves) {
                 if (move.direction === 'jump-to-original') {
-                    row = clamp(origin.row, 1, maxRow);
-                    col = clamp(origin.col, 1, maxCol);
+                    row = clamp(origin.row, 1, SHEET_MAX_ROW);
+                    col = clamp(origin.col, 1, SHEET_MAX_COL);
                     addCell(row, col);
                     stops.push({ direction: 'jump-to-original', reason: 'origin', at: tupleToCoordinate(col, row) });
                     continue;
@@ -161,12 +163,16 @@ export class CellCursorHandler extends ToolHandler {
                         jRow = move.target.row;
                         jCol = move.target.col;
                     }
-                    row = clamp(jRow, 1, maxRow);
-                    col = clamp(jCol, 1, maxCol);
+                    row = clamp(jRow, 1, SHEET_MAX_ROW);
+                    col = clamp(jCol, 1, SHEET_MAX_COL);
                     addCell(row, col);
                     stops.push({ direction: 'jump', reason: (row !== jRow || col !== jCol) ? 'clamped' : 'target', at: tupleToCoordinate(col, row) });
                     continue;
                 }
+
+                const isFixedCount = typeof move.count === 'number';
+                const boundaryRow = isFixedCount ? SHEET_MAX_ROW : dataMaxRow;
+                const boundaryCol = isFixedCount ? SHEET_MAX_COL : dataMaxCol;
 
                 let stopReason = '';
                 let steps = 0;
@@ -176,10 +182,10 @@ export class CellCursorHandler extends ToolHandler {
                     const beforeRow = row;
                     const beforeCol = col;
                     switch (move.direction) {
-                        case 'right': col = clamp(col + 1, 1, maxCol); break;
-                        case 'left':  col = clamp(col - 1, 1, maxCol); break;
-                        case 'down':  row = clamp(row + 1, 1, maxRow); break;
-                        case 'up':    row = clamp(row - 1, 1, maxRow); break;
+                        case 'right': col = clamp(col + 1, 1, boundaryCol); break;
+                        case 'left':  col = clamp(col - 1, 1, boundaryCol); break;
+                        case 'down':  row = clamp(row + 1, 1, boundaryRow); break;
+                        case 'up':    row = clamp(row - 1, 1, boundaryRow); break;
                     }
                     const moved = row !== beforeRow || col !== beforeCol;
                     addCell(row, col);
