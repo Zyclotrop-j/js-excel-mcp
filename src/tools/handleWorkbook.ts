@@ -4,6 +4,7 @@ import { fromResponse, loadWorkbook } from '@office-kit/xlsx/io';
 import { ResourceTemplate } from '@modelcontextprotocol/server';
 import z from 'zod';
 import { Context } from '../filesystem/context.js';
+import { rgbColor } from '@office-kit/xlsx/styles';
 
 
 export class WorkbookTools extends ToolHandler {
@@ -32,19 +33,20 @@ export class WorkbookTools extends ToolHandler {
         }}, async (arg) => {
             const wb = createWorkbook();
 
-            if(arg.createDefaultWorksheet) {
+            const shouldMakeWorkSheet = arg.createDefaultWorksheet && arg.createDefaultWorksheet !== 'false';
+            if(shouldMakeWorkSheet) {
                 addWorksheet(wb, arg.createDefaultWorksheet);
             }
 
             await context.setWorkbook(arg.filename, wb);
             await context.setCurrentFile(arg.filename);
 
-            if(arg.createDefaultWorksheet) {
-                await context.setCurrentSheet(arg.createDefaultWorksheet);
+            if(shouldMakeWorkSheet) {
+                await context.setCurrentSheet(`${arg.createDefaultWorksheet}`);
             }
 
             return context.contextualiseResponse({
-                content: [{ type: 'text', text: `new workbook '${arg.filename}' created and set active${arg.createDefaultWorksheet ? ` with default sheet '${arg.createDefaultWorksheet}'` : ''}`},
+                content: [{ type: 'text', text: `new workbook '${arg.filename}' created and set active${shouldMakeWorkSheet ? ` with default sheet '${arg.createDefaultWorksheet}'` : ''}`},
                           { type: 'resource', resource: { uri: `workbook://${arg.filename}`, mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', text: JSON.stringify({ filename: arg.filename, status: 'created', sheets: sheetNames(wb) }) }}],
                 structuredContent: {
                     filename: arg.filename,
@@ -91,8 +93,8 @@ export class WorkbookTools extends ToolHandler {
         this.registerTool('close_workbook', { description: 'close an existing workbook', inputSchema: z.object({
             filename: z.string()
         }), outputSchema: z.object({
-            filename: z.string(),
-            status: z.string(),
+            filename: z.string().optional(),
+            status: z.string().optional(),
             context: context.contextualiseResponseTypes()
         }), annotations: {
             destructiveHint: true,
@@ -100,6 +102,17 @@ export class WorkbookTools extends ToolHandler {
             openWorldHint: false,
             readOnlyHint: false
         }}, async (arg) => {
+
+            if(!(await context.get(arg.filename))) {
+              return context.contextualiseResponse({
+                content: [{ type: 'text', text: `workbook '${arg.filename}' doesn't exist` }],
+                isError: true,
+                structuredContent: {
+                    filename: arg.filename,
+                    status: 'error'
+                }
+            })  
+            }
 
             await context.delete(arg.filename);
 

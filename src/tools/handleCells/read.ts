@@ -11,9 +11,9 @@ const cellNativeValueSchema = z.union([
     z.number(),
     z.boolean(),
     z.null(),
-    z.object({ kind: z.literal('duration'), ms: z.number() }).loose(),
-    z.object({ kind: z.literal('error'), code: z.enum(['#NULL!', '#DIV/0!', '#VALUE!', '#REF!', '#NAME?', '#NUM!', '#N/A', '#GETTING_DATA']) }).loose(),
-    z.object({ kind: z.literal('rich-text'), runs: z.array(z.object({ text: z.string(), font: z.object({
+    z.looseObject({ kind: z.literal('duration'), ms: z.number() }),
+    z.looseObject({ kind: z.literal('error'), code: z.enum(['#NULL!', '#DIV/0!', '#VALUE!', '#REF!', '#NAME?', '#NUM!', '#N/A', '#GETTING_DATA']) }),
+    z.looseObject({ kind: z.literal('rich-text'), runs: z.array(z.looseObject({ text: z.string(), font: z.looseObject({
         name: z.string().optional(), sz: z.number().optional(), b: z.boolean().optional(), i: z.boolean().optional(),
         u: z.enum(['single', 'double', 'singleAccounting', 'doubleAccounting']).optional(),
         strike: z.boolean().optional(), outline: z.boolean().optional(), shadow: z.boolean().optional(),
@@ -21,15 +21,15 @@ const cellNativeValueSchema = z.union([
         vertAlign: z.enum(['baseline', 'superscript', 'subscript']).optional(),
         color: z.string().optional(), family: z.number().optional(), charset: z.number().optional(),
         scheme: z.enum(['major', 'minor']).optional(),
-    }).optional() })) }).loose(),
-    z.object({ kind: z.literal('formula'), formula: z.string(), t: z.enum(['normal', 'array', 'shared', 'dataTable']),
+    }).optional() })) }),
+    z.looseObject({ kind: z.literal('formula'), formula: z.string(), t: z.enum(['normal', 'array', 'shared', 'dataTable']),
         cachedValue: z.union([z.string(), z.number(), z.boolean()]).optional(),
         ref: z.string().optional(), si: z.number().optional(),
         r1: z.string().optional(), r2: z.string().optional(),
         dt2D: z.boolean().optional(), dtr: z.boolean().optional(),
         del1: z.boolean().optional(), del2: z.boolean().optional(),
         aca: z.boolean().optional(), ca: z.boolean().optional(),
-    }).loose(),
+    }),
     z.null(),
 ]);
 
