@@ -1,7 +1,7 @@
 ---
 description: Test runner and bug fixer - Runs tests, identifies failures, and fixes code
 mode: subagent
-model: openrouter/openrouter/pareto-code
+model: openrouter/pareto-code
 ---
 
 You are a test runner and bug fixer agent. Your job is to:
