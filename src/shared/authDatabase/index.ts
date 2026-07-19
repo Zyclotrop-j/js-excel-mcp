@@ -3,15 +3,15 @@
  *
  * The interface lives here (see `tickets/real-auth/STUDY_FIRST.md` [C-DB]);
  * `authMode.ts` imports it for the `AuthConfig.databaseBackend` slot. The
- * SQLite implementation (`openSqliteAuthDatabase`) lands in T-12 — this ticket
- * only ships the type surface so `AuthConfig` can name it. A Kysely-backed D1
- * / Turso / Postgres implementation (`openKyselyAuthDatabase`) lands in T-81.
+ * SQLite implementation (`openSqliteAuthDatabase`) is in `./sqliteAuthDatabase.ts`
+ * (created in T-12). A Kysely-backed D1 / Turso / Postgres implementation
+ * (`openKyselyAuthDatabase`) lands in T-81.
  *
  * `AuthMode` is imported type-only (erased at runtime), so there is no module
  * cycle with `authMode.ts`.
  */
 
-import type { AuthMode } from './authMode.js';
+import type { AuthMode } from '../authMode.js';
 
 export interface AuthDatabase {
     /**

@@ -111,20 +111,29 @@ The current `createDemoAuth` signature is `createDemoAuth(options:
 CreateDemoAuthOptions)`. After this ticket:
 
 - It takes `(cfg: AuthConfig, opts: CreateAuthOptions)`.
-- It ignores `cfg` for everything except `cfg.secret` (which replaces
-  the hardcoded `DEMO_PASSWORD` as the `secret` option to
-  `betterAuth`) and `cfg.dbPath` (which replaces the hardcoded
-  `'data/_auth.db'`).
-- `demoMode` is no longer a parameter — `logger` is configured when
-  `cfg.mode === 'demo'` AND a `MCP_AUTH_DEBUG` env is set (T-10 owns
-  the env). Actually, keep the current `logger` behavior: it was
-  `demoMode ? debug : undefined`. The simplest preservation is to
-  set the logger when `cfg.mode === 'demo'` — that's the current
-  behavior, since `server.ts:29` passes `demoMode: false`. So the
-  logger ends up `undefined` either way. Verify by reading
-  `server.ts:29` — it passes `demoMode: false`, so today the logger
-  is already off. Preserve that: logger is `undefined` in both modes
-  unless a new `MCP_AUTH_DEBUG=1` env is set (T-10 owns that env).
+- It uses `cfg.dbPath` (replaces the hardcoded `'data/_auth.db'`).
+- **It MUST NOT pass `cfg.secret` to `betterAuth({...})`.** The current
+  demo `betterAuth({...})` call has no `secret` field at all —
+  better-auth auto-generates one per server start. Passing
+  `secret: cfg.secret` (= `DEMO_SECRET`) would change demo behavior
+  (the secret would become a fixed known value and sessions would
+  persist across restarts), violating §8.1's byte-for-byte invariant.
+  `cfg.secret` is **real-mode-only**. `DEMO_SECRET` continues to be
+  used as the demo user's *password* (via `DEMO_USER_CREDENTIALS` in
+  `authServer.ts`'s `/sign-in` auto-login), NOT as the betterAuth
+  `secret` option. The ticket body's earlier wording ("replaces the
+  hardcoded `DEMO_PASSWORD` as the `secret` option to `betterAuth`")
+  was factually wrong — `DEMO_PASSWORD` was never the betterAuth
+  secret; it was the demo user's login password.
+- `demoMode` is no longer a parameter. The current `logger` is
+  `demoMode ? debug : undefined`, and `src/server.ts:42` passes
+  `demoMode: false`, so today the logger is **`undefined`** even in
+  demo mode. **Preserve that: set `logger: undefined` in both modes
+  for this ticket.** Do NOT switch to `logger: cfg.mode === 'demo' ?
+  debug : undefined` — that would activate debug logging in demo
+  mode and break §8.1. If a `MCP_AUTH_DEBUG=1` debug-logging env is
+  desired, it is a T-21 concern (or a follow-up); it is NOT in scope
+  for T-20. T-10 did NOT add `MCP_AUTH_DEBUG`.
 
 The body of `createDemoAuth` — the `mcp(...)` plugin config, the
 `emailAndPassword.requireEmailVerification: false`, the `trustedOrigins`
@@ -133,7 +142,11 @@ instead of `options`).
 
 ### 4. New `createRealAuth(cfg, opts)` — the actual new code
 
-This is the meat of the ticket. Wire better-auth with all four plugins:
+This is the meat of the ticket. Wire better-auth with all four plugins.
+**Read `tickets/real-auth/notes/T-02-notes.md` §1.3 and §3.3 and
+`tickets/real-auth/notes/T-00-notes.md` §4 (D-00-4) before coding** —
+they contain the paste-ready plugin option shapes. The placeholder
+comments below point at the specific note sections.
 
 ```ts
 function createRealAuth(cfg: AuthConfig, opts: CreateAuthOptions): Auth {
@@ -143,32 +156,70 @@ function createRealAuth(cfg: AuthConfig, opts: CreateAuthOptions): Auth {
   const mcpPlugin = mcp({
     loginPage: opts.loginPage ?? '/sign-in',
     resource: opts.resource,
-    oidcConfig: { /* same as demo, see below */ }
+    oidcInfo: { /* same as demo, see below */ }
   });
 
-  const passkeyPlugin = passkey({ /* per T-00 notes */ });
+  // Passkey plugin — paste options from T-02 §3.3 (worked spike) or §3.2.
+  // Requires: rpID, rpName, origin, registration.requireSession:false,
+  // registration.resolveUser. The plugin ships in @better-auth/passkey.
+  const passkeyPlugin = passkey({ /* per T-02 §3.3 */ });
+
+  // Magic-link plugin — paste options from T-00 §4 D-00-4.
+  // sendMagicLink is the mailer hook (T-00 §2 confirms the callback name).
   const magicLinkPlugin = magicLink({
-    sendMagicLink: mailer,             // or sendVerificationOTP — T-00 confirms name
-    // disable the email-verification requirement when email is optional
+    sendMagicLink: mailer,
+    disableSignUp: false,
+    storeToken: 'hashed',
+    expiresIn: 300,
+    rateLimit: { window: 60, max: 5 },
   });
+
+  // twoFactor plugin (backup codes only) — paste from T-00 §4 D-00-4.
+  // Omit totpOptions/otpOptions; backupCodeOptions + allowPasswordless
+  // both at top level and in backupCodeOptions.
   const twoFactorPlugin = twoFactor({
-    backupCodes: { enabled: true /* + any required opts per T-00 */ }
-    // TOTP not required — confirm in T-00 that backupCodes can run alone.
+    backupCodeOptions: {
+      amount: 10,
+      length: 10,
+      storeBackupCodes: 'encrypted',
+      allowPasswordless: true,
+    },
+    allowPasswordless: true,
   });
-  const apiKeyPlugin = apiKey({ /* per T-00 */ });
+
+  // API-key plugin — no required options (per arch-decision §1.5:
+  // "Plugin: `apiKey()` (no required options)"). The `mcp_` prefix is
+  // supported natively by createApiKey at issuance time (T-52).
+  const apiKeyPlugin = apiKey();
+
+  // Email-optional plugin — paste VERBATIM from T-02 §1.3.
+  // DO NOT use `user: { fields: { email: { ... } } }` at the top level
+  // of betterAuth({...}) — T-02 §1.2 confirms that option only renames
+  // columns and silently does nothing for attribute overrides. The
+  // emailOptionalPlugin is the supported override path (its
+  // `schema.user.fields.email` spreads AFTER the core email field in
+  // `@better-auth/core`'s get-tables.mjs, replacing `required: true`
+  // with `required: false`).
+  const emailOptionalPluginInstance = emailOptionalPlugin;
 
   return betterAuth({
     baseURL: opts.baseURL,
     database: db.betterAuthHandle,
     trustedOrigins: cfg.trustedOrigins,
-    secret: cfg.secret,
+    secret: cfg.secret,                                  // real-mode only (real's cfg.secret is AUTH_SECRET)
     emailAndPassword: {
       enabled: true,
-      requireEmailVerification: cfg.mode === 'real' ? /* per T-00; default false for passkey-friendly flow */ false : false
+      requireEmailVerification: false,                    // passkey-friendly; matches demo
     },
-    user: { fields: { email: { /* per T-02 decision */ } } },
-    plugins: [mcpPlugin, passkeyPlugin, magicLinkPlugin, twoFactorPlugin, apiKeyPlugin],
-    logger: /* same env-gated logger as demo */
+    plugins: [
+      mcpPlugin,
+      passkeyPlugin,
+      magicLinkPlugin,
+      twoFactorPlugin,
+      apiKeyPlugin,
+      emailOptionalPluginInstance,                       // ← must appear in the plugins array; order does not matter
+    ],
+    logger: undefined,                                   // see §3 — do NOT activate in real mode for this ticket
   }) as unknown as Auth;
 }
 ```
@@ -180,19 +231,48 @@ mode (same code/access/refresh expirations, same scopes, same
 
 ### 5. Type shape — `Auth` vs `DemoAuth`
 
-The current `DemoAuth` structural type (`auth.ts:269-283`) lists
+The current `DemoAuth` structural type (`auth.ts:151-165`) lists
 `handler`, `signUpEmail`, `signInEmail`, `getMcpSession`,
 `getMcpOAuthConfig`, `getMCPProtectedResource`. Real mode needs a
-few more methods exposed on `auth.api.*`:
+few more methods exposed on `auth.api.*`. **Use the corrected API
+names from `arch-decision-passkey-and-related.md` §1.5 + §3 and
+`T-02-notes.md` §3.1 + §5.2 — NOT the names that appeared in earlier
+drafts of this ticket body** (`passkey.register`, `passkey.verify`,
+`apiKey.create`, `apiKey.revoke` — those names do not exist in
+`@better-auth/passkey@1.6.23` or `@better-auth/api-key@1.6.23`).
+
+Real-mode `Auth` structural type additions (all `AnyFn`):
 
 - `signOut` (used by T-50).
-- `passkey.register` / `passkey.verify` / `passkey.listUserPasskeys`
-  (used by T-51; confirm names from T-00).
-- `magicLink.signIn` / `magicLink.verify` (used by T-42).
-- `verifyBackupCode` or whatever T-00 confirms (used by T-43).
-- `apiKey.create` / `apiKey.verify` / `apiKey.revoke` (used by
-  T-52; confirm names from T-00).
-- `createApiKey` if the API key plugin has a top-level wrapper.
+- **Passkey** (verified against
+  `node_modules/@better-auth/passkey/dist/index-Cyjp_etN.d.mts:256-842`):
+  - `generatePasskeyRegistrationOptions`
+  - `verifyPasskeyRegistration` (returns the `Passkey` row; no session)
+  - `generatePasskeyAuthenticationOptions`
+  - `verifyPasskeyAuthentication` (returns `{ session, user }`)
+  - `listPasskeys`
+  - `deletePasskey`
+  - `updatePasskey`
+- **Magic-link** (per T-00 §2):
+  - `signInMagicLink`
+  - `magicLinkVerify`
+- **Backup codes / twoFactor** (per T-00 §3):
+  - `enableTwoFactor`
+  - `disableTwoFactor`
+  - `verifyBackupCode` (used by T-43)
+  - `generateBackupCodes`
+  - `viewBackupCodes` (server-only; useful for admin/recovery)
+- **API key** (verified against
+  `node_modules/@better-auth/api-key/dist/index-CI6mGUwK.d.mts`):
+  - `createApiKey` (returns the `ApiKey` object including the plaintext
+    `key` — shown once)
+  - `verifyApiKey` (returns `{ valid, error, key }`; `key.referenceId`
+    is the user id, NOT `userId` — see arch-decision §3 Correction 2)
+  - `getApiKey`
+  - `updateApiKey`
+  - `deleteApiKey`
+  - `listApiKeys`
+  - `deleteAllExpiredApiKeys`
 
 Extend the `Auth` structural type to include all of these as `AnyFn`.
 Demo mode's `betterAuth(...)` instance has these methods too (they're
@@ -223,9 +303,10 @@ re-running `initializeSchema`; T-12's `openSqliteAuthDatabase` calls
 ### 7. `DEMO_USER_CREDENTIALS` stays
 
 The `DEMO_USER_CREDENTIALS` export is still used by `authServer.ts`'s
-demo `/sign-in` auto-login route. Keep it. The `DEMO_PASSWORD`
-constant moves to `authMode.ts` (per T-10's note: "move the constant
-to `authMode.ts` and have `auth.ts` import it").
+demo `/sign-in` auto-login route. Keep it. Its `password` field
+already references `DEMO_SECRET`, which T-10 moved to `authMode.ts`
+(`auth.ts` imports it from there — single source of truth). No
+constant moves are needed in T-20; T-10 already did the move.
 
 ## Contract this ticket honors / establishes
 
@@ -242,8 +323,10 @@ to `authMode.ts` and have `auth.ts` import it").
   - Inputs now come from `cfg` instead of `options`.
   - The hardcoded `_db` singleton is removed (no behavior change —
     schema is still initialized once per instance).
-  - `DEMO_PASSWORD` is imported from `authMode.ts` instead of
-    declared in `auth.ts`.
+  - `DEMO_SECRET` continues to be imported from `authMode.ts` (already
+    moved by T-10; no constant moves needed in T-20).
+  - **Do NOT add `secret: cfg.secret` to the demo `betterAuth({...})`
+    call** — that would change demo behavior (see §3 above).
 - Do not add new npm deps.
 
 ## Verify

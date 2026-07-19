@@ -257,11 +257,25 @@ export function resolveMailer(cfg: AuthConfig): OtpMailer;             // picks 
 
 ### `[C-DB]` — Database (pluggable)
 
+> **Architect's note (2026-07-19, post-T-12 review):** T-10 created
+> `src/shared/authDatabase.ts` as a single file (interface only). T-12
+> needed to add the SQLite impl alongside the interface, so it converted
+> the file to a **directory**: `src/shared/authDatabase/` with
+> `index.ts` (re-exports the `AuthDatabase` interface) +
+> `sqliteAuthDatabase.ts` (the `openSqliteAuthDatabase` factory + the
+> two schema initializers). The contract *intent* (interface surface +
+> factory name) is unchanged — only the on-disk layout moved from a
+> file to a colocation directory. This is the standard TS pattern for
+> co-locating an interface with its default impl and is acceptable.
+> Importers use `./authDatabase/index.js` (or `./authDatabase.js`,
+> which Node resolves to either form).
+
 The DB is accessed through a thin abstraction so the backend can be
 swapped without touching tools or auth-server:
 
 ```ts
-// src/shared/authDatabase.ts  (new file, created in T-12)
+// src/shared/authDatabase/index.ts  (interface; T-10 created the file,
+// T-12 converted it to a directory and added ./sqliteAuthDatabase.ts)
 export interface AuthDatabase {
   // The object passed to better-auth's `database` option. Today this is
   // a better-sqlite3 Database instance; tomorrow it could be a Kysely

@@ -14,7 +14,7 @@
  * env vars (see T-10 "Fail-fast rules").
  */
 
-import type { AuthDatabase } from './authDatabase.js';
+import type { AuthDatabase } from './authDatabase/index.js';
 import type { OtpMailer } from './mailer.js';
 
 export type AuthMode = 'demo' | 'real';

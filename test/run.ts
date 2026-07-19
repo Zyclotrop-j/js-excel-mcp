@@ -23,6 +23,7 @@ import cloudflareTests from './filesystem/mocked-cloudflare-backend.test.js';
 import detectSelfReferenceTests from './util/detect-self-reference.test.js';
 import authModeTests from './unit/authMode.test.js';
 import pendingLoginTests from './unit/pendingLogin.test.js';
+import sqliteAuthDatabaseTests from './unit/sqliteAuthDatabase.test.js';
 
 // Register tests with shared instance
 vfsTests(test);
@@ -36,6 +37,7 @@ cloudflareTests(test);
 detectSelfReferenceTests(test);
 authModeTests(test);
 pendingLoginTests(test);
+sqliteAuthDatabaseTests(test);
 
 // Run all registered tests
 !(async function() {
