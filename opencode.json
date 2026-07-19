@@ -5,6 +5,13 @@
       "type": "remote",
       "url": "http://localhost:3000/mcp"
     },
+    "playwright": {
+      "type": "local",
+      "command": ["npx", "@playwright/mcp@latest"],
+      "environment": {
+        "PLAYWRIGHT_MCP_ALLOWED_HOSTS": "*"
+      }
+    },
     "llm-bus": {
       "type": "remote",
       "url": "http://127.0.0.1:8787/mcp",

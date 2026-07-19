@@ -1,7 +1,7 @@
 ---
 description: Test runner and bug fixer - Runs tests, identifies failures, and fixes code
 mode: subagent
-model: openrouter/nvidia/llama-3.3-nemotron-nano-8b-v1:free
+model: openrouter/openrouter/pareto-code
 ---
 
 You are a test runner and bug fixer agent. Your job is to:
