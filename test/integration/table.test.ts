@@ -4,6 +4,7 @@ import { createTestContext } from '../helpers/test-context.js';
 import { TableHandler } from '../../src/tools/handleTable.js';
 import { CellWriteHandler } from '../../src/tools/handleCells/write.js';
 import { run } from '../../src/util/requestContext.js';
+import z from 'zod';
 
 let mockServer: MockMcpServer;
 let testContext: ReturnType<typeof createTestContext>;
@@ -70,13 +71,13 @@ test('create_excel_table with minimal options', async () => {
         const ctx = createMockRequestContext('table-test');
 
         const result = await tool.cb({
-            range: 'A2:C3',
+            range: 'E2:G3',
             name: 'SimpleTable',
             columns: ['Header1', 'Header2', 'Header3']
         }, ctx);
 
         assert.ok(result.structuredContent);
-        assert.equal(result.structuredContent.range, 'A2:C3');
+        assert.equal(result.structuredContent.range, 'E2:G3');
         assert.equal(result.structuredContent.name, 'SimpleTable');
         assert.equal(result.structuredContent.action, 'created');
     });
@@ -85,9 +86,10 @@ test('create_excel_table with minimal options', async () => {
 test('create_excel_table requires name and columns', async () => {
     await run(async () => {
         const tool = tableHandler.getTool('create_excel_table');
-        const ctx = createMockRequestContext('table-test');
+        const schema = tool.inputSchema as z.ZodType<any>;
 
-        await assert.rejects(() => tool.cb({ range: 'A1:C3' }, ctx));
+        const result = schema.safeParse({ range: 'A1:C3' });
+        assert.equal(result.success, false, 'missing name and columns should fail schema validation');
     });
 });
 
@@ -96,15 +98,35 @@ test('add_autofilter adds autofilter to specified range', async () => {
         const tool = tableHandler.getTool('add_autofilter');
         const ctx = createMockRequestContext('table-test');
 
+        // Range I1:K3 — chosen to not overlap any existing table (TestTable A1:C3, SimpleTable E2:G3).
         const result = await tool.cb({
-            range: 'A1:C3'
+            range: 'I1:K3'
         }, ctx);
 
         assert.ok(result.structuredContent);
         assert.equal(result.structuredContent.filename, 'table-test.xlsx');
         assert.equal(result.structuredContent.sheet, 'Sheet1');
-        assert.equal(result.structuredContent.range, 'A1:C3');
+        assert.equal(result.structuredContent.range, 'I1:K3');
         assert.equal(result.structuredContent.action, 'added');
+    });
+});
+
+test('add_autofilter skips when range overlaps existing table', async () => {
+    await run(async () => {
+        const tool = tableHandler.getTool('add_autofilter');
+        const ctx = createMockRequestContext('table-test');
+
+        // TestTable was created on A1:C3 in an earlier test — autofilter on the
+        // same range should skip (Excel would otherwise repair the file by
+        // dropping the table).
+        const result = await tool.cb({
+            range: 'A1:C3'
+        }, ctx);
+
+        assert.ok(result.structuredContent);
+        assert.equal(result.structuredContent.action, 'skipped');
+        assert.equal(result.structuredContent.range, 'A1:C3');
+        assert.ok(result.structuredContent.reason?.includes('overlaps_table'));
     });
 });
 
@@ -140,9 +162,10 @@ test('add_autofilter on specified sheet', async () => {
 test('add_autofilter requires range', async () => {
     await run(async () => {
         const tool = tableHandler.getTool('add_autofilter');
-        const ctx = createMockRequestContext('table-test');
+        const schema = tool.inputSchema as z.ZodType<any>;
 
-        await assert.rejects(() => tool.cb({}, ctx));
+        const result = schema.safeParse({});
+        assert.equal(result.success, false, 'missing range should fail schema validation');
     });
 });
 
@@ -171,8 +194,9 @@ test('add_autofilter uses current sheet when not specified', async () => {
         const tool = tableHandler.getTool('add_autofilter');
         const ctx = createMockRequestContext('table-test');
 
+        // Range I1:K3 — chosen to not overlap any existing table.
         const result = await tool.cb({
-            range: 'A1:C3'
+            range: 'I1:K3'
         }, ctx);
 
         assert.ok(result.structuredContent);

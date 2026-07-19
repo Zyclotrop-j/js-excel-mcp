@@ -1,8 +1,15 @@
 import { ToolHandler } from './interface.js';
-import { addExcelTable, makeAutoFilter, setAutoFilter, getAutoFilter, type Worksheet } from '@office-kit/xlsx/worksheet';
+import { addExcelTable, makeAutoFilter, setAutoFilter, getAutoFilter, listTables, type Worksheet } from '@office-kit/xlsx/worksheet';
+import { rangeBoundaries } from '@office-kit/xlsx/utils';
+import { rangesOverlap } from '@office-kit/xlsx/worksheet';
 import type { SheetRef, Workbook } from '@office-kit/xlsx/workbook';
 import z from 'zod';
 import { Context } from '../filesystem/context.js';
+
+/** True iff `a` and `b` (A1 range strings) share at least one cell. */
+function overlaps(a: string, b: string): boolean {
+    return rangesOverlap(rangeBoundaries(a), rangeBoundaries(b));
+}
 
 export class TableHandler extends ToolHandler {
     async register(allTools: ToolHandler[]): Promise<void> {
@@ -46,9 +53,25 @@ export class TableHandler extends ToolHandler {
             if (!sheet || sheet.kind !== 'worksheet') return context.contextualiseResponse({ content: [{ type: 'text', text: `sheet '${sheetName}' not found` }], isError: true });
             const ws: Worksheet = sheet.sheet;
 
+            // Reject if an existing table overlaps the requested range — Excel
+            // repairs files with two tables sharing cells by dropping one.
+            for (const t of listTables(ws)) {
+                if (overlaps(t.ref, arg.range)) {
+                    return context.contextualiseResponse({
+                        content: [{ type: 'text', text: `table '${t.displayName}' already covers range '${t.ref}' which overlaps the requested range '${arg.range}'. Pick a non-overlapping range or delete the existing table first.` }],
+                        isError: true
+                    });
+                }
+            }
+
+            // Clear a sheet-level autoFilter that overlaps the table range —
+            // Excel treats a sheet-level autoFilter on the same range as a
+            // table as a conflict and removes the table during repair. Tables
+            // carry their own filter dropdowns, so the sheet-level one is
+            // redundant.
             const existingAutoFilter = getAutoFilter(ws);
             let clearedAutoFilter = false;
-            if (existingAutoFilter && existingAutoFilter.ref === arg.range) {
+            if (existingAutoFilter && overlaps(existingAutoFilter.ref, arg.range)) {
                 setAutoFilter(ws, undefined);
                 clearedAutoFilter = true;
             }
@@ -58,7 +81,7 @@ export class TableHandler extends ToolHandler {
             await context.setWorkbook(filename, wb);
 
             const note = clearedAutoFilter
-                ? ` (also cleared a redundant sheet-level autoFilter on '${arg.range}' — tables carry their own filter)`
+                ? ` (also cleared a redundant sheet-level autoFilter overlapping '${arg.range}' — tables carry their own filter)`
                 : '';
             return context.contextualiseResponse({
                 content: [{ type: 'text', text: `table '${arg.name}' created in range '${arg.range}' on sheet '${sheetName}' in workbook '${filename}'${note}` }],
@@ -81,7 +104,8 @@ export class TableHandler extends ToolHandler {
             filename: z.string().optional(),
             sheet: z.string().optional(),
             range: z.string().optional(),
-            action: z.literal('added').optional(),
+            action: z.enum(['added', 'skipped']).optional(),
+            reason: z.string().optional(),
             context: context.contextualiseResponseTypes()
         }), annotations: {
             destructiveHint: false,
@@ -103,6 +127,27 @@ export class TableHandler extends ToolHandler {
             const sheet = wb.sheets.find((s: SheetRef) => s.sheet.title === sheetName);
             if (!sheet || sheet.kind !== 'worksheet') return context.contextualiseResponse({ content: [{ type: 'text', text: `sheet '${sheetName}' not found` }], isError: true });
             const ws: Worksheet = sheet.sheet;
+
+            // Skip silently if a table already overlaps this range — Excel
+            // treats a sheet-level autoFilter and a table on the same range
+            // as a conflict and repairs by removing the table. Tables carry
+            // their own filter dropdowns, so the sheet-level autoFilter is
+            // redundant anyway. Return success with `action: 'skipped'` and a
+            // reason so the caller can tell what happened.
+            for (const t of listTables(ws)) {
+                if (overlaps(t.ref, arg.range)) {
+                    return context.contextualiseResponse({
+                        content: [{ type: 'text', text: `autoFilter skipped on range '${arg.range}' on sheet '${sheetName}' in workbook '${filename}': table '${t.displayName}' already covers '${t.ref}' and provides its own filter dropdowns.` }],
+                        structuredContent: {
+                            filename,
+                            sheet: sheetName,
+                            range: arg.range,
+                            action: 'skipped',
+                            reason: `overlaps_table:${t.displayName}`
+                        }
+                    });
+                }
+            }
 
             ws.autoFilter = makeAutoFilter({ ref: arg.range });
 
