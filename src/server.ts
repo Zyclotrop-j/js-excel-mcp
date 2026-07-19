@@ -4,6 +4,7 @@ import { getContext, run, tryGetContext } from './util/requestContext.js';
 
 import { createProtectedResourceMetadataRouter, demoTokenVerifier, setupAuthServer } from './shared/authServer.js';
 import { createMcpExpressApp, getOAuthProtectedResourceMetadataUrl, requireBearerAuth } from '@modelcontextprotocol/express';
+import { loadAuthConfig } from './shared/authMode.js';
 
 import cors from 'cors';
 
@@ -26,7 +27,19 @@ const app = createMcpExpressApp();
 // ---- Authorization Server (better-auth OIDC; authorization_code only) ----
 // `autoConsent` is the demo-only switch that turns the consent screen into an
 // immediate 302 — set by the runner so `./client.ts` can run without a browser.
-setupAuthServer({ authServerUrl, mcpServerUrl, demoMode: false, autoConsent: false });
+//
+// Auth config is loaded once at startup from `process.env` via the single
+// reader in `authMode.ts` (see `tickets/real-auth/T-10-env-and-config.md`).
+// `demoMode` is still derived from the existing field by `authServer.ts`; T-21
+// swaps it for `authConfig.mode === 'demo'`. For now both fields are passed.
+const authConfig = loadAuthConfig(baseUrl);
+console.log(
+    `[Auth] mode=${authConfig.mode}` +
+    (authConfig.mode === 'real'
+        ? ` (signup=${authConfig.allowUserSignup ? 'on' : 'off'}, backend=${authConfig.dbBackend})`
+        : '')
+);
+setupAuthServer({ authServerUrl, mcpServerUrl, demoMode: false, autoConsent: false, authConfig });
 
 
 // DEMO ONLY — restrict `origin` in production. `exposedHeaders` lists the

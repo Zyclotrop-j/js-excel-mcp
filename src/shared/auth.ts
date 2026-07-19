@@ -13,12 +13,15 @@ import { betterAuth } from 'better-auth';
 import { mcp } from 'better-auth/plugins';
 import Database from 'better-sqlite3';
 
-// Hardcoded demo password — a fixed credential committed to source for demo
-// builds only (per the demo-only posture of this auth server). Auto-login
-// `/sign-in` uses this; the auth server binds to 'localhost' in `authServer.ts`
-// so the credential is not reachable from outside the host. It does NOT
-// rotate per server start.
-const DEMO_PASSWORD = 'ernCjBsavZjKxznbu_1g1g';
+import { DEMO_SECRET } from './authMode.js';
+
+// The demo password is the single hardcoded credential committed to source for
+// demo builds only (per the demo-only posture of this auth server). Auto-login
+// `/sign-in` uses it; the auth server binds to 'localhost' in `authServer.ts`
+// so the credential is not reachable from outside the host. It does NOT rotate
+// per server start. The value lives in `authMode.ts` as `DEMO_SECRET` so that
+// `loadAuthConfig` can return it as the demo `secret` without a second source
+// of truth.
 
 // Open the database once (module-level singleton) — file-backed SQLite at
 // `data/_auth.db` so demo sessions persist across server restarts. This avoids
@@ -164,13 +167,14 @@ function initializeSchema(db: InstanceType<typeof Database>): void {
 }
 
 /**
- * Demo user credentials for auto-login. The password is a fixed value
- * committed to source (see `DEMO_PASSWORD` above); it does NOT rotate per
- * server start. Used by authServer.ts to create and sign in the demo user.
+ * Demo user credentials for auto-login. The password is the fixed value
+ * committed to source as `DEMO_SECRET` in `authMode.ts` (single source of
+ * truth); it does NOT rotate per server start. Used by authServer.ts to create
+ * and sign in the demo user.
  */
 export const DEMO_USER_CREDENTIALS = {
     email: 'demo@example.com',
-    password: DEMO_PASSWORD,
+    password: DEMO_SECRET,
     name: 'Demo User'
 };
 

@@ -21,6 +21,8 @@ import rateLimitingTests from './filesystem/rateLimiting.test.js';
 import lockRegressionTests from './filesystem/lockRegression.test.js';
 import cloudflareTests from './filesystem/mocked-cloudflare-backend.test.js';
 import detectSelfReferenceTests from './util/detect-self-reference.test.js';
+import authModeTests from './unit/authMode.test.js';
+import pendingLoginTests from './unit/pendingLogin.test.js';
 
 // Register tests with shared instance
 vfsTests(test);
@@ -32,6 +34,8 @@ rateLimitingTests(test);
 lockRegressionTests(test);
 cloudflareTests(test);
 detectSelfReferenceTests(test);
+authModeTests(test);
+pendingLoginTests(test);
 
 // Run all registered tests
 !(async function() {

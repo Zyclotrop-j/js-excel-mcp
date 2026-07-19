@@ -20,6 +20,7 @@ import express from 'express';
 
 import type { DemoAuth } from './auth.js';
 import { createDemoAuth, DEMO_USER_CREDENTIALS } from './auth.js';
+import type { AuthConfig } from './authMode.js';
 
 export interface SetupAuthServerOptions {
     authServerUrl: URL;
@@ -50,6 +51,14 @@ export interface SetupAuthServerOptions {
      * full browser flow without a browser. NEVER enable in production.
      */
     autoConsent?: boolean;
+    /**
+     * Auth configuration loaded from `process.env` by `loadAuthConfig` in
+     * `authMode.ts` (see `tickets/real-auth/T-10-env-and-config.md`). Carries
+     * the mode switch and all derived settings. T-21 will make this the primary
+     * input and remove `demoMode`; for now `authServer.ts` still derives
+     * `demoMode` from the existing field, so passing both is harmless.
+     */
+    authConfig?: AuthConfig;
 }
 
 // Store auth instance globally so it can be used for token verification
