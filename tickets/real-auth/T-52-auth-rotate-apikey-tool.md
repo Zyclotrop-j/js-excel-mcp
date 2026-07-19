@@ -8,6 +8,46 @@
 - **Output:** `src/tools/auth/rotateApikey.ts`, re-exported from
   `src/tools/auth/index.ts`
 
+> **Architect's note (2026-07-19):** Read
+> `tickets/real-auth/notes/arch-decision-passkey-and-related.md`
+> before coding. The API-key plugin ships as `@better-auth/api-key`
+> (separate package). **The API names in the code examples below are
+> wrong** — `auth.api.apiKey.create`, `auth.api.apiKey.verify`, and
+> `auth.api.apiKey.revoke` do not exist. Per the docs (secondary
+> check) and to be verified against the installed
+> `node_modules/@better-auth/api-key/dist/index.d.mts` (primary
+> source of truth), the server API is:
+> - `auth.api.createApiKey({ body: { userId, name?, prefix?, expiresIn?, ... } })` —
+>   returns the `ApiKey` object including the plaintext `key` (shown
+>   once). `prefix: 'mcp_'` is supported natively. **Correction 2
+>   (post-T-02):** the `userId` passed in the request body becomes
+>   `referenceId` on the stored `ApiKey` row. The plaintext key is at
+>   `result.key` (string); the metadata (id, referenceId, name, etc.)
+>   is on the rest of the returned object. Verify the exact return
+>   shape against `node_modules/@better-auth/api-key/dist/index.d.mts`.
+> - `auth.api.verifyApiKey({ body: { key, permissions? } })` —
+>   returns `{ valid: boolean, error: {message, code} | null, key: Omit<ApiKey, 'key'> | null }`.
+>   **Correction 2 (post-T-02):** the user identifier on the `key`
+>   object is `referenceId`, NOT `userId`. Extract
+>   `result.key?.referenceId` (the user id) and `result.key?.id` (the
+>   key id) (NOT `result.userId` / `result.keyId`). The
+>   `key.referenceId` field is the link back to `user.id`;
+>   `verifyApiKey` does NOT return a top-level `userId`.
+> - `auth.api.deleteApiKey({ body: { keyId }, headers })` —
+>   **requires session cookies** per the docs. T-52's `revoke`/`rotate`
+>   actions run under an API-key session (no session cookie). Verify
+>   against the installed types whether `deleteApiKey` accepts
+>   API-key-authenticated requests. If not, fall back to a direct DB
+>   delete via better-sqlite3 (the docs explicitly recommend this:
+>   "If you want to delete a key without these checks, we recommend
+>   you use an ORM to directly mutate your DB instead."). This is an
+>   implementation detail for T-52 — it does not change `[C-APIKEY]`'s
+>   intent.
+>
+> T-30 "Outcome B" is confirmed (the MCP token endpoint does not
+> accept API keys; the verifier accepts them directly via
+> `verifyApiKey`). T-30 and T-52 share the `mcp_` prefix convention.
+
 ## Goal
 
 A tool the LLM calls from the authenticated `/mcp` endpoint to

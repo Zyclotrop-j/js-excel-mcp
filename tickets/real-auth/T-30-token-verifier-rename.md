@@ -6,6 +6,27 @@
 - **Output:** `src/shared/authServer.ts` — rename + alias; possible extension to accept API keys
 - **Blocks:** T-40 (the bootstrap endpoint mounts the verifier), T-52 (API-key flow)
 
+> **Architect's note (2026-07-19):** Read
+> `tickets/real-auth/notes/arch-decision-passkey-and-related.md`
+> before coding. **T-00 Outcome B is confirmed** — the MCP token
+> endpoint does not accept API keys, so the verifier must accept them
+> directly via the `@better-auth/api-key` plugin's `verifyApiKey` API.
+> Set `API_KEY_FALLTHROUGH = true` (§4 below). **API-name corrections
+> for the code sketch in §2 below:**
+> - `auth.api.apiKey.verify({ body: { key: token } })` →
+>   `auth.api.verifyApiKey({ body: { key: token } })`.
+> - The response shape is `{ valid: boolean, error: {message, code} | null, key: Omit<ApiKey, 'key'> | null }`,
+>   NOT `{ userId, keyId }`. **Correction 2 (post-T-02):** the user
+>   identifier on the `key` object is `referenceId`, NOT `userId`.
+>   Extract `result.key?.referenceId` (the user id) and `result.key?.id`
+>   (the key id). Check `result.valid === true` before trusting
+>   `result.key`. The `key.referenceId` field is the link back to the
+>   `user.id` column — `verifyApiKey` does NOT return a top-level
+>   `userId`.
+> - Verify every name against the installed
+>   `node_modules/@better-auth/api-key/dist/index.d.mts` (primary
+>   source of truth).
+
 ## Goal
 
 Rename `demoTokenVerifier` to `tokenVerifier` (it's no longer

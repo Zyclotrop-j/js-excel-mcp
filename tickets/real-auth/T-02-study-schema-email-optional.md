@@ -6,6 +6,37 @@
 - **Output:** `tickets/real-auth/notes/T-02-notes.md`
 - **Blocks:** T-12 (the real-mode schema is gated on this decision)
 
+> **Architect's unblock (2026-07-19):** T-02 is **unblocked**. Read
+> `tickets/real-auth/notes/arch-decision-passkey-and-related.md` before
+> starting. Key decisions that affect this ticket:
+>
+> - **Passkey ships as `@better-auth/passkey@^1.6.23`** (separate
+>   scoped package, NOT in the main `better-auth` bundle). Import:
+>   `import { passkey } from '@better-auth/passkey'`. The PL installs
+>   this package before you spike; if it's not in `node_modules/` yet,
+>   ask the PL to run `npm install` first.
+> - **Email semantics decided:** email is truly optional (Strategy A,
+>   nullable `email TEXT UNIQUE` without `NOT NULL`). Passkey-only
+>   accounts have `email = NULL`. Magic-link requires email (enforced
+>   by T-41's cross-field validation, not by the schema). See Decision 3.
+> - **Passkey-first signup is supported** via
+>   `registration.requireSession: false` + `registration.resolveUser`.
+>   Spike this path — it may eliminate T-41's throwaway-password
+>   bootstrap entirely.
+> - **Plugin options and API names:** verify against the installed
+>   `node_modules/@better-auth/passkey/dist/index.d.mts` (primary
+>   source of truth). The docs at
+>   https://www.better-auth.com/docs/plugins/passkey are a secondary
+>   check; they show the server API as `auth.api.addPasskey` /
+>   `auth.api.signInPasskey` / `auth.api.listPasskeys` /
+>   `auth.api.deletePasskey` / `auth.api.generatePasskeyRegistrationOptions`
+>   (NOT `passkey.register` / `passkey.verify` — those names don't exist).
+> - **Fallback:** if the spike reveals `@better-auth/passkey` requires
+>   a non-null email on the user row, fall back to Strategy B
+>   (synthetic `{userId}@local.invalid`) as documented in §2 below.
+>   That's T-02's call based on the spike — not a Lead Architect
+>   decision.
+
 ## Goal
 
 Decide and document exactly how the real-mode `user` table handles

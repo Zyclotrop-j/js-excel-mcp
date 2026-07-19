@@ -6,6 +6,28 @@
 - **Output:** Refactored `src/shared/auth.ts`; new `src/shared/mailer.ts` with `consoleMailer` + `webhookMailer`
 - **Blocks:** T-21, T-30
 
+> **Architect's note (2026-07-19):** Read
+> `tickets/real-auth/notes/arch-decision-passkey-and-related.md`
+> before coding. The passkey and apiKey plugins ship as **separate
+> scoped packages**, not in the main `better-auth` bundle. The import
+> paths in the code examples below (`import { passkey } from 'better-auth/plugins'`
+> and `import { apiKey } from 'better-auth/plugins'`) are **wrong**.
+> Use:
+> ```ts
+> import { passkey } from '@better-auth/passkey';
+> import { apiKey } from '@better-auth/api-key';
+> ```
+> The PL installs both packages (`@better-auth/passkey@^1.6.23`,
+> `@better-auth/api-key@^1.6.23`) before this ticket is dispatched.
+> Verify plugin options and the exact `passkey({...})` / `apiKey({...})`
+> option shapes against the installed
+> `node_modules/@better-auth/passkey/dist/index.d.mts` and
+> `node_modules/@better-auth/api-key/dist/index.d.mts` — the docs
+> site is a secondary check only. The passkey plugin supports
+> `registration.requireSession: false` + `registration.resolveUser`
+> for passkey-first signup (no throwaway password needed) — consider
+> this for the real-mode builder.
+
 ## Goal
 
 Split the monolithic `createDemoAuth` into a mode dispatcher that

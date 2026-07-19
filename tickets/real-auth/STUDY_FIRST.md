@@ -61,9 +61,29 @@ Key behavioral facts:
 
 ## 3. Dependencies & versions (already in `package.json`)
 
-- `better-auth@^1.6.11` — the auth framework. Ships `passkey`,
-  `magicLink`, `twoFactor`, `apiKey`, `admin`, `phoneNumber` plugins
-  out of the box. We use the first four; not `phoneNumber`.
+> **Architect's note (2026-07-19):** §3 originally claimed better-auth
+> "ships `passkey` ... `apiKey` ... out of the box." That was factually
+> wrong — those two plugins ship as separate `@better-auth/*` scoped
+> packages, not in the main `better-auth` bundle. The correction is
+> wording only; the plan's *intent* (use passkey, magicLink,
+> twoFactor.backupCodes, apiKey) is unchanged. See
+> `tickets/real-auth/notes/arch-decision-passkey-and-related.md` for
+> the full decision and the API-name corrections T-20/T-30/T-51/T-52
+> implementers must apply.
+
+- `better-auth@^1.6.23` — the auth framework. The main bundle ships
+  `magicLink`, `twoFactor`, `admin`, `phoneNumber` (and other) plugins
+  in-box under `better-auth/plugins`. We use `magicLink` and
+  `twoFactor`; not `phoneNumber`.
+- `@better-auth/passkey@^1.6.23` — the passkey plugin, shipped as a
+  separate first-party scoped package (same maintainers, same GitHub
+  monorepo, SLSA-provenance-attested, `peerDependencies:
+  better-auth@^1.6.23`). Import: `import { passkey } from '@better-auth/passkey'`.
+  Brings `@simplewebauthn/server` + `@simplewebauthn/browser` as
+  transitive runtime deps. Demo mode never imports it.
+- `@better-auth/api-key@^1.6.23` — the API-key plugin, same provenance.
+  Import: `import { apiKey } from '@better-auth/api-key'`. Runtime dep:
+  `zod` only (already present). Demo mode never imports it.
 - `better-sqlite3@^12.10.0` — file-backed SQLite, shared with the VFS.
 - `@modelcontextprotocol/server@2.0.0-beta.3` — MCP SDK server side.
   Exposes `inputRequired`, `inputRequired.elicit`, `acceptedContent`,
@@ -161,10 +181,17 @@ reproduces today's behavior exactly.
 
 ### `[C-MODE]` — `AuthMode` type
 
+> **Architect's note (2026-07-19, post-T-10 review):** T-10's
+> "specifically" block expanded this contract with `'sendgrid'` in
+> `OtpTransportKind` and `dbBackend`/`dbUrl`/`dbAuthToken` fields in
+> `AuthConfig` (forward-looking slots for T-80/T-81). The amendment
+> below brings the contract in line with the shipped implementation.
+> No intent change — only added type surface.
+
 ```ts
 // src/shared/authMode.ts  (new file, created in T-10)
 export type AuthMode = 'demo' | 'real';
-export type OtpTransportKind = 'console' | 'webhook' | 'custom';
+export type OtpTransportKind = 'console' | 'webhook' | 'sendgrid' | 'custom';
 
 export interface AuthConfig {
   mode: AuthMode;
@@ -186,6 +213,11 @@ export interface AuthConfig {
   // dialect. Default in T-12/T-20: undefined (open better-sqlite3
   // at `dbPath`).
   databaseBackend?: AuthDatabase;       // see [C-DB]
+  // DB backend selector (T-81). 'sqlite' default; 'd1'/'turso'/'postgres'/'custom'
+  // require `dbUrl`. 'custom' uses `databaseBackend` directly.
+  dbBackend: 'sqlite' | 'd1' | 'turso' | 'postgres' | 'custom';
+  dbUrl?: string;                       // required when dbBackend !== 'sqlite'
+  dbAuthToken?: string;                  // for D1 / Turso
 }
 export function loadAuthConfig(baseURL: string): AuthConfig;
 ```
@@ -319,6 +351,17 @@ with the auth tools — T-40 + T-44 document the discovery contract.
 
 ### `[C-PL]` — Pending-login store
 
+> **Architect's note (2026-07-19, post-T-11 review):** T-11's
+> "specifically" block expanded this contract with `cookieHeaders`
+> on `PendingLogin` and the `peekMostRecentPendingLogin` / `sweep`
+> functions. The amendment below brings the contract in line with
+> the shipped implementation. The mutation-on-returned-reference
+> pattern (T-11 returns the same object stored in the `Map`, so the
+> auth tool sets `sessionId` / `cookieHeaders` by direct mutation) is
+> confirmed acceptable — no `setSessionId` setter is added. See the
+> T-11 review note and `arch-decision-passkey-and-related.md`
+> Correction 3 for the `[C-PL]` impact analysis.
+
 ```ts
 // src/shared/pendingLogin.ts  (new file, created in T-11)
 export interface PendingLogin {
@@ -326,14 +369,22 @@ export interface PendingLogin {
   userId: string;        // better-auth user id
   expiresAt: number;     // epoch ms, NOW + 5 min
   sessionId?: string;    // better-auth session id (set after signInEmail)
+  cookieHeaders?: string[]; // Set-Cookie headers from signInEmail (asResponse: true)
 }
 export function createPendingLogin(userId: string): PendingLogin;
 export function consumePendingLogin(nonce: string): PendingLogin | null;
 export function peekPendingLogin(nonce: string): PendingLogin | null;  // for /sign-in polling
+export function peekMostRecentPendingLogin(): PendingLogin | null;      // /sign-in fallback: most recent entry with sessionId set
+export function sweep(): number;                                       // removes expired entries; returns count removed
 ```
 
 - In-process `Map<string, PendingLogin>` with TTL sweep on each call.
 - `consumePendingLogin` is destructive (one-shot).
+- `createPendingLogin` returns the **same object reference** stored in
+  the `Map`; the auth tool mutates `sessionId` / `cookieHeaders` on
+  it after `signInEmail` succeeds. `/sign-in` (T-22) then reads those
+  fields via `consume` or `peek`. No `setSessionId` setter — the
+  mutation pattern is the mechanism.
 - No persistence — a server restart drops pending logins; the LLM
   just retries the signup tool.
 
@@ -432,14 +483,20 @@ if (!existing) {
 
 ### `[C-APIKEY]` — Long-lived API key contract
 
-- Issued by `auth_rotate_apikey` (T-52) via better-auth's `apiKey`
-  plugin.
+- Issued by `auth_rotate_apikey` (T-52) via the `@better-auth/api-key`
+  plugin (separate scoped package; see §3).
 - The LLM stores the returned key and uses it on subsequent runs as
   `Authorization: Bearer mcp_...` against `/mcp`.
-- T-00 must confirm whether the `apiKey` plugin integrates with the
-  `mcp` OIDC plugin's token endpoint, or whether `tokenVerifier` must
-  be extended in T-30 to also accept API keys directly. If the latter,
-  T-30 grows to ~+30 lines; flag in the T-30 ticket notes after T-00.
+- T-00 confirmed the MCP plugin's token endpoint does NOT accept API
+  keys (only OAuth grants). Therefore `tokenVerifier` (T-30) MUST be
+  extended with an API-key fallthrough that calls
+  `auth.api.verifyApiKey({ body: { key } })` directly — this is
+  T-30 "Outcome B." Verify exact API names and response shape
+  (`{ valid, error, key }`) against
+  `node_modules/@better-auth/api-key/dist/index.d.mts` before coding;
+  see `arch-decision-passkey-and-related.md` §3 for the confirmed
+  method names (`createApiKey` / `verifyApiKey` / `deleteApiKey`,
+  NOT `apiKey.create` / `apiKey.verify` / `apiKey.revoke`).
 
 ## 8. Behavioral invariants (must not break)
 

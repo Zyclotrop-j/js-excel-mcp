@@ -7,6 +7,40 @@
 - **Output:** `src/tools/auth/addPasskey.ts`, re-exported from
   `src/tools/auth/index.ts`
 
+> **Architect's note (2026-07-19, amended post-T-02):** Read
+> `tickets/real-auth/notes/arch-decision-passkey-and-related.md`
+> before coding. The passkey plugin ships as `@better-auth/passkey`
+> (separate package). **The API names in the code examples below are
+> wrong** — `auth.api.passkey.register` and `auth.api.passkey.verify`
+> do not exist. **Correction 1 (post-T-02):** `addPasskey` and
+> `signInPasskey` also do NOT exist in `@better-auth/passkey@1.6.23`
+> (0 occurrences in `index.mjs`). The confirmed server API (verified
+> by T-02's researcher against the installed `index.mjs` / `.d.mts`)
+> is:
+> - `auth.api.generatePasskeyRegistrationOptions({ context? })` —
+>   generates WebAuthn registration options (the challenge).
+> - `auth.api.verifyPasskeyRegistration({ body: { name?, attestationResponse, context? }, headers })` —
+>   verifies the attestation and stores the passkey. **Returns the
+>   `Passkey` row; does NOT create a session.** (This is the
+>   replacement for the non-existent `addPasskey`.)
+> - `auth.api.generatePasskeyAuthenticationOptions({ context? })` —
+>   generates WebAuthn authentication options (the challenge).
+> - `auth.api.verifyPasskeyAuthentication({ body: { assertionResponse, context? }, headers })` —
+>   authenticates an existing passkey. **Returns `{ session, user }`.**
+>   (This is the replacement for the non-existent `signInPasskey`.)
+> - `auth.api.listPasskeys`, `auth.api.deletePasskey`,
+>   `auth.api.updatePasskey` — docs-mentioned but NOT confirmed by
+>   T-02's spike. Verify against the installed `.d.ts` before coding.
+>
+> The challenge shape and the exact attestation-response /
+> assertion-response body fields must be confirmed from the
+> installed `.d.ts` — do not guess from the code sketch below.
+> **Note:** since `verifyPasskeyRegistration` returns no session,
+> T-51 (which attaches a passkey to an already-authenticated user)
+> does NOT need a session — the caller already has one. But T-41
+> (passkey-first signup) DOES need a session and must handle this —
+> see the architect's note on `T-41-auth-signup-tool.md`.
+
 ## Goal
 
 A tool the LLM calls from the authenticated `/mcp` endpoint to

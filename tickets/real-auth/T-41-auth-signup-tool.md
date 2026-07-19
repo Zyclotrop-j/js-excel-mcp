@@ -10,6 +10,82 @@
 - **Blocks:** T-42, T-43 (they share the elicitation pattern + the
   pending-login handoff contract)
 
+> **Architect's note (2026-07-19, amended post-T-02):** Read
+> `tickets/real-auth/notes/arch-decision-passkey-and-related.md`
+> before coding. Three corrections from T-02's researcher (verified
+> against `@better-auth/passkey@1.6.23` `index.mjs` / `.d.mts`):
+>
+> **Correction 1 — Passkey API names:** `addPasskey` and
+> `signInPasskey` do NOT exist in the installed package. The
+> confirmed server API is:
+> - `auth.api.generatePasskeyRegistrationOptions({ context? })` —
+>   the WebAuthn registration challenge.
+> - `auth.api.verifyPasskeyRegistration({ body: { name?, attestationResponse, context? }, headers })` —
+>   verifies the attestation and stores the passkey. **Returns the
+>   `Passkey` row; does NOT create a session.**
+> - `auth.api.generatePasskeyAuthenticationOptions({ context? })` —
+>   the WebAuthn authentication challenge.
+> - `auth.api.verifyPasskeyAuthentication({ body: { assertionResponse, context? }, headers })` —
+>   authenticates an existing passkey. **Returns `{ session, user }`.**
+>
+> **Correction 3 — Two-ceremony passkey signup (DESIGN CHOICE for
+> T-41):** `verifyPasskeyRegistration` returns the `Passkey` row but
+> NO session. `verifyPasskeyAuthentication` returns `{ session, user }`.
+> This means T-41's passkey-first signup path (the `credentialType ===
+> 'passkey'` branch) needs EITHER:
+> - **(a) Two WebAuthn ceremonies in one tool call:** register via
+>   `verifyPasskeyRegistration` (creates user + passkey, no session),
+>   then immediately authenticate via `verifyPasskeyAuthentication`
+>   (creates session). This requires the client to perform
+>   `navigator.credentials.create` THEN `navigator.credentials.get` in
+>   a single `auth_signup` elicitation round. **Downside:** two
+>   WebAuthn ceremonies in one signup is poor UX for an LLM-mediated
+>   flow, and the elicitation schema must carry both the attestation
+>   and assertion responses.
+> - **(b) Server-side session bootstrap after registration:**
+>   register via `verifyPasskeyRegistration` (creates user + passkey,
+>   no session), then create a session directly from the `userId` on
+>   the returned `Passkey` row using better-auth's session creation
+>   API (NOT a second WebAuthn ceremony). The implementer must confirm
+>   the exact API name against the installed `.d.ts` — likely
+>   `auth.api.createSession({ userId, ... })` or similar. **Downside:**
+>   bypasses WebAuthn authentication for the initial session, which is
+>   acceptable because the passkey was JUST verified — the user
+>   demonstrated possession of the authenticator moments ago.
+>
+> **Recommendation:** Path (b) is cleaner for an LLM-mediated flow
+> (one ceremony, not two). But the implementer should verify the
+> better-auth session-creation API exists and is callable server-side
+> before committing to it. If it doesn't exist or is awkward, fall
+> back to path (a). Document the chosen path in the PR description.
+>
+> **`[C-PL]` impact analysis (Correction 3):** The T-11
+> `pendingLogin.ts` implementation returns the **same object
+> reference** it stores in the module-level `Map` (confirmed by
+> reading `src/shared/pendingLogin.ts` lines 60-69 and the docstring
+> at lines 55-58). The auth tool mutates `sessionId` and
+> `cookieHeaders` on that reference after the session is created
+> (via either path (a)'s `verifyPasskeyAuthentication` or path (b)'s
+> server-side bootstrap). **Therefore `[C-PL]` does NOT need a
+> `setSessionId` setter** — the mutation pattern is the mechanism, and
+> it works for ANY session-creation path. The pending-login store's
+> existing `createPendingLogin(userId)` → mutate-returned-reference
+> → `consume`/`peek` flow is sufficient. No `[C-PL]` amendment
+> required.
+>
+> **Correction 4 — `name` is required:** The user row's `name` column
+> is `NOT NULL` and `PasskeyRegistrationUser` requires `name`. T-41
+> must collect `name` via elicitation for passkey-only accounts.
+> **Already covered:** T-41's `signupSchema` has
+> `name: z.string().min(1)` (NOT optional), and `[C-ELICIT]` in
+> `STUDY_FIRST.md` §7 shows the same schema with `name: z.string().min(1)`.
+> The cross-field validation in the ticket body only adds password /
+> email rules; `name` is always required by the schema. **No action
+> needed** — the implementer just needs to pass `name` through to
+> `verifyPasskeyRegistration` (or `signUpEmail` for the password
+> path). Confirm the passkey registration options body accepts `name`
+> against the installed `.d.ts`.
+
 ## Goal
 
 The MCP tool an unauthenticated LLM calls to sign up a new user.
