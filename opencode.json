@@ -4,6 +4,33 @@
     "my-server": {
       "type": "remote",
       "url": "http://localhost:3000/mcp"
+    },
+    "llm-bus": {
+      "type": "remote",
+      "url": "http://127.0.0.1:8787/mcp",
+      "headers": {
+        "Authorization": "Bearer NOEtl13chk4xtE906QmmLyPl1KIqrBAcbwLprLoUPCw"
+      }
+    },
+    "agent-nexus": {
+      "type": "remote",
+      "url": "http://127.0.0.1:10086/mcp"
+    },
+    "network-ai": {
+      "type": "local",
+      "command": ["npx", "-y", "-p", "network-ai", "network-ai-server", "--stdio"]
+    },
+    "serena": {
+      "type": "local",
+      "command": ["C:\\Users\\Janne\\.local\\bin\\serena.exe", "start-mcp-server", "--context", "ide-assistant", "--project", "C:\\Users\\Janne\\scripts\\js-excel-mcp"]
+    },
+    "codegraphcontext": {
+      "type": "local",
+      "command": ["C:\\Users\\Janne\\.local\\bin\\codegraphcontext.exe", "mcp", "start"]
+    },
+    "llm-council": {
+      "type": "local",
+      "command": ["python", "C:\\Users\\Janne\\scripts\\llm-council\\mcp_server\\mcp_server.py"]
     }
   }
 }
