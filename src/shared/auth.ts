@@ -271,8 +271,8 @@ function buildRealAuth(cfg: AuthConfig, opts: CreateAuthOptions): Auth {
     // Passkey — per T-02 §3.3 (worked spike). registration.requireSession:
     // false + registration.resolveUser for passkey-first signup.
     const passkeyPlugin = passkey({
-        rpID: 'localhost',
-        rpName: 'js-excel-mcp Auth',
+        rpID: cfg.passkeyRpID,
+        rpName: cfg.passkeyRpName,
         origin: baseURL,
         registration: {
             requireSession: false,

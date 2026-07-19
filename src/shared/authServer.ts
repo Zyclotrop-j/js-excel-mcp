@@ -1,10 +1,10 @@
 /**
- * Better Auth Server Setup for MCP Demo
+ * Better Auth Server Setup for MCP
  *
- * DEMO ONLY - NOT FOR PRODUCTION
- *
- * This creates a standalone OAuth Authorization Server using better-auth
- * that MCP clients can use to obtain access tokens.
+ * Creates a standalone OAuth Authorization Server using better-auth
+ * that MCP clients can use to obtain access tokens. Supports both
+ * demo mode (hardcoded credentials, loopback-only) and real mode
+ * (configurable CORS, bind host, pending-login handoff).
  *
  * See: https://www.better-auth.com/docs/plugins/mcp
  */
@@ -19,16 +19,14 @@ import type { NextFunction, Request, Response as ExpressResponse, Router } from 
 import express from 'express';
 
 import type { DemoAuth } from './auth.js';
-import { createDemoAuth, DEMO_USER_CREDENTIALS } from './auth.js';
+import { createAuth, DEMO_USER_CREDENTIALS } from './auth.js';
 import type { AuthConfig } from './authMode.js';
 
 export interface SetupAuthServerOptions {
     authServerUrl: URL;
     mcpServerUrl: URL;
-    /**
-     * Examples should be used for **demo** only and not for production purposes, however this mode disables some logging and other features.
-     */
-    demoMode: boolean;
+    /** Auth configuration loaded from `process.env` by `loadAuthConfig` in `authMode.ts`. */
+    authConfig: AuthConfig;
     /**
      * Enable verbose logging of better-auth requests/responses.
      * WARNING: This may log sensitive information like tokens and cookies.
@@ -49,16 +47,9 @@ export interface SetupAuthServerOptions {
      * The `examples/oauth/` server enables this when
      * `OAUTH_DEMO_AUTO_CONSENT=1` so the CI client (`client.ts`) can drive the
      * full browser flow without a browser. NEVER enable in production.
+     * Ignored unless `authConfig.mode === 'demo'`.
      */
     autoConsent?: boolean;
-    /**
-     * Auth configuration loaded from `process.env` by `loadAuthConfig` in
-     * `authMode.ts` (see `tickets/real-auth/T-10-env-and-config.md`). Carries
-     * the mode switch and all derived settings. T-21 will make this the primary
-     * input and remove `demoMode`; for now `authServer.ts` still derives
-     * `demoMode` from the existing field, so passing both is harmless.
-     */
-    authConfig?: AuthConfig;
 }
 
 // Store auth instance globally so it can be used for token verification
@@ -113,14 +104,13 @@ async function ensureDemoUserExists(auth: DemoAuth): Promise<void> {
  * @param options - Server configuration
  */
 export function setupAuthServer(options: SetupAuthServerOptions): void {
-    const { authServerUrl, mcpServerUrl, demoMode, dangerousLoggingEnabled = false, autoConsent = false } = options;
+    const { authServerUrl, mcpServerUrl, authConfig, dangerousLoggingEnabled = false, autoConsent = false } = options;
 
-    // Create better-auth instance with MCP plugin
-    const auth = createDemoAuth({
+    // Create better-auth instance via mode dispatcher
+    const auth = createAuth(authConfig, {
         baseURL: authServerUrl.toString().replace(/\/$/, ''),
         resource: mcpServerUrl.toString(),
         loginPage: '/sign-in',
-        demoMode: demoMode
     });
 
     // Store globally for token verification
@@ -129,13 +119,10 @@ export function setupAuthServer(options: SetupAuthServerOptions): void {
     // Create Express app for auth server
     const authApp = express();
 
-    // Enable CORS for all origins (demo only) - must be before other middleware
-    // WARNING: This configuration is for demo purposes only. In production, you should restrict this to specific origins and configure CORS yourself.
-    authApp.use(
-        cors({
-            origin: '*' // WARNING: This allows all origins to access the auth server. In production, you should restrict this to specific origins.
-        })
-    );
+    // CORS — demo allows all origins; real uses the explicit list from authConfig.
+    // The `cors` package accepts string or string[].
+    const corsOrigin = authConfig.mode === 'demo' ? '*' : authConfig.corsOrigins;
+    authApp.use(cors({ origin: corsOrigin }));
 
     // Create better-auth handler
     // toNodeHandler bypasses Express methods
@@ -175,7 +162,8 @@ export function setupAuthServer(options: SetupAuthServerOptions): void {
     // `prompt` from the query before it reaches better-auth so its authorize
     // handler takes the no-consent fast path and 302s straight back to
     // `redirect_uri?code=...`. See {@link SetupAuthServerOptions.autoConsent}.
-    if (autoConsent) {
+    // Force-disabled in real mode: `prompt=consent` must reach better-auth.
+    if (authConfig.mode === 'demo' && autoConsent) {
         authApp.use((req: Request, _res: ExpressResponse, next: NextFunction) => {
             const qmark = req.url.indexOf('?');
             if (req.path === '/api/auth/mcp/authorize' && qmark !== -1) {
@@ -242,11 +230,11 @@ export function setupAuthServer(options: SetupAuthServerOptions): void {
 
     // OAuth metadata endpoints using better-auth's built-in handlers
     // Add explicit OPTIONS handler for CORS preflight
-    authApp.options('/.well-known/oauth-authorization-server', cors());
+    authApp.options('/.well-known/oauth-authorization-server', cors({ origin: corsOrigin }));
     // Wrap better-auth's metadata to advertise RFC 9207 support (the `iss` middleware
     // above makes that claim true).
     const discoveryHandler = oAuthDiscoveryMetadata(auth);
-    authApp.get('/.well-known/oauth-authorization-server', cors(), async (req: Request, res: ExpressResponse) => {
+    authApp.get('/.well-known/oauth-authorization-server', cors({ origin: corsOrigin }), async (req: Request, res: ExpressResponse) => {
         const upstream = await discoveryHandler(new Request(new URL(req.originalUrl, issuer)));
         const body = (await upstream.json()) as Record<string, unknown>;
         body.authorization_response_iss_parameter_supported = true;
@@ -257,9 +245,14 @@ export function setupAuthServer(options: SetupAuthServerOptions): void {
     authApp.use(express.json());
     authApp.use(express.urlencoded({ extended: true }));
 
-    // Auto-login page that creates a real better-auth session
-    // This simulates a user logging in and approving the OAuth request
-    authApp.get('/sign-in', async (req: Request, res: ExpressResponse) => {
+    // -----------------------------------------------------------------------
+    // /sign-in route — mode-branched
+    // Demo: auto-login as the demo user (byte-for-byte identical to pre-T-21).
+    // Real: T-22 fills the pending-login-aware handler; this is a stub.
+    // -----------------------------------------------------------------------
+
+    // Demo handler — extracted verbatim from the inline route body.
+    const demoSignInHandler = async (req: Request, res: ExpressResponse): Promise<void> => {
         // Get the OAuth authorization parameters from the query string
         const queryParams = new URLSearchParams(req.query as Record<string, string>);
         const redirectUri = queryParams.get('redirect_uri');
@@ -330,18 +323,36 @@ export function setupAuthServer(options: SetupAuthServerOptions): void {
                 </html>
             `);
         }
+    };
+
+    // Real handler — stub for T-22 to fill with pending-login-aware logic.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const realSignInHandler = async (_req: Request, res: ExpressResponse): Promise<void> => {
+        res.status(501).json({ error: 'Not Implemented', message: 'Real-mode /sign-in will be implemented in T-22' });
+    };
+
+    // Route branches on mode
+    authApp.get('/sign-in', async (req: Request, res: ExpressResponse) => {
+        if (authConfig.mode === 'demo') return demoSignInHandler(req, res);
+        return realSignInHandler(req, res);
     });
 
-    // Start the auth server, bound to loopback explicitly — this demo server is
-    // meant to be reached only from the same machine.
+    // Start the auth server — bind to loopback in demo, configurable in real.
     const authPort = Number.parseInt(authServerUrl.port, 10);
-    authApp.listen(authPort, 'localhost', (error?: Error) => {
+    authApp.listen(authPort, authConfig.bindHost, (error?: Error) => {
         if (error) {
             console.error('Failed to start auth server:', error);
             // eslint-disable-next-line unicorn/no-process-exit
             process.exit(1);
         }
-        console.log(`OAuth Authorization Server listening on port ${authPort}`);
+        const corsSummary = authConfig.mode === 'demo'
+            ? 'CORS *'
+            : `CORS=${authConfig.corsOrigins.length} origin${authConfig.corsOrigins.length !== 1 ? 's' : ''}`;
+        if (authConfig.mode === 'demo') {
+            console.log(`[Auth] mode=demo  (${authConfig.bindHost === 'localhost' ? 'loopback' : `bind=${authConfig.bindHost}`}, ${corsSummary}, autoConsent=${autoConsent ? 'on' : 'off'})`);
+        } else {
+            console.log(`[Auth] mode=real  (bind=${authConfig.bindHost}, ${corsSummary}, signup=${authConfig.allowUserSignup ? 'on' : 'off'}, backend=${authConfig.dbBackend})`);
+        }
         console.log(`  Authorization: ${authServerUrl}api/auth/mcp/authorize`);
         console.log(`  Token: ${authServerUrl}api/auth/mcp/token`);
         console.log(`  Metadata: ${authServerUrl}.well-known/oauth-authorization-server`);

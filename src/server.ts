@@ -30,16 +30,9 @@ const app = createMcpExpressApp();
 //
 // Auth config is loaded once at startup from `process.env` via the single
 // reader in `authMode.ts` (see `tickets/real-auth/T-10-env-and-config.md`).
-// `demoMode` is still derived from the existing field by `authServer.ts`; T-21
-// swaps it for `authConfig.mode === 'demo'`. For now both fields are passed.
+// T-21 makes `authConfig` the primary input to `setupAuthServer`.
 const authConfig = loadAuthConfig(baseUrl);
-console.log(
-    `[Auth] mode=${authConfig.mode}` +
-    (authConfig.mode === 'real'
-        ? ` (signup=${authConfig.allowUserSignup ? 'on' : 'off'}, backend=${authConfig.dbBackend})`
-        : '')
-);
-setupAuthServer({ authServerUrl, mcpServerUrl, demoMode: false, autoConsent: false, authConfig });
+setupAuthServer({ authServerUrl, mcpServerUrl, authConfig, autoConsent: false });
 
 
 // DEMO ONLY — restrict `origin` in production. `exposedHeaders` lists the

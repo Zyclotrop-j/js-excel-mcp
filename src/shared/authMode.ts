@@ -45,6 +45,10 @@ export interface AuthConfig {
     dbUrl?: string;
     /** For D1 / Turso. */
     dbAuthToken?: string;
+    /** Passkey relying-party ID. `'localhost'` (demo) | env `MCP_AUTH_PASSKEY_RP_ID` (real). */
+    passkeyRpID: string;
+    /** Passkey relying-party display name. Defaults to `'js-excel-mcp Auth'`. */
+    passkeyRpName: string;
 }
 
 /**
@@ -97,6 +101,8 @@ export function loadAuthConfig(baseURL: string): AuthConfig {
             trustedOrigins: [baseURL],
             otpTransport: 'console',
             dbBackend: 'sqlite',
+            passkeyRpID: process.env.MCP_AUTH_PASSKEY_RP_ID ?? 'localhost',
+            passkeyRpName: process.env.MCP_AUTH_PASSKEY_RP_NAME ?? 'js-excel-mcp Auth',
         };
     }
 
@@ -154,5 +160,7 @@ export function loadAuthConfig(baseURL: string): AuthConfig {
         dbBackend,
         dbUrl,
         dbAuthToken,
+        passkeyRpID: process.env.MCP_AUTH_PASSKEY_RP_ID ?? 'localhost',
+        passkeyRpName: process.env.MCP_AUTH_PASSKEY_RP_NAME ?? 'js-excel-mcp Auth',
     };
 }
