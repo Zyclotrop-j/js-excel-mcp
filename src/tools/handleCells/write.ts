@@ -4,6 +4,7 @@ import { bindValue, setFormula, cellValueAsString, getCoordinate } from '@office
 import type { SheetRef, Workbook } from '@office-kit/xlsx/workbook';
 import z from 'zod';
 import { Context } from '../../filesystem/context.js';
+import { detectSelfReference } from '../../util/detectSelfReference.js';
 
 const cellValueSchema = z.union([z.string(), z.number(), z.boolean(), z.null(), z.object({ kind: z.literal('error'), code: z.enum(['#NULL!', '#DIV/0!', '#VALUE!', '#REF!', '#NAME?', '#NUM!', '#N/A', '#GETTING_DATA']) })]);
 
@@ -109,14 +110,21 @@ export class CellWriteHandler extends ToolHandler {
                 cell = getCellByCoord(ws, currentCell) ?? setCellByCoord(ws, currentCell, null);
             }
 
+            const ref = getCoordinate(cell);
+            const warnings = detectSelfReference(arg.formula, ref);
+
             setFormula(cell, arg.formula);
             await context.setWorkbook(filename, wb);
-            const ref = getCoordinate(cell);
             await context.setCurrentCell(ref);
 
+            const warningText = warnings.length > 0 ? ` (warning: ${warnings.join('; ')})` : '';
             return context.contextualiseResponse({
-                content: [{ type: 'text', text: `formula '${arg.formula}' set on cell ${ref}` }],
-                structuredContent: { ref, formula: arg.formula }
+                content: [{ type: 'text', text: `formula '${arg.formula}' set on cell ${ref}${warningText}` }],
+                structuredContent: {
+                    ref,
+                    formula: arg.formula,
+                    ...(warnings.length > 0 ? { warnings } : {})
+                }
             });
         });
 

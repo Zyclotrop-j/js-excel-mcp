@@ -33,6 +33,7 @@ import bug1HydrateTests from './integration/bug1-hydrate.test.js';
 import bug2CellValueRuleTests from './integration/bug2-cell-value-rule.test.js';
 import bug3RichTextTests from './integration/bug3-rich-text.test.js';
 import bug4CloseWorkbookTests from './integration/bug4-close-workbook.test.js';
+import bug5CfTableRepairTests from './integration/bug5-cf-table-repair.test.js';
 
 workbookFlow(test);
 sheetOpsFlow(test);
@@ -62,6 +63,7 @@ bug1HydrateTests(test);
 bug2CellValueRuleTests(test);
 bug3RichTextTests(test);
 bug4CloseWorkbookTests(test);
+bug5CfTableRepairTests(test);
 
 !(async function () {
     const ok = await test.run();

@@ -1,5 +1,5 @@
 import { ToolHandler } from './interface.js';
-import { addExcelTable, makeAutoFilter, type Worksheet } from '@office-kit/xlsx/worksheet';
+import { addExcelTable, makeAutoFilter, setAutoFilter, getAutoFilter, type Worksheet } from '@office-kit/xlsx/worksheet';
 import type { SheetRef, Workbook } from '@office-kit/xlsx/workbook';
 import z from 'zod';
 import { Context } from '../filesystem/context.js';
@@ -23,6 +23,7 @@ export class TableHandler extends ToolHandler {
             name: z.string().optional(),
             range: z.string().optional(),
             action: z.literal('created').optional(),
+            clearedAutoFilter: z.boolean().optional(),
             context: context.contextualiseResponseTypes()
         }), annotations: {
             destructiveHint: false,
@@ -45,18 +46,29 @@ export class TableHandler extends ToolHandler {
             if (!sheet || sheet.kind !== 'worksheet') return context.contextualiseResponse({ content: [{ type: 'text', text: `sheet '${sheetName}' not found` }], isError: true });
             const ws: Worksheet = sheet.sheet;
 
+            const existingAutoFilter = getAutoFilter(ws);
+            let clearedAutoFilter = false;
+            if (existingAutoFilter && existingAutoFilter.ref === arg.range) {
+                setAutoFilter(ws, undefined);
+                clearedAutoFilter = true;
+            }
+
             addExcelTable(wb, ws, { name: arg.name, ref: arg.range, columns: arg.columns, style: arg.style });
 
             await context.setWorkbook(filename, wb);
 
+            const note = clearedAutoFilter
+                ? ` (also cleared a redundant sheet-level autoFilter on '${arg.range}' — tables carry their own filter)`
+                : '';
             return context.contextualiseResponse({
-                content: [{ type: 'text', text: `table '${arg.name}' created in range '${arg.range}' on sheet '${sheetName}' in workbook '${filename}'` }],
+                content: [{ type: 'text', text: `table '${arg.name}' created in range '${arg.range}' on sheet '${sheetName}' in workbook '${filename}'${note}` }],
                 structuredContent: {
                     filename,
                     sheet: sheetName,
                     name: arg.name,
                     range: arg.range,
-                    action: 'created'
+                    action: 'created',
+                    ...(clearedAutoFilter ? { clearedAutoFilter: true } : {})
                 }
             });
         });

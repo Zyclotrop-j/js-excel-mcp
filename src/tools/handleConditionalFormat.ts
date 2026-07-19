@@ -1,6 +1,7 @@
 import { ToolHandler } from './interface.js';
-import { addConditionalFormatting, makeConditionalFormatting, makeCfRule, type Worksheet } from '@office-kit/xlsx/worksheet';
+import { addConditionalFormatting, makeConditionalFormatting, makeCfRule, type ConditionalFormatting, type Worksheet } from '@office-kit/xlsx/worksheet';
 import type { SheetRef, Workbook } from '@office-kit/xlsx/workbook';
+import { addDxf, makeDifferentialStyle, makePatternFill } from '@office-kit/xlsx/styles';
 import z from 'zod';
 import { Context } from '../filesystem/context.js';
 
@@ -54,7 +55,8 @@ export class ConditionalFormatHandler extends ToolHandler {
                 `<color rgb="${lowColor}"/><color rgb="${midColor}"/><color rgb="${highColor}"/>` +
                 '</colorScale>';
 
-            const rule = makeCfRule({ type: 'colorScale', priority: 1, formulas: [], innerXml });
+            const existingRuleCount = ws.conditionalFormatting.reduce((sum: number, cf: ConditionalFormatting) => sum + cf.rules.length, 0);
+            const rule = makeCfRule({ type: 'colorScale', priority: existingRuleCount + 1, formulas: [], innerXml });
             const cf = makeConditionalFormatting({ sqref: arg.range, rules: [rule] });
             addConditionalFormatting(ws, cf);
             await context.setWorkbook(filename, wb);
@@ -74,7 +76,7 @@ export class ConditionalFormatHandler extends ToolHandler {
             workbook: z.string().optional(),
             sheet: z.string().optional(),
             range: z.string(),
-            operator: z.enum(['greaterThan', 'lessThan', 'equal', 'between']),
+            operator: z.enum(['lessThan', 'lessThanOrEqual', 'equal', 'notEqual', 'greaterThanOrEqual', 'greaterThan', 'between', 'notBetween']), 
             value: z.union([z.string(), z.number(), z.boolean()]),
             value2: z.union([z.string(), z.number(), z.boolean()]).optional(),
             fillColor: z.string().optional()
@@ -106,12 +108,24 @@ export class ConditionalFormatHandler extends ToolHandler {
 
             const valueStr = String(arg.value);
             const value2Str = arg.value2 !== undefined ? String(arg.value2) : undefined;
+            const formulas = ['between', 'notBetween'].includes(arg.operator) && value2Str !== undefined
+                ? [valueStr, value2Str]
+                : [valueStr];
 
-            const innerXml = arg.operator === 'between' && value2Str
-                ? `<cellIs priority="1" operator="${arg.operator}"><formula>${valueStr}</formula><formula>${value2Str}</formula></cellIs>`
-                : `<cellIs priority="1" operator="${arg.operator}"><formula>${valueStr}</formula></cellIs>`;
+            let dxfId: number | undefined;
+            if (arg.fillColor !== undefined) {
+                const dxf = makeDifferentialStyle({ fill: makePatternFill({ patternType: 'solid', fgColor: arg.fillColor }) });
+                dxfId = addDxf(wb.styles, dxf);
+            }
 
-            const rule = makeCfRule({ type: 'cellIs', priority: 1, formulas: [], innerXml });
+            const existingRuleCount = ws.conditionalFormatting.reduce((sum: number, cf: ConditionalFormatting) => sum + cf.rules.length, 0);
+            const rule = makeCfRule({
+                type: 'cellIs',
+                priority: existingRuleCount + 1,
+                operator: arg.operator,
+                formulas,
+                ...(dxfId !== undefined ? { dxfId } : {})
+            });
             const cf = makeConditionalFormatting({ sqref: arg.range, rules: [rule] });
             addConditionalFormatting(ws, cf);
             await context.setWorkbook(filename, wb);
