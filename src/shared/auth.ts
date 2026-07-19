@@ -1,48 +1,126 @@
 /**
- * Better Auth configuration for MCP demo servers
+ * Better Auth mode dispatcher + builders.
  *
- * DEMO ONLY - NOT FOR PRODUCTION
+ * `createAuth(cfg, opts)` routes to either `buildDemoAuth` (unchanged
+ * behaviour, hardcoded SQLite at `cfg.dbPath`) or `buildRealAuth` (wires
+ * passkey, magicLink, twoFactor.backupCodes, apiKey plugins).
  *
- * This configuration uses a file-backed SQLite database at `data/_auth.db`
- * and auto-approves all logins. For production use, configure a proper
- * database and authentication flow.
+ * Demo mode (`MCP_AUTH_MODE` unset or `demo`) is byte-for-byte identical
+ * to pre-T-20 `main` — see `STUDY_FIRST.md` §8.1.
  */
 
-import type { BetterAuthOptions } from 'better-auth';
 import { betterAuth } from 'better-auth';
 import { mcp } from 'better-auth/plugins';
-import Database from 'better-sqlite3';
+import { passkey } from '@better-auth/passkey';
+import { magicLink } from 'better-auth/plugins';
+import { twoFactor } from 'better-auth/plugins';
+import { apiKey } from '@better-auth/api-key';
 
-import { DEMO_SECRET } from './authMode.js';
+import type { AuthConfig } from './authMode.js';
+import { DEMO_SECRET, loadAuthConfig } from './authMode.js';
+import type { AuthDatabase } from './authDatabase/index.js';
 import { openSqliteAuthDatabase } from './authDatabase/sqliteAuthDatabase.js';
+import { resolveMailer } from './mailer.js';
+import { emailOptionalPlugin } from './emailOptionalPlugin.js';
 
-// The demo password is the single hardcoded credential committed to source for
-// demo builds only (per the demo-only posture of this auth server). Auto-login
-// `/sign-in` uses it; the auth server binds to 'localhost' in `authServer.ts`
-// so the credential is not reachable from outside the host. It does NOT rotate
-// per server start. The value lives in `authMode.ts` as `DEMO_SECRET` so that
-// `loadAuthConfig` can return it as the demo `secret` without a second source
-// of truth.
+// ---------------------------------------------------------------------------
+// Shared types
+// ---------------------------------------------------------------------------
 
-// Open the database once (module-level singleton) — file-backed SQLite at
-// `data/_auth.db` so demo sessions persist across server restarts. This avoids
-// re-creating the schema on every server start.
-let _db: InstanceType<typeof Database> | null = null;
-
-function getDatabase(): InstanceType<typeof Database> {
-    if (!_db) {
-        const authDb = openSqliteAuthDatabase('data/_auth.db', 'demo');
-        authDb.initializeSchema('demo');
-        _db = authDb.betterAuthHandle as InstanceType<typeof Database>;
-        console.log('[Auth] Database schema initialized (data/_auth.db)');
-        console.log('[Auth] ========================================');
-        console.log('[Auth] Demo user credentials (auto-login):');
-        console.log(`[Auth]   Email:    ${DEMO_USER_CREDENTIALS.email}`);
-        console.log(`[Auth]   Password: ${DEMO_USER_CREDENTIALS.password}`);
-        console.log('[Auth] ========================================');
-    }
-    return _db;
+export interface CreateAuthOptions {
+    baseURL: string;
+    /** The MCP resource server URL (for protected resource metadata). */
+    resource?: string;
+    /** Path to login page (defaults to /sign-in). */
+    loginPage?: string;
 }
+
+/**
+ * Backward-compatible options shape used by `authServer.ts`'s current
+ * `createDemoAuth(...)` call.  Kept until T-21 migrates `authServer.ts`
+ * to `createAuth(cfg, opts)`.
+ */
+export interface CreateDemoAuthOptions {
+    baseURL: string;
+    resource?: string;
+    loginPage?: string;
+    /** @deprecated Ignored after T-20; kept for call-site compat. */
+    demoMode?: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// `Auth` structural type — superset of what both demo and real need.
+//
+// better-auth's inferred return type references non-exported interfaces
+// across module boundaries (TS4058). We declare only the members consumers
+// actually use; `betterAuth(...)` is structurally compatible.
+// ---------------------------------------------------------------------------
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyFn = (...args: any[]) => any;
+
+/**
+ * Structural type for the auth instance returned by `createAuth` (and
+ * therefore both `buildDemoAuth` and `buildRealAuth`).
+ *
+ * Real-mode methods (passkey, magicLink, twoFactor, apiKey, signOut) are
+ * included even though the demo instance won't have all of them — the
+ * `as unknown as Auth` cast is safe because callers gate on mode.
+ */
+export interface Auth {
+    /** Request handler — consumed by `toNodeHandler(auth)` from `better-auth/node`. */
+    handler: AnyFn;
+    api: {
+        /** Used by `authServer.ts` to create the demo user (accessed via `as any`). */
+        signUpEmail: AnyFn;
+        /** Used by `authServer.ts` `/sign-in` flow to create a session. */
+        signInEmail: AnyFn;
+        /** Used by `demoTokenVerifier.verifyAccessToken` (accessed via `as any`). */
+        getMcpSession: AnyFn;
+        /** Required by `oAuthDiscoveryMetadata(auth)` generic constraint. */
+        getMcpOAuthConfig: AnyFn;
+        /** Required by `oAuthProtectedResourceMetadata(auth)` generic constraint. */
+        getMCPProtectedResource: AnyFn;
+        /** Sign-out (used by T-50). */
+        signOut: AnyFn;
+
+        // -- Passkey (from @better-auth/passkey) --
+        generatePasskeyRegistrationOptions: AnyFn;
+        verifyPasskeyRegistration: AnyFn;
+        generatePasskeyAuthenticationOptions: AnyFn;
+        verifyPasskeyAuthentication: AnyFn;
+        listPasskeys: AnyFn;
+        deletePasskey: AnyFn;
+        updatePasskey: AnyFn;
+
+        // -- Magic-link (from better-auth/plugins) --
+        signInMagicLink: AnyFn;
+        magicLinkVerify: AnyFn;
+
+        // -- Two-factor / backup codes (from better-auth/plugins) --
+        enableTwoFactor: AnyFn;
+        disableTwoFactor: AnyFn;
+        verifyBackupCode: AnyFn;
+        generateBackupCodes: AnyFn;
+        viewBackupCodes: AnyFn;
+
+        // -- API key (from @better-auth/api-key) --
+        createApiKey: AnyFn;
+        verifyApiKey: AnyFn;
+        getApiKey: AnyFn;
+        updateApiKey: AnyFn;
+        deleteApiKey: AnyFn;
+        listApiKeys: AnyFn;
+        deleteAllExpiredApiKeys: AnyFn;
+    };
+}
+
+/** Back-compat alias — authServer.ts imports `DemoAuth`. */
+export type DemoAuth = Auth;
+
+// ---------------------------------------------------------------------------
+// Demo user credentials (kept for authServer.ts's `/sign-in` auto-login)
+// ---------------------------------------------------------------------------
 
 /**
  * Demo user credentials for auto-login. The password is the fixed value
@@ -56,39 +134,80 @@ export const DEMO_USER_CREDENTIALS = {
     name: 'Demo User'
 };
 
-interface CreateDemoAuthOptions {
-    baseURL: string;
-    resource?: string;
-    loginPage?: string;
-    demoMode: boolean;
+// ---------------------------------------------------------------------------
+// Database helper — single call site that knows about the default
+// ---------------------------------------------------------------------------
+
+/**
+ * Return the database adapter for the given config. If `cfg.databaseBackend`
+ * is set (T-81), use it directly; otherwise open a better-sqlite3 instance
+ * at `cfg.dbPath` and call `initializeSchema` on it.
+ */
+function getDatabase(cfg: AuthConfig): AuthDatabase {
+    if (cfg.databaseBackend) return cfg.databaseBackend;
+    const db = openSqliteAuthDatabase(cfg.dbPath, cfg.mode);
+    db.initializeSchema(cfg.mode);
+    return db;
 }
+
+// ---------------------------------------------------------------------------
+// Mode dispatcher
+// ---------------------------------------------------------------------------
+
+/**
+ * Create a better-auth instance for the given mode. This is the canonical
+ * entry point; `authServer.ts` (T-21) will migrate to this.
+ */
+export function createAuth(cfg: AuthConfig, opts: CreateAuthOptions): Auth {
+    if (cfg.mode === 'demo') return buildDemoAuth(cfg, opts);
+    return buildRealAuth(cfg, opts);
+}
+
+/**
+ * Backward-compatible `createDemoAuth` — matches the signature that
+ * `authServer.ts` currently calls. Builds a default demo `AuthConfig` from
+ * `process.env` and delegates to `buildDemoAuth`.
+ *
+ * @deprecated Use `createAuth(cfg, opts)` instead. Will be removed in T-21.
+ */
+export function createDemoAuth(options: CreateDemoAuthOptions): Auth {
+    const cfg = loadAuthConfig(options.baseURL);
+    return buildDemoAuth(cfg, {
+        baseURL: options.baseURL,
+        resource: options.resource,
+        loginPage: options.loginPage,
+    });
+}
+
+// ---------------------------------------------------------------------------
+// Demo builder — behaviour unchanged from pre-T-20
+// ---------------------------------------------------------------------------
 
 /**
  * Creates a better-auth instance configured for MCP OAuth demo.
  *
- * @param options - Configuration options
- * @param options.baseURL - The base URL for the auth server (e.g., http://localhost:3001)
- * @param options.resource - The MCP resource server URL (for protected resource metadata)
- * @param options.loginPage - Path to login page (defaults to /sign-in)
- *
- * @see https://www.better-auth.com/docs/plugins/mcp
+ * TS4058: The `betterAuth({...})` result transitively references the
+ * non-exported `MCPOptions` interface from `better-auth/dist/plugins/mcp`,
+ * which trips TS4058 across the module boundary. Fixed by casting the result
+ * to the explicit structural `Auth` type.
  */
-export function createDemoAuth(options: CreateDemoAuthOptions): DemoAuth {
-    // TS4058: `createDemoAuth`'s inferred return type transitively references
-    // the non-exported `MCPOptions` interface from `better-auth/dist/plugins/mcp`
-    // via the `mcp(...)` plugin parameter; TypeScript cannot name it across the
-    // module boundary. Fixed by annotating an explicit structural return type
-    // (`DemoAuth`) that lists only the members `authServer.ts` actually uses,
-    // and casting the `betterAuth({...})` result to it. The argument object is
-    // NOT cast — that would regress TS2559 + TS7006 on the `logger.log` params.
-    const { baseURL, resource, loginPage = '/sign-in', demoMode } = options;
+function buildDemoAuth(cfg: AuthConfig, opts: CreateAuthOptions): Auth {
+    const { baseURL, resource, loginPage = '/sign-in' } = opts;
 
-    // File-backed SQLite at data/_auth.db — see getDatabase(). Demo data
-    // currently persists across server restarts; clear data/_auth.db between
-    // demo runs to reset.
-    const db = getDatabase();
+    // File-backed SQLite at cfg.dbPath. Demo data persists across server
+    // restarts; delete the DB file between demo runs to reset.
+    const authDb = getDatabase(cfg);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = authDb.betterAuthHandle as any;
 
-    // MCP plugin configuration
+    console.log('[Auth] Database schema initialized (%s)', cfg.dbPath);
+    console.log('[Auth] ========================================');
+    console.log('[Auth] Demo user credentials (auto-login):');
+    console.log(`[Auth]   Email:    ${DEMO_USER_CREDENTIALS.email}`);
+    console.log(`[Auth]   Password: ${DEMO_USER_CREDENTIALS.password}`);
+    console.log('[Auth] ========================================');
+
+    // MCP plugin configuration — identical to what was here before T-20.
     const mcpPlugin = mcp({
         loginPage,
         resource,
@@ -108,59 +227,126 @@ export function createDemoAuth(options: CreateDemoAuthOptions): DemoAuth {
 
     return betterAuth({
         baseURL,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        database: db as any, // Type cast to avoid exposing better-sqlite3 in exported types
+        database: db,
         trustedOrigins: [baseURL.toString()],
-        // Basic email+password for demo
         emailAndPassword: {
             enabled: true,
             requireEmailVerification: false
         },
-        plugins: [mcpPlugin],
-        // Enable verbose logging for demo/debugging
-        logger: demoMode
-            ? {
-                  disabled: false,
-                  level: 'debug',
-                  log: (level, message, ...args) => {
-                      const timestamp = new Date().toISOString();
-                      const prefix = `[Auth ${level.toUpperCase()}]`;
-                      if (args.length > 0) {
-                          console.log(`${timestamp} ${prefix} ${message}`, ...args);
-                      } else {
-                          console.log(`${timestamp} ${prefix} ${message}`);
-                      }
-                  }
-              }
-            : undefined
-    }) as unknown as DemoAuth;
+        plugins: [mcpPlugin, emailOptionalPlugin],
+        // logger is undefined — preserves demo-mode behaviour (server.ts
+        // passes demoMode: false so the debug logger was never activated).
+        logger: undefined
+    }) as unknown as Auth;
 }
 
-/**
- * Structural type for the auth instance returned by `createDemoAuth`.
- *
- * Better-auth's inferred `Auth` return type references the non-exported
- * `MCPOptions` interface from `better-auth/dist/plugins/mcp`, which trips
- * TS4058 across the module boundary. Instead of exporting that inferred type,
- * we declare only the members `authServer.ts` actually consumes. The
- * `betterAuth({...})` result is structurally compatible (it has all of
- * these) and is cast via `as unknown as DemoAuth` at the return site.
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AnyFn = (...args: any[]) => any;
-export interface DemoAuth {
-    /** Request handler — consumed by `toNodeHandler(auth)` from `better-auth/node`. */
-    handler: AnyFn;
-    api: {
-        /** Used by `authServer.ts` to create the demo user (accessed via `as any`). */
-        signUpEmail: AnyFn;
-        /** Used by `authServer.ts` `/sign-in` flow to create a session. */
-        signInEmail: AnyFn;
-        /** Used by `demoTokenVerifier.verifyAccessToken` (accessed via `as any`). */
-        getMcpSession: AnyFn;
-        /** Required by `oAuthDiscoveryMetadata(auth)` generic constraint. */
-        getMcpOAuthConfig: AnyFn;
-        /** Required by `oAuthProtectedResourceMetadata(auth)` generic constraint. */
-        getMCPProtectedResource: AnyFn;
-    };
+// ---------------------------------------------------------------------------
+// Real builder — wires passkey + magicLink + twoFactor + apiKey
+// ---------------------------------------------------------------------------
+
+function buildRealAuth(cfg: AuthConfig, opts: CreateAuthOptions): Auth {
+    const { baseURL, resource, loginPage = '/sign-in' } = opts;
+
+    const authDb = getDatabase(cfg);
+    const mailer = resolveMailer(cfg);
+
+    // MCP plugin — same OIDC config as demo mode (T-20 §4).
+    const mcpPlugin = mcp({
+        loginPage,
+        resource,
+        oidcConfig: {
+            loginPage,
+            codeExpiresIn: 600, // 10 minutes
+            accessTokenExpiresIn: 3600, // 1 hour
+            refreshTokenExpiresIn: 604_800, // 7 days
+            defaultScope: 'openid',
+            scopes: ['openid', 'profile', 'email', 'offline_access'],
+            allowDynamicClientRegistration: true,
+            metadata: {
+                scopes_supported: ['openid', 'profile', 'email', 'offline_access']
+            }
+        }
+    });
+
+    // Passkey — per T-02 §3.3 (worked spike). registration.requireSession:
+    // false + registration.resolveUser for passkey-first signup.
+    const passkeyPlugin = passkey({
+        rpID: 'localhost',
+        rpName: 'js-excel-mcp Auth',
+        origin: baseURL,
+        registration: {
+            requireSession: false,
+            resolveUser: async ({ ctx, context }) => {
+                // Sessionless passkey registration: the client sends userId
+                // in the `context` string so we can look up the pre-created
+                // user row. T-41 creates the user row before this is called.
+                const userId = context;
+                if (!userId) {
+                    throw new Error(
+                        'resolveUser requires userId in context for sessionless registration'
+                    );
+                }
+                const user = await ctx.context.internalAdapter.findUserById(userId);
+                if (!user) {
+                    throw new Error(`User not found for context userId: ${userId}`);
+                }
+                return {
+                    id: user.id,
+                    name: user.name ?? 'User',
+                    displayName: user.name ?? undefined,
+                };
+            },
+        },
+    });
+
+    // Magic-link — per T-00 §4 D-00-4. sendMagicLink adapted to our
+    // OtpMailer interface.
+    const magicLinkPlugin = magicLink({
+        sendMagicLink: async (data, _ctx) => {
+            await mailer({
+                to: data.email,
+                magicLink: data.url,
+                userId: '', // userId not available in this callback context
+                flow: 'magic-link',
+            });
+        },
+        disableSignUp: false,
+        storeToken: 'hashed',
+        expiresIn: 300,
+        rateLimit: { window: 60, max: 5 },
+    });
+
+    // Two-factor (backup codes only) — per T-00 §4 D-00-4.
+    const twoFactorPlugin = twoFactor({
+        backupCodeOptions: {
+            amount: 10,
+            length: 10,
+            storeBackupCodes: 'encrypted',
+            allowPasswordless: true,
+        },
+        allowPasswordless: true,
+    });
+
+    // API key — no required options (arch-decision §1.5).
+    const apiKeyPlugin = apiKey();
+
+    return betterAuth({
+        baseURL,
+        database: authDb.betterAuthHandle,
+        trustedOrigins: cfg.trustedOrigins,
+        secret: cfg.secret,
+        emailAndPassword: {
+            enabled: true,
+            requireEmailVerification: false,
+        },
+        plugins: [
+            mcpPlugin,
+            passkeyPlugin,
+            magicLinkPlugin,
+            twoFactorPlugin,
+            apiKeyPlugin,
+            emailOptionalPlugin,
+        ],
+        logger: undefined,
+    }) as unknown as Auth;
 }
