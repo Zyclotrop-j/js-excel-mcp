@@ -136,25 +136,16 @@ test('delete_named_range error on non-existent range', async () => {
 
 test('add_named_range without current sheet error', async () => {
     await run(async () => {
-        // Create a scenario without a current sheet
-        const workbookTools = await import('../../src/tools/handleWorkbook.js');
-        const wbTools = new workbookTools.WorkbookTools();
-        wbTools.server = mockServer as any;
-        wbTools.context = testContext;
-        wbTools.expressApp = { get: () => {}, post: () => {} } as any;
-        wbTools.serverOptions = { serverHost: 'http://localhost:3000' };
-        await wbTools.register([]);
-
         const createTool = mockServer.getTool('create_new_workbook');
         const ctx = createMockRequestContext('named-range-test');
 
-        // Create a workbook without a default sheet
+        // Create a workbook without a default sheet.
         await createTool.cb({ filename: 'no-sheet.xlsx', createDefaultWorksheet: false }, ctx);
 
         const tool = mockServer.getTool('add_named_range');
 
-        // Try to add a named range without specifying sheet in range
-        // Note: Depending on implementation, this might fail if no current sheet
+        // Try to add a named range without specifying sheet in range.
+        // Note: Depending on implementation, this might fail if no current sheet.
         const result = await tool.cb({ name: 'TestRange', range: 'A1:B10' }, ctx);
 
         // Implementation may either error or auto-add a default sheet
@@ -174,15 +165,7 @@ test('delete_named_range with explicit workbook parameter', async () => {
         const deleteTool = mockServer.getTool('delete_named_range');
         const ctx = createMockRequestContext('named-range-test');
 
-        // Create a second workbook first
-        const workbookTools = await import('../../src/tools/handleWorkbook.js');
-        const wbTools2 = new workbookTools.WorkbookTools();
-        wbTools2.server = mockServer as any;
-        wbTools2.context = testContext;
-        wbTools2.expressApp = { get: () => {}, post: () => {} } as any;
-        wbTools2.serverOptions = { serverHost: 'http://localhost:3000' };
-        await wbTools2.register([]);
-
+        // Create a second workbook first (WorkbookTools already registered in setup).
         const createTool = mockServer.getTool('create_new_workbook');
         await createTool.cb({ filename: 'wb2.xlsx', createDefaultWorksheet: 'Sheet1' }, ctx);
 

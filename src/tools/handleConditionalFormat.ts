@@ -75,8 +75,8 @@ export class ConditionalFormatHandler extends ToolHandler {
             sheet: z.string().optional(),
             range: z.string(),
             operator: z.enum(['greaterThan', 'lessThan', 'equal', 'between']),
-            value: z.string(),
-            value2: z.string().optional(),
+            value: z.union([z.string(), z.number(), z.boolean()]),
+            value2: z.union([z.string(), z.number(), z.boolean()]).optional(),
             fillColor: z.string().optional()
         }), outputSchema: z.object({
             range: z.string().optional(),
@@ -104,9 +104,12 @@ export class ConditionalFormatHandler extends ToolHandler {
             if (!sheet || sheet.kind !== 'worksheet') return context.contextualiseResponse({ content: [{ type: 'text', text: `sheet '${sheetName}' not found` }], isError: true });
             const ws: Worksheet = sheet.sheet;
 
-            const innerXml = arg.operator === 'between' && arg.value2
-                ? `<cellIs priority="1" operator="${arg.operator}"><formula>${arg.value}</formula><formula>${arg.value2}</formula></cellIs>`
-                : `<cellIs priority="1" operator="${arg.operator}"><formula>${arg.value}</formula></cellIs>`;
+            const valueStr = String(arg.value);
+            const value2Str = arg.value2 !== undefined ? String(arg.value2) : undefined;
+
+            const innerXml = arg.operator === 'between' && value2Str
+                ? `<cellIs priority="1" operator="${arg.operator}"><formula>${valueStr}</formula><formula>${value2Str}</formula></cellIs>`
+                : `<cellIs priority="1" operator="${arg.operator}"><formula>${valueStr}</formula></cellIs>`;
 
             const rule = makeCfRule({ type: 'cellIs', priority: 1, formulas: [], innerXml });
             const cf = makeConditionalFormatting({ sqref: arg.range, rules: [rule] });
@@ -118,7 +121,7 @@ export class ConditionalFormatHandler extends ToolHandler {
                 structuredContent: {
                     range: arg.range,
                     operator: arg.operator,
-                    value: arg.value
+                    value: valueStr
                 }
             });
         });

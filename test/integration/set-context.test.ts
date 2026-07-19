@@ -46,6 +46,10 @@ test('setup', async () => {
 
         const createSheet = mockServer.getTool('create_sheet');
         await createSheet.cb({ name: 'Sheet2' }, ctx);
+
+        // Switch back to Sheet1 so the "echo current context" test sees Sheet1.
+        const selectSheet = mockServer.getTool('select_sheet');
+        await selectSheet.cb({ name: 'Sheet1' }, ctx);
     });
 });
 
@@ -137,8 +141,8 @@ test('set_context errors when no workbook is open', async () => {
         const result = await tool.cb({ sheet: 'Sheet1' }, ctx);
 
         assert.ok(
-            result.content.some((c: any) => c.text && c.text.includes('not open')),
-            `expected a "not open" error, got: ${JSON.stringify(result.content)}`
+            result.content.some((c: any) => c.text && c.text.includes('no workbook is currently open')),
+            `expected a "no workbook is currently open" error, got: ${JSON.stringify(result.content)}`
         );
 
         await (await emptyCtx).cleanup();

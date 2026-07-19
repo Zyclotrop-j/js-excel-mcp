@@ -140,6 +140,16 @@ export class VirtualFileSystem {
         }
     }
 
+    /**
+     * True when write operations have dirtied the in-memory maps since the last
+     * `flush()`. Callers that want to persist intermediate state (e.g. after
+     * each tool call in an SSE/batch request) can use this to avoid redundant
+     * full DB syncs when nothing has changed.
+     */
+    hasPendingWrites(): boolean {
+        return WriteCoordinator.getPendingWrites(this.userid) !== undefined;
+    }
+
     private _ttl(): string {
         return new Date(Date.now() + TWO_WEEKS_MS).toISOString();
     }
@@ -270,7 +280,12 @@ export class VirtualFileSystem {
     async release(): Promise<void> {
         let flushError: unknown;
         try {
-            await this.flush();
+            // Only flush if there are writes that haven't been persisted yet
+            // (e.g. by the per-tool-call flush in server.ts). If the last tool
+            // call already flushed, this is a no-op and we skip a full DB sync.
+            if (this.hasPendingWrites()) {
+                await this.flush();
+            }
         } catch (e) {
             // Keep the error so we can rethrow it after the lock is released.
             flushError = e;

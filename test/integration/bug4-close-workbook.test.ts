@@ -108,16 +108,11 @@ test('BUG-4: close_workbook with nonexistent filename returns error gracefully',
         await run(async () => {
             const ctx = createMockRequestContext('bug4-close-test');
 
-            // NEW FINDING (pre-existing src bug, NOT fixed per Karpathy rule): same as
-            // workbook-flow.test.ts:124 — close_workbook's guard expects context.get to
-            // return falsy on missing files, but VFS.load throws, so the guard never
-            // fires and the throw propagates. Scaffolding adapted to assert.throw
-            // until `VirtualFileSystem.load` (system.ts:193) is changed to return null
-            // for missing files (or close_workbook catches the throw).
-            await assert.rejects(
-                () => mockServer.getTool('close_workbook').cb({ filename: 'nonexistent.xlsx' }, ctx),
-                (err: any) => Boolean(err?.message?.includes('not found') || err?.message?.includes('error'))
-            );
+            const result = await mockServer.getTool('close_workbook').cb({ filename: 'nonexistent.xlsx' }, ctx);
+
+            assert.ok(result.isError, 'expected an error response for a nonexistent workbook');
+            const text = result.content.map((c: any) => c.text ?? '').join('\n');
+            assert.ok(text.includes("doesn't exist"), `expected "doesn't exist" error, got: ${text}`);
         });
     } finally {
         await (await testContext).cleanup();

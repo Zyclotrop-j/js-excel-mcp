@@ -69,10 +69,11 @@ test('full lifecycle: create → write data → list → export → close', asyn
     assert.ok(Array.isArray(createResult.structuredContent.sheets));
     assert.equal(createResult.structuredContent.sheets.length, 1);
 
-    const setCellResult = await mockServer.getTool('set_cell').cb({ cell: 'A1', value: 'Hello E2E' }, ctx);
-    assert.equal(setCellResult.structuredContent.status, 'set');
+    const setCellResult = await mockServer.getTool('set_cell').cb({ ref: 'A1', value: 'Hello E2E' }, ctx);
+    assert.equal(setCellResult.structuredContent.ref, 'A1');
+    assert.equal(setCellResult.structuredContent.value, 'Hello E2E');
 
-    const getCellResult = await mockServer.getTool('get_cell').cb({ cell: 'A1' }, ctx);
+    const getCellResult = await mockServer.getTool('get_cell').cb({ ref: 'A1' }, ctx);
     assert.equal(getCellResult.structuredContent.value, 'Hello E2E');
 
     const listResult = await mockServer.getTool('list_open_workbook').cb({}, ctx);
@@ -130,17 +131,29 @@ test('close workbook that does not exist returns error', async () => {
 
     const result = await mockServer.getTool('close_workbook').cb({ filename: 'ghost.xlsx' }, ctx);
     assert.ok(result.content);
-    assert.ok(result.content.some((c: any) => c.text.includes('not found') || c.text.includes('error')));
+    assert.ok(result.content.some((c: any) => c.text.includes("doesn't exist") || c.text.includes('error')));
     });
 });
 
 test('export without open workbook returns error', async () => {
     await run(async () => {
-    const ctx = createMockRequestContext('wb-lifecycle-e2e-fresh');
+        // Use a separate context with no workbook to test the error path.
+        const noWbContext = await createTestContext('wb-lifecycle-no-wb');
+        const noWbServer = new MockMcpServer();
 
-    const result = await mockServer.getTool('export_workbook_to_url').cb({}, ctx);
-    assert.ok(result.content);
-    assert.ok(result.content.some((c: any) => c.text.includes('no workbook is currently open')));
+        const noWbTools = new WorkbookTools();
+        noWbTools.server = noWbServer as any;
+        noWbTools.context = noWbContext;
+        noWbTools.expressApp = { get: () => {}, post: () => {} } as any;
+        noWbTools.serverOptions = { serverHost: 'http://localhost:3000' };
+        await noWbTools.register([]);
+
+        const ctx = createMockRequestContext('wb-lifecycle-no-wb');
+        const result = await noWbServer.getTool('export_workbook_to_url').cb({}, ctx);
+        assert.ok(result.content);
+        assert.ok(result.content.some((c: any) => c.text.includes('no workbook is currently open')));
+
+        await noWbContext.cleanup();
     });
 });
 

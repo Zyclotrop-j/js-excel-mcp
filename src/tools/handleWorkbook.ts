@@ -129,7 +129,7 @@ export class WorkbookTools extends ToolHandler {
         })
 
         this.registerTool('close_workbook', { description: 'close an existing workbook', inputSchema: z.object({
-            filename: z.string()
+            filename: z.string().optional()
         }), outputSchema: z.object({
             filename: z.string().optional(),
             status: z.string().optional(),
@@ -141,28 +141,31 @@ export class WorkbookTools extends ToolHandler {
             readOnlyHint: false
         }}, async (arg) => {
 
+            const filename = arg.filename ?? await context.getCurrentFile();
+            if (!filename) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no workbook is currently open' }], isError: true });
+
             try {
-                if(!await context.get(arg.filename)) {
-                    throw new Error(`Missing ${arg.filename}`)
+                if(!await context.get(arg.filename ?? filename)) {
+                    throw new Error(`Missing ${filename}`)
                 }
             } catch {
               return context.contextualiseResponse({
-                    content: [{ type: 'text', text: `workbook '${arg.filename}' doesn't exist` }],
+                    content: [{ type: 'text', text: `workbook '${filename}' doesn't exist` }],
                     isError: true,
                     structuredContent: {
-                        filename: arg.filename,
+                        filename,
                         status: 'error'
                     }
                 });
             }
 
-            await context.delete(arg.filename);
+            await context.delete(filename);
 
             return context.contextualiseResponse({
-                content: [{ type: 'text', text: `closed workbook '${arg.filename} successfully'` },
-                          { type: 'resource', resource: { uri: `workbook://${arg.filename}`, mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', text: JSON.stringify({ filename: arg.filename, status: 'closed' }) }}],
+                content: [{ type: 'text', text: `closed workbook '${filename} successfully'` },
+                          { type: 'resource', resource: { uri: `workbook://${filename}`, mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', text: JSON.stringify({ filename, status: 'closed' }) }}],
                 structuredContent: {
-                    filename: arg.filename,
+                    filename,
                     status: 'closed'
                 }
             })

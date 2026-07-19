@@ -2,7 +2,7 @@
 
 Single source of truth for: codebase health, test plan, test progress, and outstanding work. Consolidates the prior `CODEBASE_VALIDATION.md`, `TEST_PLAN.md`, and `TEST_PROGRESS.md` (deleted after this file landed).
 
-**Last updated:** 2026-07-18 (post-action session)
+**Last updated:** 2026-07-19 (testing-fix session)
 **Operating context:** Server runs locally as Node + `tsx` under PM2 (`ecosystem.config.cjs`). Codebase is intentionally scaffolded to also run on Cloudflare Workers in the future — `CloudflareBackend`, `src/handler.ts`, `wrangler` / `@cloudflare/workers-types` devDependencies are forward-readiness scaffolding, not dead code.
 
 ---
@@ -11,13 +11,13 @@ Single source of truth for: codebase health, test plan, test progress, and outst
 
 | Area | Status |
 |---|---|
-| Build (`tsc --noEmit`) | 🟢 **Clean** — 0 errors (TS4058 fixed via `DemoAuth` structural facade) |
+| Build (`tsc --noEmit`) | 🟢 **Clean** — 0 errors |
 | Production entry (`npm start`) | 🟢 `package.json#main` (`dist/index.js`) resolves after `tsconfig.json#outDir` change |
 | Dev server (`npm run dev` / PM2) | 🟢 Online, ports 3000 (MCP) + 3001 (OAuth) listening |
-| Unit tests (`test/run.ts`) | 🟢 **78 pass** |
-| Property tests (`test/run-property.ts`) | 🟢 **61 pass** |
-| Integration tests (`test/run-integration.ts`) | 🟡 Loads all 28 suites (Pattern A); ~350+ tests pass; a few late suites (image, named-range, outline, etc.) still abort on test-isolation / handler-guard gaps. See §3 for the remaining crash sites. |
-| E2E tests (`test/run-e2e.ts`) | 🟡 In-process handler tests via `MockMcpServer` (not transport-level). 6 suites wired (Pattern B→A converted). |
+| Unit tests (`test/run.ts`) | 🟢 **78 pass** — runner force-exits (no event-loop hang) |
+| Property tests (`test/run-property.ts`) | 🟢 **61 pass** — runner force-exits |
+| Integration tests (`test/run-integration.ts`) | 🟢 **232 pass** (all 28 suites) — runner force-exits |
+| E2E tests (`test/run-e2e.ts`) | 🟢 **47 pass** (6 suites: 7+5+9+9+7+10) — runner force-exits |
 | `coverage` script | 🟢 `c8 ^10.1.3` in devDependencies |
 | README accuracy | 🟢 Tool list complete; Stack updated; Known Limitations section added |
 | Documentation | 🟢 `mcpInstructions` in `src/meta/mcpdescription.ts` is authoritative |
@@ -37,8 +37,8 @@ Single source of truth for: codebase health, test plan, test progress, and outst
   - `cors origin: '*'` (DEMO ONLY per comment).
   - Mounts RFC 9728 Protected Resource Metadata router at `/.well-known/oauth-protected-resource/mcp`.
   - `requireBearerAuth({ verifier: demoTokenVerifier, requiredScopes: [] })` — every request to `/mcp` must pass this middleware.
-  - Tool registration: `for (const Tool of Object.values(tools))` — **filters non-handler exports** (e.g. `IMAGE_OPTIONS`) via `Tool.prototype instanceof ToolHandler` so the construction loop doesn't crash on non-callable exports.
-  - Each request wrapped in `run(async () => { try { await nodeHandler(...) } finally { await getContext()?.release?.() } })` — per-request `AsyncLocalStorage` store; VFS flushed on request end.
+  - Tool registration: `for (const Tool of Object.values(tools))` — **filters non-handler exports** (e.g. `IMAGE_OPTIONS`) via `Tool.prototype instanceof ToolHandler` so the construction loop doesn't crash on non-callable exports. Each handler's `postCallHook` is set to flush the VFS when `hasPendingWrites()` returns true, so each `tools/call` invocation persists its writes immediately (SSE multi-call fix — see §4.4).
+  - Each request wrapped in `run(async () => { try { await nodeHandler(...) } finally { await getContext()?.release?.() } })` — per-request `AsyncLocalStorage` store; VFS lock released + backend closed on request end. `release()` skips the flush when the per-call hook already flushed (no pending writes), avoiding a redundant full DB sync.
 
 ### 1.2 Tool pattern
 - `src/tools/interface.ts` (49 LOC) — `ToolHandler` base, `registerTool(name, config, cb)`.
@@ -128,8 +128,13 @@ Added: `c8 ^10.1.3` (devDep — `coverage` script now works).
 |---|---|---|
 | `test/run.ts` (unit: filesystem + meta) | 🟢 | **78** |
 | `test/run-property.ts` (8 property suites) | 🟢 | **61** |
-| `test/run-integration.ts` (28 integration suites) | 🟡 | ~350+ before aborting at image fetch delays / late-suite assertion gaps / missing-handler-graceful-error cases |
-| `test/run-e2e.ts` (6 in-process handler tests) | 🟡 | Wired (Pattern A); not all measured this session |
+| `test/run-integration.ts` (28 integration suites) | 🟢 | **232** |
+| `test/run-e2e.ts` (6 e2e suites) | 🟢 | **47** (7+5+9+9+7+10) |
+
+All four runners now `process.exit(ok ? 0 : 1)` after `test.run()` so background
+timers (VFS cleanup interval, auth-server listener, fast-check's event-loop
+residue) no longer hang the process. Each runner exits with code 0 on success
+and 1 on failure.
 
 ### 3.4 Test coverage matrix
 
@@ -169,14 +174,64 @@ All 28 integration `.test.ts` files wired into `test/run-integration.ts` as Patt
 | Cursor properties | `cursor-properties.test.ts` | ✅ 8 |
 | **Cursor V2** (NEW) | `cursor-properties-v2.test.ts` | ✅ 3 |
 
-### 3.5 Remaining integration test gaps
+### 3.5 Integration / e2e test fixes landed this session
 
-The runner aborts around mid-to-late suites on a combination of:
-- Late suites (image, named-range, outline, print, etc.) still asserting pre-fix contracts (e.g. `structuredContent === undefined` on error responses, but `contextualiseResponse` injects a `context` block; content text checks looking at `content[0]` instead of joining all content text).
-- A handful of handlers without `set_cell`-style auto-create-cell semantics (e.g. handler expects caller to have written the cell first).
-- `image.test.ts` uses `http://127.0.0.1:1/nope.png` (instant refuse) and overrides `IMAGE_OPTIONS` to `maxAttempts=1, delayTimer=0, throttle=0` — but wretch's middleware chain still adds latency under certain conditions.
+The previous "late-suite cleanup" gap is fully resolved. All 28 integration
+suites and all 6 e2e suites now pass end-to-end. The fixes fall into four
+buckets:
 
-Each individual suite passes when run in isolation (verified). The full runner hangs on the slowest test chain — not a correctness issue. Recommended next step: run integration suites individually and update remaining `assert.strictEqual(result.structuredContent, undefined)` patterns to `assert.equal(result.structuredContent.action, undefined)` + `assert(result.isError === true)` + `assert(result.content.some(...))`.
+1. **`MockMcpServer.getTool` now applies zod defaults** (`test/helpers/test-server.ts`).
+   The real MCP SDK parses args through `inputSchema` before invoking the tool
+   callback, so handlers see zod-applied defaults (e.g.
+   `createDefaultWorksheet: 'Sheet1'`). The previous mock returned the raw
+   callback, so any test that omitted a defaulted field silently exercised the
+   "no default applied" path — the root cause of the bug3 / bug4 / e2e
+   failures. The mock now wraps each callback in a `safeParse`-then-invoke
+   shim that matches the SDK's behavior. Tests that intentionally pass invalid
+   input fall through with raw args (the schema rejection happens in the real
+   SDK before the callback, but tests using `schema.safeParse(...)` directly
+   still cover that path).
+
+2. **Test-isolation pattern for "no workbook" error paths** — outline,
+   print, rich-text, set-context, workbook-lifecycle (e2e). The previous
+   pattern mutated the shared `testContext` (e.g. `await testContext.cleanup()`
+   mid-suite) which left subsequent tests in the suite with a closed DB
+   connection. The fixed pattern creates a **separate** `createTestContext`
+   inside its own `run()` block for each "no workbook" test, registers a
+   throwaway handler on a fresh `MockMcpServer`, asserts the error, then
+   cleans up that throwaway context — leaving the suite's main context
+   untouched.
+
+3. **API-contract drift in e2e tests** — the e2e suites were written against
+   an older handler API and had drifted: `cell` → `ref` for `set_cell` /
+   `get_cell`; `status` → `action` for `create_sheet` / `rename_sheet` /
+   `copy_sheet` / `move_sheet` / `delete_sheet`; `sourceName`/`targetName` →
+   `sourceSheet`/`newName` for `copy_sheet`; `name`/`position` →
+   `sheet`/`newIndex` for `move_sheet`; `set_cells` `{cells:[{ref,value}]}`
+   → `{range, values:[[v,v]]}`; `move_cell_cursor` `{direction,steps}` →
+   `{moves:[{direction,count}]}`; `search_cells` `.matches` /
+   `.matchCount` instead of `.matches.length`. All updated to match the
+   current handler contracts.
+
+4. **Source-side fixes** (3 surgical changes, each traced to a bug-regression
+   test that was failing):
+   - `src/tools/handleConditionalFormat.ts` — `add_cell_value_rule` `value` /
+     `value2` schema widened from `z.string()` to
+     `z.union([z.string(), z.number(), z.boolean()])`, with internal
+     `String(...)` coercion for the XML formula (bug2).
+   - `src/tools/handleWorkbook.ts` — `close_workbook` `filename` made
+     optional (`z.string().optional()`), with sticky-context fall-back via
+     `context.getCurrentFile()`; "no workbook" guard returns a graceful error
+     response instead of throwing on missing `arg.filename` (bug4).
+   - `src/filesystem/system.ts` + `src/tools/interface.ts` + `src/server.ts`
+     — SSE multi-call release timing fix (see §4.4 below for details).
+
+The `assert.strictEqual(result.structuredContent, undefined)` pattern from
+the old §4.1 is no longer present anywhere in the test tree — `grep` confirms
+zero matches outside this doc. The `contextualiseResponse` helper injects a
+`context` block on every response (success or error), and tests now assert
+`result.structuredContent.action === undefined` + `result.isError === true`
++ `result.content.some(...)` per the documented fix pattern.
 
 ### 3.6 Mutation testing
 - `stryker.conf.json` — `mutate: src/**/*.ts` (excludes `*.d.ts`, `index.ts`, `authServer.ts`, `mcpdescription.ts`); `testRunner: command` → `npm run test` (unit only); `thresholds: { high: 90, low: 70, break: 60 }`.
@@ -200,10 +255,10 @@ A parallel agent applied 4 bug fixes; each verified behaviorally via the live MC
 
 ## 4. Open items
 
-1. **Integration runner late-suite cleanup** — update remaining `assert.strictEqual(result.structuredContent, undefined)` patterns across late integration suites to tolerate the `context` block that `contextualiseResponse` always injects on error responses. ~10–15 sites identified; the fix pattern is mechanical (see `table.test.ts`, `image.test.ts`, `hyperlink.test.ts` for precedents).
-2. **E2E real HTTP transport** — current `test/e2e/*.test.ts` are in-process handler tests via `MockMcpServer`; a true end-to-end suite that boots the server and talks MCP over HTTP on 3000/3001 would add confidence. Cancelled this session — low incremental value given property + integration coverage.
+1. ✅ **Integration runner late-suite cleanup** — RESOLVED. All 28 integration suites pass (232 tests). The `structuredContent === undefined` pattern is gone; tests use the `action === undefined` + `isError === true` + `content.some(...)` pattern. See §3.5 for the four fix buckets.
+2. **E2E real HTTP transport** — current `test/e2e/*.test.ts` are in-process handler tests via `MockMcpServer`; a true end-to-end suite that boots the server and talks MCP over HTTP on 3000/3001 would add confidence. Deferred — low incremental value given property + integration coverage, and the in-process e2e suites now pass cleanly (47 tests).
 3. **`extract workbook→sheet→cell` resolution helper** — ~10 cell-touching handlers duplicate the same 5-line idiom. Deferred: large surface, low risk.
-4. **SSE multi-call release timing** — `server.ts:72`'s `release()` fires at the outer `run()` finally; if an SSE stream wraps multiple tool callbacks in a single `factory()` invocation, the VFS only flushes at stream-completion. Diagnosis documented (P0-5 in original validation); fix requires a `server.ts` change which is out of scope.
+4. ✅ **SSE multi-call release timing** — RESOLVED. `src/tools/interface.ts` now wraps every registered tool callback so that `postCallHook` fires after each `tools/call` completes; `src/server.ts` sets `postCallHook` to flush the VFS when `VirtualFileSystem.hasPendingWrites()` returns true. `src/filesystem/system.ts` adds `hasPendingWrites()` (checks `WriteCoordinator.getPendingWrites(userid)`), and `release()` now skips the flush when there are no pending writes (the per-call hook already flushed them). This means: (a) each tool call's writes persist immediately, so a long-lived SSE stream or JSON-RPC batch sees consistent state across calls; (b) the outer `release()` in `server.ts:74` becomes a no-op flush + lock release + backend close, avoiding a redundant full DB sync.
 
 ---
 
@@ -225,9 +280,15 @@ A parallel agent applied 4 bug fixes; each verified behaviorally via the live MC
 
 ```powershell
 npx tsc --noEmit                              # → 0 errors
-npx tsx test/run.ts                           # → ✓ 78  (unit)
-npx tsx test/run-property.ts                  # → ✓ 61  (property)
-npx tsx test/run-integration.ts               # → ~350+ before late-suite fixes
+npx tsx test/run.ts                           # → ✓ 78   (unit)       exits 0
+npx tsx test/run-property.ts                  # → ✓ 61   (property)   exits 0
+npx tsx test/run-integration.ts               # → ✓ 232  (integration) exits 0
+npx tsx test/run-e2e.ts                       # → ✓ 47   (e2e)         exits 0
 npx pm2 list                                  # js-excel-mcp status=online
 npx pm2 logs js-excel-mcp --lines 5 --nostream  # both 3000 + 3001 listening
 ```
+
+All four runners now `process.exit(ok ? 0 : 1)` after `test.run()` — background
+timers (VFS cleanup interval, auth-server listener, fast-check residue) no
+longer hang the process. Each runner exits with code 0 on success and 1 on
+failure.

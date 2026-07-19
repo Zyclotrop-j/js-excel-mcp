@@ -24,5 +24,8 @@ cursorProps(test);
 cursorPropertiesV2(test);
 
 !(async function () {
-    await test.run();
+    const ok = await test.run();
+    // Force-exit: fast-check / VFS timers keep the event loop alive after the
+    // suite finishes, which would otherwise hang the runner.
+    process.exit(ok ? 0 : 1);
 })();

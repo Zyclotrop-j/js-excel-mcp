@@ -4,6 +4,7 @@ import { createTestContext } from '../helpers/test-context.js';
 import { NumberFormatHandler } from '../../src/tools/handleNumberFormat.js';
 import { CellWriteHandler } from '../../src/tools/handleCells/write.js';
 import { run } from '../../src/util/requestContext.js';
+import z from 'zod';
 
 let mockServer: MockMcpServer;
 let testContext: ReturnType<typeof createTestContext>;
@@ -39,10 +40,10 @@ test('setup', async () => {
         await createTool.cb({ filename: 'number-format-test.xlsx', createDefaultWorksheet: 'Sheet1' }, ctx);
 
         const setCell = mockServer.getTool('set_cell');
-        await setCell.cb({ cell: 'A1', value: 1234.5 }, ctx);
-        await setCell.cb({ cell: 'B1', value: 0.25 }, ctx);
-        await setCell.cb({ cell: 'C1', value: 45000 }, ctx);
-        await setCell.cb({ cell: 'D1', value: 12345.678 }, ctx);
+        await setCell.cb({ ref: 'A1', value: 1234.5 }, ctx);
+        await setCell.cb({ ref: 'B1', value: 0.25 }, ctx);
+        await setCell.cb({ ref: 'C1', value: 45000 }, ctx);
+        await setCell.cb({ ref: 'D1', value: 12345.678 }, ctx);
     });
 });
 
@@ -166,15 +167,10 @@ test('set_cell_number_format applies percent custom format and echoes input', as
 test('set_cell_date_format rejects invalid format value', async () => {
     await run(async () => {
         const tool = mockServer.getTool('set_cell_date_format');
-        const ctx = createMockRequestContext('number-format-test');
+        const schema = tool.inputSchema as z.ZodType<any>;
 
-        let threw = false;
-        try {
-            await tool.cb({ ref: 'C1', format: 'weekday' }, ctx);
-        } catch (e) {
-            threw = true;
-        }
-        assert.ok(threw, 'expected invalid enum value to be rejected by the input schema');
+        const result = schema.safeParse({ ref: 'C1', format: 'weekday' });
+        assert.equal(result.success, false, 'expected invalid enum value to be rejected by the input schema');
     });
 });
 

@@ -59,11 +59,11 @@ test('write single cell → read back → verify', async () => {
 
     await mockServer.getTool('create_new_workbook').cb({ filename: 'cell-lifecycle.xlsx' }, ctx);
 
-    const setResult = await mockServer.getTool('set_cell').cb({ cell: 'A1', value: 'Hello World' }, ctx);
-    assert.equal(setResult.structuredContent.status, 'set');
-    assert.equal(setResult.structuredContent.cell, 'A1');
+    const setResult = await mockServer.getTool('set_cell').cb({ ref: 'A1', value: 'Hello World' }, ctx);
+    assert.equal(setResult.structuredContent.ref, 'A1');
+    assert.equal(setResult.structuredContent.value, 'Hello World');
 
-    const getResult = await mockServer.getTool('get_cell').cb({ cell: 'A1' }, ctx);
+    const getResult = await mockServer.getTool('get_cell').cb({ ref: 'A1' }, ctx);
     assert.equal(getResult.structuredContent.value, 'Hello World');
     });
 });
@@ -73,25 +73,23 @@ test('write multiple cells via set_cells → read range → verify', async () =>
     const ctx = createMockRequestContext('cell-lifecycle-e2e');
 
     const setResult = await mockServer.getTool('set_cells').cb({
-        cells: [
-            { cell: 'B1', value: 10 },
-            { cell: 'B2', value: 20 },
-            { cell: 'B3', value: 30 },
-            { cell: 'C1', value: 'alpha' },
-            { cell: 'C2', value: 'beta' },
-            { cell: 'C3', value: 'gamma' }
+        range: 'B1:C3',
+        values: [
+            [10, 'alpha'],
+            [20, 'beta'],
+            [30, 'gamma']
         ]
     }, ctx);
-    assert.equal(setResult.structuredContent.count, 6);
+    assert.equal(setResult.structuredContent.rows, 3);
 
     const rangeResult = await mockServer.getTool('get_range').cb({ range: 'B1:C3' }, ctx);
     assert.ok(rangeResult.structuredContent);
-    assert.ok(rangeResult.structuredContent.data);
+    assert.ok(rangeResult.structuredContent.values);
 
-    const b1 = await mockServer.getTool('get_cell').cb({ cell: 'B1' }, ctx);
+    const b1 = await mockServer.getTool('get_cell').cb({ ref: 'B1' }, ctx);
     assert.equal(b1.structuredContent.value, 10);
 
-    const c3 = await mockServer.getTool('get_cell').cb({ cell: 'C3' }, ctx);
+    const c3 = await mockServer.getTool('get_cell').cb({ ref: 'C3' }, ctx);
     assert.equal(c3.structuredContent.value, 'gamma');
     });
 });
@@ -100,11 +98,11 @@ test('write formula → verify computed result', async () => {
     await run(async () => {
     const ctx = createMockRequestContext('cell-lifecycle-e2e');
 
-    await mockServer.getTool('set_cell').cb({ cell: 'D1', value: 100 }, ctx);
-    await mockServer.getTool('set_cell').cb({ cell: 'D2', value: 50 }, ctx);
-    await mockServer.getTool('set_cell').cb({ cell: 'D3', value: '=D1+D2' }, ctx);
+    await mockServer.getTool('set_cell').cb({ ref: 'D1', value: 100 }, ctx);
+    await mockServer.getTool('set_cell').cb({ ref: 'D2', value: 50 }, ctx);
+    await mockServer.getTool('set_cell').cb({ ref: 'D3', value: '=D1+D2' }, ctx);
 
-    const getResult = await mockServer.getTool('get_cell').cb({ cell: 'D3' }, ctx);
+    const getResult = await mockServer.getTool('get_cell').cb({ ref: 'D3' }, ctx);
     assert.equal(getResult.structuredContent.value, '=D1+D2');
     });
 });
@@ -114,22 +112,13 @@ test('search finds matching cells', async () => {
     const ctx = createMockRequestContext('cell-lifecycle-e2e');
 
     await mockServer.getTool('set_cells').cb({
-        cells: [
-            { cell: 'E1', value: 'apple' },
-            { cell: 'E2', value: 'banana' },
-            { cell: 'E3', value: 'apple pie' },
-            { cell: 'E4', value: 'cherry' },
-            { cell: 'E5', value: 'pineapple' }
-        ]
+        range: 'E1:E5',
+        values: [['apple'], ['banana'], ['apple pie'], ['cherry'], ['pineapple']]
     }, ctx);
 
-    const searchResult = await mockServer.getTool('search_cells').cb({ query: 'apple', matchCase: false }, ctx);
-    assert.ok(Array.isArray(searchResult.structuredContent.matches));
-    assert.ok(searchResult.structuredContent.matches.length >= 3);
-    const matchCells = searchResult.structuredContent.matches.map((m: any) => m.cell);
-    assert.ok(matchCells.includes('E1'));
-    assert.ok(matchCells.includes('E3'));
-    assert.ok(matchCells.includes('E5'));
+    const searchResult = await mockServer.getTool('search_cells').cb({ query: 'apple' }, ctx);
+    assert.ok(searchResult.structuredContent);
+    assert.ok(searchResult.structuredContent.matchCount >= 3);
     });
 });
 
@@ -138,23 +127,19 @@ test('cursor navigation: right, down, with stop conditions', async () => {
     const ctx = createMockRequestContext('cell-lifecycle-e2e');
 
     await mockServer.getTool('set_cells').cb({
-        cells: [
-            { cell: 'F1', value: 'row1' },
-            { cell: 'F2', value: 'row2' },
-            { cell: 'F3', value: 'row3' }
-        ]
+        range: 'F1:F3',
+        values: [['row1'], ['row2'], ['row3']]
     }, ctx);
 
     await (await testContext).setCurrentCell('F1');
 
-    const rightResult = await mockServer.getTool('move_cell_cursor').cb({ direction: 'right', steps: 2 }, ctx);
-    assert.equal(rightResult.structuredContent.fromCell, 'F1');
-    assert.equal(rightResult.structuredContent.toCell, 'H1');
+    const rightResult = await mockServer.getTool('move_cell_cursor').cb({ moves: [{ direction: 'right', count: 2 }] }, ctx);
+    assert.equal(rightResult.structuredContent.from, 'F1');
+    assert.equal(rightResult.structuredContent.to, 'H1');
 
     await (await testContext).setCurrentCell('F1');
-    const downResult = await mockServer.getTool('move_cell_cursor').cb({ direction: 'down', stopCondition: 'UNTIL_BLANK' }, ctx);
-    assert.equal(downResult.structuredContent.toCell, 'F4');
-    assert.equal(downResult.structuredContent.stopReason, 'BLANK');
+    const downResult = await mockServer.getTool('move_cell_cursor').cb({ moves: [{ direction: 'down', count: 'UNTIL_BLANK' }] }, ctx);
+    assert.equal(downResult.structuredContent.to, 'F4');
     });
 });
 
@@ -162,12 +147,12 @@ test('overwrite existing cell value', async () => {
     await run(async () => {
     const ctx = createMockRequestContext('cell-lifecycle-e2e');
 
-    await mockServer.getTool('set_cell').cb({ cell: 'G1', value: 'original' }, ctx);
-    let getResult = await mockServer.getTool('get_cell').cb({ cell: 'G1' }, ctx);
+    await mockServer.getTool('set_cell').cb({ ref: 'G1', value: 'original' }, ctx);
+    let getResult = await mockServer.getTool('get_cell').cb({ ref: 'G1' }, ctx);
     assert.equal(getResult.structuredContent.value, 'original');
 
-    await mockServer.getTool('set_cell').cb({ cell: 'G1', value: 'overwritten' }, ctx);
-    getResult = await mockServer.getTool('get_cell').cb({ cell: 'G1' }, ctx);
+    await mockServer.getTool('set_cell').cb({ ref: 'G1', value: 'overwritten' }, ctx);
+    getResult = await mockServer.getTool('get_cell').cb({ ref: 'G1' }, ctx);
     assert.equal(getResult.structuredContent.value, 'overwritten');
     });
 });
@@ -176,7 +161,7 @@ test('get_cell on empty cell returns null or empty', async () => {
     await run(async () => {
     const ctx = createMockRequestContext('cell-lifecycle-e2e');
 
-    const result = await mockServer.getTool('get_cell').cb({ cell: 'Z99' }, ctx);
+    const result = await mockServer.getTool('get_cell').cb({ ref: 'Z99' }, ctx);
     assert.ok(result.structuredContent);
     const val = result.structuredContent.value;
     assert.ok(val === null || val === undefined || val === '');

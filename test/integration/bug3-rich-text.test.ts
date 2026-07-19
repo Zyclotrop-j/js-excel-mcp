@@ -34,7 +34,7 @@ async function setupBug3() {
         await wbTools.register([]);
 
         const ctx = createMockRequestContext('bug3-richtext-test');
-        await mockServer.getTool('create_new_workbook').cb({ filename: 'bug3-test.xlsx' }, ctx);
+        await mockServer.getTool('create_new_workbook').cb({ filename: 'bug3-test.xlsx', createDefaultWorksheet: 'Sheet1' }, ctx);
     });
 
     return { mockServer, testContext };

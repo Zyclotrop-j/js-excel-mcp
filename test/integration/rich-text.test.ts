@@ -100,15 +100,25 @@ test('set_rich_text with a single plain run', async () => {
 
 test('set_rich_text errors when no workbook is open', async () => {
     await run(async () => {
-        const tool = mockServer.getTool('set_rich_text');
-        // Use a separate userId context so no workbook is open for this request.
-        const ctx = createMockRequestContext('rich-text-other-user');
+        // Use a separate context with no workbook to test the error path.
+        const noWbContext = await createTestContext('rich-text-no-wb');
+        const noWbServer = new MockMcpServer();
+
+        const noWbRichTextHandler = new RichTextHandler();
+        noWbRichTextHandler.server = noWbServer as any;
+        noWbRichTextHandler.context = noWbContext;
+        await noWbRichTextHandler.register([]);
+
+        const tool = noWbServer.getTool('set_rich_text');
+        const ctx = createMockRequestContext('rich-text-no-wb');
 
         const result = await tool.cb({ ref: 'A1', parts: [{ text: 'x' }] }, ctx);
 
         assert.ok(result.content, 'expected content array');
         const found = result.content.some((c: any) => c.text && c.text.includes('no workbook is currently open'));
         assert.ok(found, `expected 'no workbook is currently open' error, got: ${JSON.stringify(result.content)}`);
+
+        await noWbContext.cleanup();
     });
 });
 

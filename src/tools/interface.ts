@@ -13,6 +13,14 @@ export abstract class ToolHandler {
     expressApp: Express;
     toolSet: ToolHandler[] = [];
     serverOptions: ServerOptions;
+    /**
+     * Optional hook invoked after each tool callback completes successfully.
+     * `server.ts` sets this to flush the VFS so that changes persist even when
+     * a single HTTP request (SSE stream or JSON-RPC batch) wraps multiple
+     * `tools/call` invocations — without it the VFS only flushes at
+     * stream-completion in `release()`.
+     */
+    postCallHook?: () => Promise<void>;
     protected tools = new Map<string, { cb: StoredCallback; inputSchema?: unknown }>();
     constructor(server: McpServer, context: McpRequestContext, expressApp: Express, serverOptions: ServerOptions) {
         this.server = server;
@@ -43,7 +51,15 @@ export abstract class ToolHandler {
         },
         cb: ToolCallback<S>
     ) {
-        this.tools.set(name, { cb, inputSchema: config.inputSchema });
-        return this.server.registerTool(name, config, cb);
+        // Wrap the callback so the post-call hook fires after each invocation.
+        // This lets server.ts flush the VFS per-tool-call rather than only at
+        // request-completion, fixing the SSE multi-call release-timing gap.
+        const wrappedCb: StoredCallback = async (args, ctx) => {
+            const result = await cb(args, ctx);
+            await this.postCallHook?.();
+            return result as CallToolResult | InputRequiredResult;
+        };
+        this.tools.set(name, { cb: wrappedCb, inputSchema: config.inputSchema });
+        return this.server.registerTool(name, config, wrappedCb as ToolCallback<S>);
     }
 }

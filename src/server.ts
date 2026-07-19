@@ -1,6 +1,6 @@
 import { McpServer, createMcpHandler } from '@modelcontextprotocol/server';
 import { toNodeHandler } from '@modelcontextprotocol/node';
-import { getContext, run } from './util/requestContext.js';
+import { getContext, run, tryGetContext } from './util/requestContext.js';
 
 import { createProtectedResourceMetadataRouter, demoTokenVerifier, setupAuthServer } from './shared/authServer.js';
 import { createMcpExpressApp, getOAuthProtectedResourceMetadataUrl, requireBearerAuth } from '@modelcontextprotocol/express';
@@ -57,6 +57,17 @@ const handler = createMcpHandler(async (context) => {
         // Skip non-handler exports (e.g. `IMAGE_OPTIONS` from handleImage.ts).
         if (typeof Tool !== 'function' || !Tool.prototype || !(Tool.prototype instanceof ToolHandler)) continue;
         const t = new Tool(server, context, app, { serverHost: baseUrl });
+        // Flush the VFS after each tool call so changes persist even when a
+        // single HTTP request (SSE stream or JSON-RPC batch) wraps multiple
+        // `tools/call` invocations. Without this, the VFS only flushes at
+        // stream-completion in `release()`, losing intermediate state if the
+        // stream is long-lived or the server crashes mid-batch.
+        t.postCallHook = async () => {
+            const reqCtx = tryGetContext();
+            if (reqCtx?.virtualFileSystem?.hasPendingWrites()) {
+                await reqCtx.virtualFileSystem.flush();
+            }
+        };
         toolSet.push(t);
         await t.register(toolSet);
     }

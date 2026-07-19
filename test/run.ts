@@ -33,5 +33,8 @@ cloudflareTests(test);
 
 // Run all registered tests
 !(async function() {
-    await test.run();
+    const ok = await test.run();
+    // Force-exit: the VFS cleanup interval keeps the event loop alive after
+    // the suite finishes, which would otherwise hang the runner.
+    process.exit(ok ? 0 : 1);
 })();

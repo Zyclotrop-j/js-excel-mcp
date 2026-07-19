@@ -69,12 +69,23 @@ test('set_print_area sets print area correctly', async () => {
 
 test('set_print_area without open workbook returns error', async () => {
     await run(async () => {
-        const tool = mockServer.getTool('set_print_area');
-        const ctx = createMockRequestContext('different-user');
+        // Use a separate context with no workbook to test the error path.
+        const noWbContext = await createTestContext('print-test-no-wb');
+        const noWbServer = new MockMcpServer();
+
+        const printHandlerNoWb = new PrintHandler();
+        printHandlerNoWb.server = noWbServer as any;
+        printHandlerNoWb.context = noWbContext;
+        await printHandlerNoWb.register([]);
+
+        const tool = noWbServer.getTool('set_print_area');
+        const ctx = createMockRequestContext('print-test-no-wb');
 
         const result = await tool.cb({ range: 'A1:C2' }, ctx);
 
         assert.ok(result.content.some((c: any) => c.text && c.text.includes('no workbook is currently open')));
+
+        await noWbContext.cleanup();
     });
 });
 
@@ -109,12 +120,23 @@ test('set_page_setup with scale and fit dimensions', async () => {
 
 test('set_page_setup without open workbook returns error', async () => {
     await run(async () => {
-        const tool = mockServer.getTool('set_page_setup');
-        const ctx = createMockRequestContext('different-user');
+        // Use a separate context with no workbook to test the error path.
+        const noWbContext = await createTestContext('print-test-no-wb2');
+        const noWbServer = new MockMcpServer();
+
+        const printHandlerNoWb = new PrintHandler();
+        printHandlerNoWb.server = noWbServer as any;
+        printHandlerNoWb.context = noWbContext;
+        await printHandlerNoWb.register([]);
+
+        const tool = noWbServer.getTool('set_page_setup');
+        const ctx = createMockRequestContext('print-test-no-wb2');
 
         const result = await tool.cb({ orientation: 'portrait' }, ctx);
 
         assert.ok(result.content.some((c: any) => c.text && c.text.includes('no workbook is currently open')));
+
+        await noWbContext.cleanup();
     });
 });
 

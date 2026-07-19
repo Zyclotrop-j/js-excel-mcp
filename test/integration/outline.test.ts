@@ -97,31 +97,47 @@ test('group_columns groups columns with collapsed state', async () => {
 
 test('group_rows fails with no open workbook', async () => {
     await run(async () => {
-        const tool = mockServer.getTool('group_rows');
-        const ctx = createMockRequestContext('outline-test');
+        // Use a separate context with no workbook to test the error path.
+        const noWbContext = await createTestContext('outline-test-no-wb');
+        const noWbServer = new MockMcpServer();
 
-        // Clear the workbook for this user context
-        await testContext.cleanup();
+        const outlineHandlerNoWb = new OutlineHandler();
+        outlineHandlerNoWb.server = noWbServer as any;
+        outlineHandlerNoWb.context = noWbContext;
+        await outlineHandlerNoWb.register([]);
+
+        const tool = noWbServer.getTool('group_rows');
+        const ctx = createMockRequestContext('outline-test-no-wb');
 
         const result = await tool.cb({ startRow: 1, endRow: 5 }, ctx);
 
         assert.ok(result.content);
         assert.ok(result.content.some((c: any) => c.text && c.text.includes('no workbook is currently open')));
+
+        await noWbContext.cleanup();
     });
 });
 
 test('group_columns fails with no open workbook', async () => {
     await run(async () => {
-        const tool = mockServer.getTool('group_columns');
-        const ctx = createMockRequestContext('outline-test');
+        // Use a separate context with no workbook to test the error path.
+        const noWbContext = await createTestContext('outline-test-no-wb2');
+        const noWbServer = new MockMcpServer();
 
-        // Clear the workbook for this user context
-        await testContext.cleanup();
+        const outlineHandlerNoWb = new OutlineHandler();
+        outlineHandlerNoWb.server = noWbServer as any;
+        outlineHandlerNoWb.context = noWbContext;
+        await outlineHandlerNoWb.register([]);
+
+        const tool = noWbServer.getTool('group_columns');
+        const ctx = createMockRequestContext('outline-test-no-wb2');
 
         const result = await tool.cb({ startCol: 1, endCol: 5 }, ctx);
 
         assert.ok(result.content);
         assert.ok(result.content.some((c: any) => c.text && c.text.includes('no workbook is currently open')));
+
+        await noWbContext.cleanup();
     });
 });
 

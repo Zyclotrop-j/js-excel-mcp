@@ -71,22 +71,28 @@ test('write cells → read back → data matches', async () => {
 
     await mockServer.getTool('create_new_workbook').cb({ filename: 'roundtrip.xlsx' }, ctx);
 
-    const testData = [
-        { cell: 'A1', value: 'Hello' },
-        { cell: 'B1', value: 42 },
-        { cell: 'C1', value: true },
-        { cell: 'D1', value: 3.14 },
-        { cell: 'A2', value: 'World' },
-        { cell: 'B2', value: 0 },
-        { cell: 'C2', value: false },
-        { cell: 'D2', value: -100 }
+    const testData: { ref: string; value: any }[] = [
+        { ref: 'A1', value: 'Hello' },
+        { ref: 'B1', value: 42 },
+        { ref: 'C1', value: true },
+        { ref: 'D1', value: 3.14 },
+        { ref: 'A2', value: 'World' },
+        { ref: 'B2', value: 0 },
+        { ref: 'C2', value: false },
+        { ref: 'D2', value: -100 }
     ];
 
-    await mockServer.getTool('set_cells').cb({ cells: testData }, ctx);
+    await mockServer.getTool('set_cells').cb({
+        range: 'A1:D2',
+        values: [
+            ['Hello', 42, true, 3.14],
+            ['World', 0, false, -100]
+        ]
+    }, ctx);
 
-    for (const { cell, value } of testData) {
-        const result = await mockServer.getTool('get_cell').cb({ cell }, ctx);
-        assert.equal(result.structuredContent.value, value, `Cell ${cell} roundtrip failed`);
+    for (const { ref, value } of testData) {
+        const result = await mockServer.getTool('get_cell').cb({ ref }, ctx);
+        assert.equal(result.structuredContent.value, value, `Cell ${ref} roundtrip failed`);
     }
     });
 });
@@ -96,18 +102,18 @@ test('write cells on multiple sheets → read back → data persists across shee
 
     await mockServer.getTool('create_new_workbook').cb({ filename: 'multi-sheet.xlsx' }, ctx);
 
-    await mockServer.getTool('set_cell').cb({ cell: 'A1', value: 'Sheet1-data' }, ctx);
+    await mockServer.getTool('set_cell').cb({ ref: 'A1', value: 'Sheet1-data' }, ctx);
 
     await mockServer.getTool('create_sheet').cb({ name: 'Sheet2' }, ctx);
     await mockServer.getTool('select_sheet').cb({ name: 'Sheet2' }, ctx);
-    await mockServer.getTool('set_cell').cb({ cell: 'B2', value: 'Sheet2-data' }, ctx);
+    await mockServer.getTool('set_cell').cb({ ref: 'B2', value: 'Sheet2-data' }, ctx);
 
     await mockServer.getTool('select_sheet').cb({ name: 'Sheet1' }, ctx);
-    const s1 = await mockServer.getTool('get_cell').cb({ cell: 'A1' }, ctx);
+    const s1 = await mockServer.getTool('get_cell').cb({ ref: 'A1' }, ctx);
     assert.equal(s1.structuredContent.value, 'Sheet1-data');
 
     await mockServer.getTool('select_sheet').cb({ name: 'Sheet2' }, ctx);
-    const s2 = await mockServer.getTool('get_cell').cb({ cell: 'B2' }, ctx);
+    const s2 = await mockServer.getTool('get_cell').cb({ ref: 'B2' }, ctx);
     assert.equal(s2.structuredContent.value, 'Sheet2-data');
 });
 
@@ -115,15 +121,16 @@ test('export → import roundtrip with mock fetch', async () => {
     const ctx = createMockRequestContext('data-roundtrip-e2e');
 
     await mockServer.getTool('create_new_workbook').cb({ filename: 'export-import.xlsx' }, ctx);
-    await mockServer.getTool('set_cell').cb({ cell: 'A1', value: 'roundtrip-value' }, ctx);
-    await mockServer.getTool('set_cell').cb({ cell: 'B1', value: 999 }, ctx);
+    await mockServer.getTool('set_cell').cb({ ref: 'A1', value: 'roundtrip-value' }, ctx);
+    await mockServer.getTool('set_cell').cb({ ref: 'B1', value: 999 }, ctx);
 
     const exportResult = await mockServer.getTool('export_workbook_to_url').cb({ filename: 'export-import.xlsx' }, ctx);
     assert.ok(exportResult.structuredContent.downloadUrl);
 
-    await mockServer.getTool('close_workbook').cb({ filename: 'export-import.xlsx' }, ctx);
-
+    // Grab the bytes BEFORE closing (close deletes the file from the VFS).
     const fileBytes = await (await testContext).get('export-import.xlsx');
+
+    await mockServer.getTool('close_workbook').cb({ filename: 'export-import.xlsx' }, ctx);
 
     globalThis.fetch = async (input: any) => {
         const url = typeof input === 'string' ? input : input.url;
@@ -140,10 +147,14 @@ test('export → import roundtrip with mock fetch', async () => {
     assert.equal(importResult.structuredContent.status, 'imported');
     assert.ok(Array.isArray(importResult.structuredContent.sheets));
 
-    const a1 = await mockServer.getTool('get_cell').cb({ cell: 'A1' }, ctx);
+    // import_workbook_from_url sets currentFile but not currentSheet —
+    // select the first sheet so subsequent get_cell calls resolve it.
+    await mockServer.getTool('select_sheet').cb({ name: 'Sheet1' }, ctx);
+
+    const a1 = await mockServer.getTool('get_cell').cb({ ref: 'A1' }, ctx);
     assert.equal(a1.structuredContent.value, 'roundtrip-value');
 
-    const b1 = await mockServer.getTool('get_cell').cb({ cell: 'B1' }, ctx);
+    const b1 = await mockServer.getTool('get_cell').cb({ ref: 'B1' }, ctx);
     assert.equal(b1.structuredContent.value, 999);
 });
 
@@ -152,16 +163,16 @@ test('overwrite cell data → read back → sees latest value', async () => {
 
     await mockServer.getTool('create_new_workbook').cb({ filename: 'overwrite.xlsx' }, ctx);
 
-    await mockServer.getTool('set_cell').cb({ cell: 'A1', value: 'version-1' }, ctx);
-    let result = await mockServer.getTool('get_cell').cb({ cell: 'A1' }, ctx);
+    await mockServer.getTool('set_cell').cb({ ref: 'A1', value: 'version-1' }, ctx);
+    let result = await mockServer.getTool('get_cell').cb({ ref: 'A1' }, ctx);
     assert.equal(result.structuredContent.value, 'version-1');
 
-    await mockServer.getTool('set_cell').cb({ cell: 'A1', value: 'version-2' }, ctx);
-    result = await mockServer.getTool('get_cell').cb({ cell: 'A1' }, ctx);
+    await mockServer.getTool('set_cell').cb({ ref: 'A1', value: 'version-2' }, ctx);
+    result = await mockServer.getTool('get_cell').cb({ ref: 'A1' }, ctx);
     assert.equal(result.structuredContent.value, 'version-2');
 
-    await mockServer.getTool('set_cell').cb({ cell: 'A1', value: 'version-3' }, ctx);
-    result = await mockServer.getTool('get_cell').cb({ cell: 'A1' }, ctx);
+    await mockServer.getTool('set_cell').cb({ ref: 'A1', value: 'version-3' }, ctx);
+    result = await mockServer.getTool('get_cell').cb({ ref: 'A1' }, ctx);
     assert.equal(result.structuredContent.value, 'version-3');
 });
 
@@ -170,22 +181,21 @@ test('large batch write → range read → data intact', async () => {
 
     await mockServer.getTool('create_new_workbook').cb({ filename: 'batch.xlsx' }, ctx);
 
-    const cells = [];
+    const values: any[][] = [];
     for (let i = 1; i <= 20; i++) {
-        cells.push({ cell: `A${i}`, value: `row-${i}` });
-        cells.push({ cell: `B${i}`, value: i * 10 });
+        values.push([`row-${i}`, i * 10]);
     }
 
-    const setResult = await mockServer.getTool('set_cells').cb({ cells }, ctx);
-    assert.equal(setResult.structuredContent.count, 40);
+    const setResult = await mockServer.getTool('set_cells').cb({ range: 'A1:B20', values }, ctx);
+    assert.equal(setResult.structuredContent.rows, 20);
 
     const rangeResult = await mockServer.getTool('get_range').cb({ range: 'A1:B20' }, ctx);
     assert.ok(rangeResult.structuredContent);
 
     for (let i = 1; i <= 20; i++) {
-        const a = await mockServer.getTool('get_cell').cb({ cell: `A${i}` }, ctx);
+        const a = await mockServer.getTool('get_cell').cb({ ref: `A${i}` }, ctx);
         assert.equal(a.structuredContent.value, `row-${i}`);
-        const b = await mockServer.getTool('get_cell').cb({ cell: `B${i}` }, ctx);
+        const b = await mockServer.getTool('get_cell').cb({ ref: `B${i}` }, ctx);
         assert.equal(b.structuredContent.value, i * 10);
     }
 });

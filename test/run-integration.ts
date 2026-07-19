@@ -64,5 +64,8 @@ bug3RichTextTests(test);
 bug4CloseWorkbookTests(test);
 
 !(async function () {
-    await test.run();
+    const ok = await test.run();
+    // Force-exit: the auth server / VFS cleanup interval keep the event loop
+    // alive after the suite finishes, which would otherwise hang the runner.
+    process.exit(ok ? 0 : 1);
 })();

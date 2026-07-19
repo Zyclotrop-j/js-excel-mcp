@@ -6,6 +6,12 @@ type ToolCallback = (args: any, ctx: any) => Promise<CallToolResult>;
 /**
  * Minimal McpServer stub that records registerTool calls.
  * Tests can retrieve and invoke registered tool callbacks.
+ *
+ * `getTool` returns a callback that applies zod defaults to the args before
+ * invoking the handler, matching the real MCP server's behavior (the SDK
+ * parses args through `inputSchema` before calling the tool callback). Tests
+ * that pass valid-but-incomplete args thus see the same defaults-applied shape
+ * the handler sees in production.
  */
 export class MockMcpServer {
     readonly registeredTools = new Map<string, { cb: ToolCallback; inputSchema?: unknown; config: Record<string, unknown> }>();
@@ -27,7 +33,19 @@ export class MockMcpServer {
     getTool(name: string): { cb: ToolCallback; inputSchema?: unknown } {
         const t = this.registeredTools.get(name);
         if (!t) throw new Error(`Tool '${name}' is not registered`);
-        return { cb: t.cb, inputSchema: t.inputSchema };
+        const rawCb = t.cb;
+        const schema = t.inputSchema as z.ZodType<any> | undefined;
+        // Apply zod defaults (and coercion) to match the real MCP server, which
+        // parses args through `inputSchema` before invoking the tool callback.
+        // On parse failure we fall through with the raw args so tests that
+        // intentionally exercise the handler with invalid input still run.
+        const wrappedCb: ToolCallback = schema && typeof (schema as any).safeParse === 'function'
+            ? async (args: any, ctx: any) => {
+                const parsed = (schema as any).safeParse(args);
+                return rawCb(parsed.success ? parsed.data : args, ctx);
+            }
+            : rawCb;
+        return { cb: wrappedCb, inputSchema: t.inputSchema };
     }
 
     hasTool(name: string): boolean {

@@ -75,7 +75,7 @@ test('full sheet lifecycle: create → list → add → select → rename → co
     assert.ok(listResult.structuredContent.sheets.includes('Sheet1'));
 
     const createResult = await mockServer.getTool('create_sheet').cb({ name: 'Data' }, ctx);
-    assert.equal(createResult.structuredContent.status, 'created');
+    assert.equal(createResult.structuredContent.action, 'created');
     assert.equal(createResult.structuredContent.sheet, 'Data');
 
     const selectResult = await mockServer.getTool('select_sheet').cb({ name: 'Data' }, ctx);
@@ -83,12 +83,12 @@ test('full sheet lifecycle: create → list → add → select → rename → co
     const currentSheet = await (await testContext).getCurrentSheet();
     assert.equal(currentSheet, 'Data');
 
-    await mockServer.getTool('set_cell').cb({ cell: 'A1', value: 'Sheet data' }, ctx);
-    const getCellResult = await mockServer.getTool('get_cell').cb({ cell: 'A1' }, ctx);
+    await mockServer.getTool('set_cell').cb({ ref: 'A1', value: 'Sheet data' }, ctx);
+    const getCellResult = await mockServer.getTool('get_cell').cb({ ref: 'A1' }, ctx);
     assert.equal(getCellResult.structuredContent.value, 'Sheet data');
 
     const renameResult = await mockServer.getTool('rename_sheet').cb({ oldName: 'Data', newName: 'Records' }, ctx);
-    assert.equal(renameResult.structuredContent.status, 'renamed');
+    assert.equal(renameResult.structuredContent.action, 'renamed');
     assert.equal(renameResult.structuredContent.oldName, 'Data');
     assert.equal(renameResult.structuredContent.newName, 'Records');
 
@@ -96,8 +96,8 @@ test('full sheet lifecycle: create → list → add → select → rename → co
     assert.ok(!listResult.structuredContent.sheets.includes('Data'));
     assert.ok(listResult.structuredContent.sheets.includes('Records'));
 
-    const copyResult = await mockServer.getTool('copy_sheet').cb({ sourceName: 'Sheet1', targetName: 'Sheet1_Backup' }, ctx);
-    assert.equal(copyResult.structuredContent.status, 'copied');
+    const copyResult = await mockServer.getTool('copy_sheet').cb({ sourceSheet: 'Sheet1', newName: 'Sheet1_Backup' }, ctx);
+    assert.equal(copyResult.structuredContent.action, 'copied');
 
     listResult = await mockServer.getTool('list_sheets').cb({}, ctx);
     assert.ok(listResult.structuredContent.sheets.includes('Sheet1'));
@@ -107,15 +107,15 @@ test('full sheet lifecycle: create → list → add → select → rename → co
     await mockServer.getTool('create_sheet').cb({ name: 'SheetA' }, ctx);
     await mockServer.getTool('create_sheet').cb({ name: 'SheetB' }, ctx);
 
-    const moveResult = await mockServer.getTool('move_sheet').cb({ name: 'Records', position: 0 }, ctx);
-    assert.equal(moveResult.structuredContent.status, 'moved');
-    assert.equal(moveResult.structuredContent.position, 0);
+    const moveResult = await mockServer.getTool('move_sheet').cb({ sheet: 'Records', newIndex: 0 }, ctx);
+    assert.equal(moveResult.structuredContent.action, 'moved');
+    assert.equal(moveResult.structuredContent.newIndex, 0);
 
     listResult = await mockServer.getTool('list_sheets').cb({}, ctx);
     assert.equal(listResult.structuredContent.sheets[0], 'Records');
 
     const deleteResult = await mockServer.getTool('delete_sheet').cb({ name: 'Sheet1_Backup' }, ctx);
-    assert.equal(deleteResult.structuredContent.status, 'deleted');
+    assert.equal(deleteResult.structuredContent.action, 'deleted');
 
     listResult = await mockServer.getTool('list_sheets').cb({}, ctx);
     assert.ok(!listResult.structuredContent.sheets.includes('Sheet1_Backup'));
