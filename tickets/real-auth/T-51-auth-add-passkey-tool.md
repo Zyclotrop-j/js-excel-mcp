@@ -1,5 +1,23 @@
 # T-51 — `auth_add_passkey` tool (elicitation → passkey register)
 
+> **Architect's note (2026-07-20, elicitation blocker):**
+> Elicititation (`inputRequired.elicit()`) **does not work** in the
+> installed SDK's per-request legacy serving mode — the same blocker
+> that affects T-41/T-42/T-43. `/mcp` ALSO uses a per-request
+> `McpServer` factory (`src/server.ts:108-144`), so
+> `_clientCapabilities` is never populated and the elicitation gate
+> fails. See `tickets/real-auth/notes/arch-decision-elicitation-blocker.md`
+> §1.5. **Decision: tool arguments.** T-51's implementer uses either
+> (a) a two-call flow — call 1 returns
+> `generatePasskeyRegistrationOptions` challenge; the client does
+> WebAuthn; call 2 passes `attestationResponse` as a tool argument to
+> `verifyPasskeyRegistration` — or (b) a single call if the LLM
+> pre-collects the attestation. The implementer picks the cleaner
+> split. No `inputRequired` / `acceptedContent` / `inputResponse`.
+> `[C-AT]` and `[C-ELICIT]` in STUDY_FIRST.md have been amended. The
+> elicitation code sketches in the ticket body below are **superseded**
+> by the tool-arguments pattern.
+
 - **Difficulty:** 🟡 medium
 - **Type:** Authenticated tool
 - **Dependencies:** T-50 (Express headers in `requestContext`), T-00

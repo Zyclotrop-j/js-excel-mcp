@@ -1,8 +1,19 @@
 # T-43 — `auth_recover` tool (backup-code recovery flow)
 
+> **Architect's note (2026-07-20):** Elicititation is **not used** —
+> see `tickets/real-auth/notes/arch-decision-elicitation-blocker.md`.
+> T-43 takes `identifier` and `backupCode` as `inputSchema` tool
+> arguments. The LLM collects them in conversation, then calls
+> `auth_recover` in a single shot. No `inputRequired` /
+> `acceptedContent` / `inputResponse`. The pending-login handoff is
+> unchanged from T-41's pattern. `[C-PA]`, `[C-ELICIT]`, and
+> `[C-RECOVER]` in STUDY_FIRST.md have been amended. The elicitation
+> code sketches in the ticket body below are **superseded** by the
+> tool-arguments pattern.
+
 - **Difficulty:** 🟡 medium
 - **Type:** Bootstrap tool
-- **Dependencies:** T-41 (elicitation pattern), T-00 (backup-code
+- **Dependencies:** T-41 (pending-login handoff), T-00 (backup-code
   verification API name)
 - **Output:** `src/tools/auth/recover.ts`, re-exported from
   `src/tools/auth/index.ts`

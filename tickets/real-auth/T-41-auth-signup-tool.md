@@ -1,5 +1,28 @@
 # T-41 — `auth_signup` tool with elicitation + pending-login handoff
 
+> **Architect's note (2026-07-20, SUPERSEDES elicitation design):**
+> Elicitation (`inputRequired.elicit()`) **does not work** in the
+> installed SDK's per-request legacy serving mode — the per-request
+> `McpServer` factory never sees the `initialize` handshake, so
+> `_clientCapabilities` is never populated and the elicitation capability
+> gate fails. See
+> `tickets/real-auth/notes/arch-decision-elicitation-blocker.md` for the
+> full analysis. **Decision: Option 2 — tool arguments.** T-41's
+> implementer MUST refactor `src/tools/auth/signup.ts` to remove the
+> `inputRequired` / `acceptedContent` / `inputResponse` round-trip and
+> take `name`, `email`, `credentialType`, `password` as `inputSchema`
+> tool arguments (the LLM collects them in conversation). The zod schema
+> shape is unchanged — only the plumbing changes. The full refactor
+> checklist (8 steps) is in §3 of the decision note. The non-elicitation
+> parts of the current implementation (signUpEmail / signInEmail /
+> enableTwoFactor / cookieHeaders handoff / backup codes / passkey
+> throwaway-password bootstrap / `authSurface = 'bootstrap'` /
+> `authConfig` plumbing) are **correct and stay as-is**. `[C-PA]` and
+> `[C-ELICIT]` in STUDY_FIRST.md have been amended to reflect the
+> tool-arguments pattern. The ticket body below is preserved for
+> reference but the elicitation code sketches in it are **superseded**
+> by the decision note.
+
 - **Difficulty:** 🔴 hard
 - **Type:** Bootstrap tool
 - **Dependencies:** T-40 (bootstrap endpoint), T-22 (pending-login

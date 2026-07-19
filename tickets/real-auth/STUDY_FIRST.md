@@ -97,6 +97,22 @@ Key behavioral facts:
 
 ## 4. Elicitation — what the SDK actually gives us
 
+> **Architect's note (2026-07-20):** Elicitation is **NOT USED** by this
+> plan. The installed `@modelcontextprotocol/server@2.0.0-beta.3` ships
+> `LATEST_PROTOCOL_VERSION = "2025-11-25"` (the legacy era), and both
+> `/mcp` and `/mcp/bootstrap` use per-request `McpServer` factories that
+> never see the `initialize` handshake — so `_clientCapabilities` is never
+> populated and the `inputRequired.elicit()` capability gate fails with
+> "no client capabilities are available on this connection — per-request
+> legacy serving cannot receive server-to-client requests." There is no
+> legacy-era `requestElicitation` callback (unlike sampling's
+> `requestSampling`). See
+> `tickets/real-auth/notes/arch-decision-elicitation-blocker.md` for the
+> full decision. Auth tools take inputs as `inputSchema` tool arguments
+> instead (the LLM collects them in conversation). §4's reference content
+> below is preserved as accurate SDK documentation but is **no longer
+> load-bearing** for any ticket.
+
 Confirmed against
 `node_modules/@modelcontextprotocol/server/dist/index.d.cts` (server
 2.0.0-beta.3):
@@ -320,16 +336,25 @@ These tools:
 
 - Are registered through the **same** `ToolHandler` base class as the
   Excel tools (see `src/tools/interface.ts`).
-- Use `inputRequired.elicit(...)` to gather user input.
+- Take all user inputs (`name`, `email`, `credentialType`, `password`,
+  `identifier`, `backupCode`, etc.) as **tool arguments** in their
+  `inputSchema` (zod). The LLM collects these from its conversation with
+  the user, then calls the tool in a single `tools/call`. No elicitation
+  round-trip. (Originally planned to use `inputRequired.elicit()`; that
+  was blocked by the SDK's per-request legacy serving — see
+  `tickets/real-auth/notes/arch-decision-elicitation-blocker.md`.)
 - Call better-auth's `auth.api.*` methods server-side (the `auth`
   instance is obtained via `getAuth()` from `authServer.ts`).
 - Return `CallToolResult` with structured content including a
   `loginNonce` when a session was established (signup / signin /
   recover).
-- Are **not** included in `chain_operations` — the chain handler
-  rejects `InputRequiredResult` results
-  (`src/tools/handleChain.ts:120-127`), and elicitation tools always
-  return `InputRequiredResult` on the first round.
+- Are **not** included in `chain_operations` — these tools establish or
+  mutate auth state with side-effects (session creation, cookie
+  handoff) that must not be batched mid-chain. The `chain_operations`
+  handler's `InputRequiredResult` rejection no longer applies (these
+  tools no longer return `InputRequiredResult`), so the exclusion is by
+  convention stated in each tool's `description`, not by the SDK type
+  guard.
 
 ### `[C-AT]` — Authenticated tools (post-login)
 
@@ -339,9 +364,13 @@ These live on `/mcp` (the bearer-protected endpoint):
 - `auth_add_passkey` — T-51
 - `auth_rotate_apikey` — T-52
 
-They use elicitation where they need user input (passkey registration)
-and a plain `CallToolResult` otherwise (signout). They appear
-*alongside* the Excel tools once a valid bearer is present.
+They take user input as **tool arguments** in `inputSchema` where they
+need it (passkey registration — T-51 uses a two-call flow:
+generate-options → verify-attestation, or a single call with the
+attestation pre-collected by the LLM) and a plain `CallToolResult`
+otherwise (signout, rotate-apikey). No elicitation — see
+`tickets/real-auth/notes/arch-decision-elicitation-blocker.md`. They
+appear *alongside* the Excel tools once a valid bearer is present.
 
 ### `[C-EP]` — Endpoints
 
@@ -449,43 +478,53 @@ The `ToolHandler` base class wires the `postCallHook` for VFS flushing
 — the auth tools don't touch the VFS so the hook is a no-op for them
 but still harmless.
 
-### `[C-ELICIT]` — Elicitation pattern inside an auth tool
+### `[C-ELICIT]` — Input-collection pattern inside an auth tool
+
+> **Architect's note (2026-07-20):** This contract was originally named
+> for the `inputRequired.elicit()` SDK primitive. Elicitation is **not
+> used** (see `tickets/real-auth/notes/arch-decision-elicitation-blocker.md`).
+> The contract ID `[C-ELICIT]` is retained for traceability, but the
+> pattern is now **tool arguments**, not an elicitation round-trip.
 
 ```ts
-const KEY = 'signup';
-const schema = z.object({
+// The zod schema is the tool's `inputSchema` — the LLM fills the values
+// from its conversation with the user, and the SDK validates before the
+// callback runs. `arg` IS the validated, typed input.
+const signupSchema = z.object({
   name: z.string().min(1),
   email: z.string().email().optional(),
   credentialType: z.enum(['password', 'passkey', 'magiclink']),
   password: z.string().min(12).optional(),
 }).describe('Sign up for an MCP account. Email is optional for passkey-only accounts.');
 
-// First round — ask the client.
-const existing = acceptedContent(this.context.inputResponses, KEY, schema);
-if (!existing) {
-  return inputRequired({
-    inputRequests: { [KEY]: inputRequired.elicit({
-      message: 'Please provide signup details.',
-      requestedSchema: schema,
-    }) }
-  });
+// In the tool callback — `arg` is already the validated SignupInput.
+async (arg: z.infer<typeof signupSchema>, ctx) => {
+  // Cross-field validation the schema can't express:
+  if (arg.credentialType === 'password' && !arg.password) { ... }
+  if ((arg.credentialType === 'magiclink' || arg.credentialType === 'password') && !arg.email) { ... }
+  // ... proceed to auth.api.* server-side ...
 }
-
-// Retry round — `existing` is the validated, accepted content.
 ```
 
-- Always validate `action` via `inputResponse(responses, KEY)` first
-  if you need to distinguish `decline` from `missing`.
-- Treat `existing === undefined` as "ask again" (or fail after N
-  retries — N=3 recommended).
-- The schema-aware overload re-validates, so client-side tampering
-  is caught.
+- No `inputRequired` / `acceptedContent` / `inputResponse` — those are
+  the elicitation primitives and are not used.
+- The `description` on the tool (and on each schema field via
+  `.describe()`) tells the LLM what to collect and when each field is
+  required. The LLM is expected to gather all required fields before the
+  single `tools/call`.
+- Cross-field validation (e.g. "password required when
+  credentialType=password") is done in the callback body — zod can't
+  express conditionally-required fields cleanly.
+- The tool returns a plain `CallToolResult` (never `InputRequiredResult`).
+- No retry round — the call is single-shot.
 
 ### `[C-RECOVER]` — Backup-code recovery contract
 
 - Backup codes are generated by better-auth's `twoFactor.backupCodes`
   plugin during signup (T-41 surfaces them in the tool result).
-- `auth_recover` collects `{ identifier, backupCode }` via elicitation.
+- `auth_recover` collects `{ identifier, backupCode }` as tool arguments
+  (per `[C-ELICIT]` — no elicitation; see the elicitation-blocker
+  decision).
 - It calls the better-auth backup-code verification endpoint
   server-side (T-00 confirms the exact API name — likely
   `auth.api.verifyBackupCode` or a custom handler).

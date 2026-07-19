@@ -1,10 +1,24 @@
 import { McpServer, McpRequestContext, type CallToolResult, type InputRequiredResult, type StandardSchemaWithJSON, type ServerContext, type ToolCallback, type ToolAnnotations, type Icon } from "@modelcontextprotocol/server";
 import { Express } from 'express';
+import type { AuthConfig } from '../shared/authMode.js';
 
 type StoredCallback = (args: any, ctx: any) => CallToolResult | InputRequiredResult | Promise<CallToolResult | InputRequiredResult>;
 
 export interface ServerOptions {
     serverHost: string;
+    /**
+     * Auth config loaded once at startup from `process.env` by
+     * `loadAuthConfig` in `authMode.ts`. Threaded to the auth-tool handlers
+     * (T-41+) so they can read mode-aware settings like `allowUserSignup`
+     * without themselves reading `process.env` (the standing rule).
+     *
+     * Optional — the Excel tools don't need it and `authConfig` is only
+     * populated when the auth-server is configured. `server.ts` passes it
+     * via the `new Tool(server, context, app, { serverHost, authConfig })`
+     * call. Auth tools (which extend `AuthToolHandler`) read it from
+     * `this.serverOptions.authConfig`.
+     */
+    authConfig?: AuthConfig;
 }
 
 export abstract class ToolHandler {

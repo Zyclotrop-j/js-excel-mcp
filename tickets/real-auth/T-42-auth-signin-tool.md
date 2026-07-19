@@ -1,8 +1,20 @@
 # T-42 — `auth_signin` tool (password / backup-code / magic-link)
 
+> **Architect's note (2026-07-20):** Elicititation is **not used** —
+> see `tickets/real-auth/notes/arch-decision-elicitation-blocker.md`.
+> T-42 takes `identifier`, `password` (or `backupCode`), and a
+> credential-path discriminator as `inputSchema` tool arguments. The LLM
+> collects them in conversation, then calls `auth_signin` in a single
+> shot. No `inputRequired` / `acceptedContent` / `inputResponse`. The
+> pending-login handoff (`createPendingLogin` → `cookieHeaders` mutation
+> → `loginNonce` return) is unchanged from T-41's pattern. `[C-PA]` and
+> `[C-ELICIT]` in STUDY_FIRST.md have been amended. The elicitation code
+> sketches in the ticket body below are **superseded** by the
+> tool-arguments pattern.
+
 - **Difficulty:** 🟡 medium
 - **Type:** Bootstrap tool
-- **Dependencies:** T-41 (elicitation pattern + pending-login handoff established)
+- **Dependencies:** T-41 (pending-login handoff contract established)
 - **Output:** `src/tools/auth/signin.ts`, re-exported from `src/tools/auth/index.ts`
 
 ## Goal

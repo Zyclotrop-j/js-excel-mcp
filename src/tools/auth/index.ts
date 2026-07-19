@@ -17,4 +17,5 @@
  * `[C-PA]` / `[C-AT]` / `[C-REG]` contracts in `STUDY_FIRST.md`.
  */
 
-export {};
+export { AuthSignupHandler } from './signup.js';
+export { AuthSignoutHandler } from './signout.js';

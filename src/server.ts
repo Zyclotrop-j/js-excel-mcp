@@ -2,7 +2,7 @@ import { McpServer, createMcpHandler } from '@modelcontextprotocol/server';
 import type { McpRequestContext } from '@modelcontextprotocol/server';
 import { toNodeHandler } from '@modelcontextprotocol/node';
 import type { Express } from 'express';
-import { getContext, run, tryGetContext } from './util/requestContext.js';
+import { getContext, run, setExpressRequestHeaders, tryGetContext } from './util/requestContext.js';
 
 import { createProtectedResourceMetadataRouter, tokenVerifier, setupAuthServer } from './shared/authServer.js';
 import { createMcpExpressApp, getOAuthProtectedResourceMetadataUrl, requireBearerAuth } from '@modelcontextprotocol/express';
@@ -113,7 +113,7 @@ const excelToolHandler = createMcpHandler(async (context) => {
     const toolSet: ToolHandler[] = [];
     for (const Tool of Object.values(tools)) {
         if (!isExcelTool(Tool)) continue;
-        const t = new Tool(server, context, app, { serverHost: baseUrl });
+        const t = new Tool(server, context, app, { serverHost: baseUrl, authConfig });
         // Flush the VFS after each tool call so changes persist even when a
         // single HTTP request (SSE stream or JSON-RPC batch) wraps multiple
         // `tools/call` invocations. Without this, the VFS only flushes at
@@ -131,7 +131,7 @@ const excelToolHandler = createMcpHandler(async (context) => {
 
     for (const Tool of Object.values(tools)) {
         if (!isAuthenticatedAuthTool(Tool)) continue;
-        const t = new Tool(server, context, app, { serverHost: baseUrl });
+        const t = new Tool(server, context, app, { serverHost: baseUrl, authConfig });
         // Auth tools don't touch the VFS, so the post-call hook is a no-op.
         // Kept explicit (rather than omitted) for symmetry with the Excel
         // loop and to leave a single point to add VFS-related logic later.
@@ -166,7 +166,7 @@ const bootstrapToolHandler = createMcpHandler(async (context) => {
     const toolSet: ToolHandler[] = [];
     for (const Tool of Object.values(tools)) {
         if (!isBootstrapAuthTool(Tool)) continue;
-        const t = new Tool(server, context, app, { serverHost: baseUrl });
+        const t = new Tool(server, context, app, { serverHost: baseUrl, authConfig });
         t.postCallHook = async () => {};
         toolSet.push(t);
         await t.register(toolSet);
@@ -179,6 +179,11 @@ const bootstrapNodeHandler = toNodeHandler(bootstrapToolHandler);
 app.all('/mcp', auth, async (req, res) => {
     // request start here
     await run(async () => {
+        // Capture the Express request headers into the per-request context
+        // so authenticated auth-tool handlers (T-50 signout, T-51 add-passkey,
+        // T-52 rotate-apikey) can read the `Cookie` header for better-auth's
+        // server-side session APIs.
+        setExpressRequestHeaders(req.headers);
         try {
             await excelNodeHandler(req, res, req.body);
         } finally {
@@ -194,6 +199,10 @@ app.all('/mcp', auth, async (req, res) => {
 app.all('/mcp/bootstrap', async (req, res) => {
     // request start here
     await run(async () => {
+        // Same context capture as `/mcp` — bootstrap auth tools (T-41 signup,
+        // T-42 signin, T-43 recover) may also need to read the `Cookie` header
+        // (e.g. `signInEmail({ asResponse: true })` then re-emit Set-Cookie).
+        setExpressRequestHeaders(req.headers);
         try {
             await bootstrapNodeHandler(req, res, req.body);
         } finally {
