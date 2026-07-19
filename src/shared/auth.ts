@@ -75,7 +75,7 @@ export interface Auth {
         signUpEmail: AnyFn;
         /** Used by `authServer.ts` `/sign-in` flow to create a session. */
         signInEmail: AnyFn;
-        /** Used by `demoTokenVerifier.verifyAccessToken` (accessed via `as any`). */
+        /** Used by `tokenVerifier.verifyAccessToken` (accessed via `as any`). */
         getMcpSession: AnyFn;
         /** Required by `oAuthDiscoveryMetadata(auth)` generic constraint. */
         getMcpOAuthConfig: AnyFn;

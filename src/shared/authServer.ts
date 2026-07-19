@@ -502,30 +502,79 @@ export function createProtectedResourceMetadataRouter(resourcePath = '/mcp'): Ro
     return router;
 }
 
+// T-00 Outcome B: the MCP plugin's token endpoint does not accept API keys,
+// so the verifier must recognise them directly via `auth.api.verifyApiKey`.
+const API_KEY_FALLTHROUGH = true;
+
 /**
- * Demo {@link OAuthTokenVerifier} backed by better-auth's `getMcpSession`.
- * Pass this to `requireBearerAuth({ verifier: demoTokenVerifier, ... })` from
- * `@modelcontextprotocol/express` to validate Bearer tokens against the demo
- * Authorization Server started by `setupAuthServer`.
+ * API-key fallthrough for {@link tokenVerifier}. Calls the `@better-auth/api-key`
+ * plugin's `verifyApiKey` server API and synthesises an {@link AuthInfo} from
+ * the result. The user identifier is `result.key.referenceId` (NOT `userId` —
+ * the apiKey plugin stores the caller-supplied userId as `referenceId` on the
+ * row). `verifyApiKey` does NOT return a top-level `userId`.
+ *
+ * API confirmed against installed `@better-auth/api-key@1.6.23` types
+ * (`node_modules/@better-auth/api-key/dist/index-CI6mGUwK.d.mts`).
  */
-export const demoTokenVerifier: OAuthTokenVerifier = {
+async function verifyApiKey(auth: DemoAuth, token: string): Promise<AuthInfo> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = await (auth.api as any).verifyApiKey({ body: { key: token } });
+    if (!result || result.valid !== true || !result.key) {
+        throw new OAuthError(OAuthErrorCode.InvalidToken, 'Invalid API key');
+    }
+    // API keys don't expire in the same way MCP tokens do; use a long horizon.
+    const expiresAt = Math.floor(Date.now() / 1000) + 3600;
+    return {
+        token,
+        clientId: result.key.id ?? 'mcp-api-key',
+        scopes: ['openid', 'profile', 'email', 'offline_access'],
+        expiresAt,
+        extra: { userId: result.key.referenceId, credentialType: 'api-key' }
+    };
+}
+
+/**
+ * {@link OAuthTokenVerifier} backed by better-auth's `getMcpSession` with an
+ * API-key fallthrough (when `API_KEY_FALLTHROUGH` is true). Pass this to
+ * `requireBearerAuth({ verifier: tokenVerifier, ... })` from
+ * `@modelcontextprotocol/express` to validate Bearer tokens against the
+ * Authorization Server started by `setupAuthServer`.
+ *
+ * Resolution order:
+ * 1. MCP OIDC session lookup (`auth.api.getMcpSession`) — works for tokens
+ *    minted by the standard OAuth code flow.
+ * 2. If no session and `API_KEY_FALLTHROUGH` is true, API-key verification
+ *    (`auth.api.verifyApiKey`) — works for long-lived `mcp_...` keys issued
+ *    by `auth_rotate_apikey` (T-52).
+ * 3. Otherwise, throws `OAuthError(InvalidToken)`.
+ */
+export const tokenVerifier: OAuthTokenVerifier = {
     async verifyAccessToken(token: string): Promise<AuthInfo> {
         const auth = getAuth();
 
         const headers = new Headers();
         headers.set('Authorization', `Bearer ${token}`);
 
+        // Try the MCP OIDC session first.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const session = await (auth.api as any).getMcpSession({ headers });
-        if (!session) {
-            throw new OAuthError(OAuthErrorCode.InvalidToken, 'Invalid token');
+        if (session) {
+            const scopes = typeof session.scopes === 'string' ? session.scopes.split(' ') : ['openid'];
+            const expiresAt = session.accessTokenExpiresAt
+                ? Math.floor(new Date(session.accessTokenExpiresAt).getTime() / 1000)
+                : Math.floor(Date.now() / 1000) + 3600;
+
+            return { token, clientId: session.clientId, scopes, expiresAt, extra: { userId: session.userId } };
         }
 
-        const scopes = typeof session.scopes === 'string' ? session.scopes.split(' ') : ['openid'];
-        const expiresAt = session.accessTokenExpiresAt
-            ? Math.floor(new Date(session.accessTokenExpiresAt).getTime() / 1000)
-            : Math.floor(Date.now() / 1000) + 3600;
+        // T-00 Outcome B: fall through to API-key verification.
+        if (API_KEY_FALLTHROUGH) {
+            return verifyApiKey(auth, token);
+        }
 
-        return { token, clientId: session.clientId, scopes, expiresAt, extra: { userId: session.userId } };
+        throw new OAuthError(OAuthErrorCode.InvalidToken, 'Invalid token');
     }
 };
+
+/** Back-compat alias — external imports of `demoTokenVerifier` still work. */
+export const demoTokenVerifier = tokenVerifier;

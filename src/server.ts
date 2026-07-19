@@ -2,7 +2,7 @@ import { McpServer, createMcpHandler } from '@modelcontextprotocol/server';
 import { toNodeHandler } from '@modelcontextprotocol/node';
 import { getContext, run, tryGetContext } from './util/requestContext.js';
 
-import { createProtectedResourceMetadataRouter, demoTokenVerifier, setupAuthServer } from './shared/authServer.js';
+import { createProtectedResourceMetadataRouter, tokenVerifier, setupAuthServer } from './shared/authServer.js';
 import { createMcpExpressApp, getOAuthProtectedResourceMetadataUrl, requireBearerAuth } from '@modelcontextprotocol/express';
 import { loadAuthConfig } from './shared/authMode.js';
 
@@ -48,7 +48,7 @@ app.use(
 app.use(createProtectedResourceMetadataRouter('/mcp'));
 
 const auth = requireBearerAuth({
-    verifier: demoTokenVerifier,
+    verifier: tokenVerifier,
     requiredScopes: [],
     resourceMetadataUrl: getOAuthProtectedResourceMetadataUrl(mcpServerUrl)
 });
