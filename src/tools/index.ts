@@ -1,3 +1,4 @@
+export * from './auth/index.js';
 export * from './handleWorkbook.js';
 export * from './handleSheet.js';
 export * from './handleCell.js';

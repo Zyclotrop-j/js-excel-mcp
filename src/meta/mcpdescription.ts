@@ -2,6 +2,27 @@ export const mcpName = "Sheet MCP";
 export const mcpTitle = "Excel Sheet Operations";
 export const mcpVersion = '1.0.0';
 export const mcpDescription = "Programmatic read, edit, format, chart, and export of Excel (.xlsx) workbooks through a stateful session of file -> sheet -> cell operations.";
+export const bootstrapInstructions = `You are connected to the MCP server's **bootstrap** endpoint. The Excel tools are not available here — only the auth tools.
+
+## What to do here
+
+Use one of these tools to establish a session:
+
+- \`auth_signup\` — create a new account
+- \`auth_signin\` — sign in to an existing account
+- \`auth_recover\` — recover a lost account using backup codes
+
+Each tool will prompt you (or your user) for any missing fields via a form. On success it returns a \`{ loginNonce }\` in its structured content.
+
+## After the tool succeeds
+
+Retry the original Excel tool call that failed with a 401. The client will complete the OAuth authorization-code flow and reconnect you to the Excel tools at \`/mcp\`. You don't need to thread the \`loginNonce\` through any URL — the server and client SDK handle the handoff.
+
+## Notes
+
+- The auth tools require MCP elicitation and therefore cannot be used inside \`chain_operations\`. Call them directly.
+- Demo mode auto-logs-in a single demo user, so \`auth_signin\` is typically a no-op there. The bootstrap endpoint still mounts in demo mode for parity.
+`;
 export const mcpInstructions = `Sheet MCP lets you work with .xlsx files by calling tools. The server keeps a little bit of sticky state for you — use it.
 
 ## Sticky state — read this first
