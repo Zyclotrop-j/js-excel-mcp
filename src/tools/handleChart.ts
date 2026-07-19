@@ -3,6 +3,7 @@ import { type SheetRef, type Workbook } from '@office-kit/xlsx/workbook';
 import type { Worksheet } from '@office-kit/xlsx/worksheet';
 import { makeBarChart, makeBarSeries, makeChartSpace, makeLineChart, type LineSeries } from '@office-kit/xlsx/chart';
 import { addChartAt } from '@office-kit/xlsx/drawing';
+import { formatSheetQualifiedRef } from '@office-kit/xlsx/utils';
 import z from 'zod';
 import { Context } from '../filesystem/context.js';
 
@@ -63,8 +64,8 @@ export class ChartHandler extends ToolHandler {
             const series = makeBarSeries({
                 idx: 0,
                 tx: { kind: 'literal', value: arg.title ?? 'Series' },
-                cat: { ref: sheetName + '!$' + catCol + '$' + startRow + ':$' + catCol + '$' + endRow },
-                val: { ref: sheetName + '!$' + valCol + '$' + startRow + ':$' + valCol + '$' + endRow }
+                cat: { ref: formatSheetQualifiedRef(sheetName, '$' + catCol + '$' + startRow + ':$' + catCol + '$' + endRow) },
+                val: { ref: formatSheetQualifiedRef(sheetName, '$' + valCol + '$' + startRow + ':$' + valCol + '$' + endRow) }
             });
 
             const chart = makeBarChart({
@@ -141,8 +142,8 @@ export class ChartHandler extends ToolHandler {
             const series = makeBarSeries({
                 idx: 0,
                 tx: { kind: 'literal', value: arg.title ?? 'Series' },
-                cat: { ref: sheetName + '!$' + catCol + '$' + startRow + ':$' + catCol + '$' + endRow },
-                val: { ref: sheetName + '!$' + valCol + '$' + startRow + ':$' + valCol + '$' + endRow }
+                cat: { ref: formatSheetQualifiedRef(sheetName, '$' + catCol + '$' + startRow + ':$' + catCol + '$' + endRow) },
+                val: { ref: formatSheetQualifiedRef(sheetName, '$' + valCol + '$' + startRow + ':$' + valCol + '$' + endRow) }
             }) as LineSeries;
 
             const chart = makeLineChart({

@@ -59,6 +59,15 @@ export class ChainHandler extends ToolHandler {
             let failed = 0;
             let stoppedOnError = false;
 
+            // Suppress the per-tool-call VFS flush (postCallHook) during the
+            // chain dispatch loop. Each chain step is a sub-call, not a full
+            // tools/call; flushing after every step would hit the WriteCoordinator's
+            // 1s-per-key rate limit and make a 10-step chain take ~10s. The chain's
+            // accumulated writes persist via the outer request's `release()` at
+            // HTTP-request completion (same as the pre-SSE-fix behavior).
+            const savedHooks = this.toolSet.map(h => h.postCallHook);
+            this.toolSet.forEach(h => { h.postCallHook = undefined; });
+            try {
             for (let i = 0; i < arg.operations.length; i++) {
                 const op = arg.operations[i];
                 const stepIndex = i;
@@ -141,6 +150,12 @@ export class ChainHandler extends ToolHandler {
                 await stream(e);
 
                 if (isError && arg.stopOnError) { stoppedOnError = true; break; }
+            }
+            } finally {
+                // Restore per-tool-call flush hooks so the chain_operations
+                // call itself (and any subsequent tools/call in the same HTTP
+                // request, e.g. an SSE batch) still flushes per call.
+                this.toolSet.forEach((h, i) => { h.postCallHook = savedHooks[i]; });
             }
 
             return context.contextualiseResponse({
