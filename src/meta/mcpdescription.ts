@@ -16,11 +16,21 @@ Because of this, the "workbook", "sheet", and cell-ref fields on most tools are 
 
 Tool calls that touch a cell update the cursor automatically, so you can chain operations without re-naming the target each time. Always glance at the response "context" block to confirm where you are.
 
+- \`set_context\` — explicitly set workbook / sheet / cell without doing an operation. Useful before a chained operation or to echo current context with no args. Each field is optional; sheet requires its workbook active (or being set in the same call), cell requires its sheet active (or being set in the same call).
+
+## Batching with \`chain_operations\`
+
+\`chain_operations\` dispatches a list of tool calls sequentially, sharing the sticky file/sheet/cell context across steps (later steps see state changes from earlier ones). Each step's result is streamed back via a logging notification as it happens, and the final result aggregates status / text / structuredContent for every step.
+
+Use it when round-trips dominate latency: a 10-step write-then-read chain completes in ~1s instead of ~10s of sequential \`tools/call\`s. Pass \`stopOnError: true\` (the default) to halt on the first error or \`false\` to run all steps and collect failures.
+
+**One restriction**: \`chain_operations\` cannot invoke tools that require MCP sampling. If a step calls \`detect_headers\` with \`useSampling: true\` (the default), the step errors with "tool requires client input (sampling) and cannot be used inside a chain". Pass \`useSampling: false\` on the step args, or call \`detect_headers\` outside the chain first and let the chain reuse its cached result.
+
 ## Typical workflow
 
 ### 1. Get a workbook into the session
 
-- \`create_new_workbook\` — make a fresh empty workbook with one default sheet
+- \`create_new_workbook\` — make a fresh empty workbook. \`createDefaultWorksheet\` accepts \`true\` (creates "Sheet1"), \`false\` (no sheet), or a string (custom sheet name). Default is "Sheet1".
 - \`import_workbook_from_url\` — fetch an existing .xlsx from a URL
 
 Either one sets the new workbook as currentFile. \`list_open_workbook\` shows what's already loaded.
@@ -40,7 +50,7 @@ Every cell tool updates currentCell to the cell you touched, so the cursor follo
 
 #### 3a. Known tables — you already know where the data lives
 
-- \`get_cell\` — single value when you know the exact A1 ref (e.g. "C5") or row+col
+- \`get_cell\` — single value when you know the exact A1 ref (e.g. "C5") or row+col. The \`value\` field returns the most natural JS value for the cell type: primitives pass through; error cells return \`{kind: 'error', code}\`; duration cells return \`{kind: 'duration', ms}\`; rich-text returns \`{kind: 'rich-text', runs: [...]}\`; formula cells return \`{kind: 'formula', formula, cachedValue?}\` — check \`cachedValue\` for the cached result (may be absent when the formula hasn't been evaluated). \`nativeValue\` carries the same structured value (Date cells ISO-stringified), and \`formula\` is the formula text or null.
 - \`get_range\` — pull an entire 2D block in one shot (e.g. "A1:E100"). Use this when the data is structured: header in row 1, rows below, columns left to right. One call returns the whole table.
 
 #### 3b. Explore — find the data first
@@ -56,53 +66,26 @@ Use these when the layout is unfamiliar, the data is somewhere loose on the shee
 
   \`jump-to-original\` is the book-end of \`jump\`: jump to a known cell, do some exploration, then return to the cell you started at so any subsequent cell operation lands back where you began.
 
-  **Example — exploring a 10×10 sheet from your current cell with one tool call.** To scan a populated column, find where its data ends, snap back to the top, and step right, chain moves like this:
+  **Example — scan two populated columns from your current cell in one tool call.** Crawl down UNTIL_BLANK with a safety cap, snap back to the top, step right, crawl the next column, then snap back to where you started:
 
   \`\`\`
   moves: [
-    { "direction": "down",  "count": "UNTIL_BLANK", "max": 10 },
+    { "direction": "down",  "count": "UNTIL_BLANK", "max": 100 },
     { "direction": "jump-to-original" },
     { "direction": "right", "count": 1 },
-    { "direction": "down",  "count": "UNTIL_BLANK", "max": 10 },
-    { "direction": "jump-to-original" },
-    { "direction": "right", "count": 2 },
-    { "direction": "down",  "count": "UNTIL_BLANK", "max": 10 },
-    { "direction": "jump-to-original" },
-    { "direction": "right", "count": 3 },
-    { "direction": "down",  "count": "UNTIL_BLANK", "max": 10 },
-    { "direction": "jump-to-original" },
-    { "direction": "right", "count": 4 },
-    { "direction": "down",  "count": "UNTIL_BLANK", "max": 10 },
-    { "direction": "jump-to-original" },
-    { "direction": "right", "count": 5 },
-    { "direction": "down",  "count": "UNTIL_BLANK", "max": 10 },
-    { "direction": "jump-to-original" },
-    { "direction": "right", "count": 6 },
-    { "direction": "down",  "count": "UNTIL_BLANK", "max": 10 },
-    { "direction": "jump-to-original" },
-    { "direction": "right", "count": 7 },
-    { "direction": "down",  "count": "UNTIL_BLANK", "max": 10 },
-    { "direction": "jump-to-original" },
-    { "direction": "right", "count": 8 },
-    { "direction": "down",  "count": "UNTIL_BLANK", "max": 10 },
-    { "direction": "jump-to-original" },
-    { "direction": "right", "count": 9 },
-    { "direction": "down",  "count": "UNTIL_BLANK", "max": 10 },
-    { "direction": "jump-to-original" },
-    { "direction": "right", "count": 10 },
-    { "direction": "down",  "count": "UNTIL_BLANK", "max": 10 },
+    { "direction": "down",  "count": "UNTIL_BLANK", "max": 100 },
     { "direction": "jump-to-original" }
   ]
   \`\`\`
 
-  Each \`down\` crawls UNTIL_BLANK with a 100-cell safety cap, so a totally-empty column terminates with \`max_reached\` rather than running to the worksheet edge; each \`jump: A1\` snaps the cursor back to the top so the next \`right\` + \`down\` starts the next column. The final \`jump-to-original\` returns the cursor to wherever it was when this call started — so a follow-up \`get_cell\` (or any cell tool that uses the cursor) lands back at the original position regardless of how far the crawl wandered. After one tool call you've mapped the bottom edge of every populated column on the 100×100 sheet — see \`stops\` for the row each column ended on, and \`visited\` for all the cell values you crawled past.
+  Each \`down\` crawls UNTIL_BLANK with a 100-cell safety cap, so a totally-empty column terminates with \`max_reached\` rather than running to the worksheet edge; each \`jump-to-original\` snaps the cursor back to the top so the next \`right\` + \`down\` starts the next column. The final \`jump-to-original\` returns the cursor to wherever it was when this call started — so a follow-up \`get_cell\` (or any cell tool that uses the cursor) lands back at the original position regardless of how far the crawl wandered. Extend the pattern with more \`right\` + \`down\` + \`jump-to-original\` triples to scan more columns.
 
 #### 3c. Create / write
 
-- \`set_cell\` — write a single value (string / number / boolean / null) at an A1 ref or row+col
+- \`set_cell\` — write a single value (string / number / boolean / null / error) at an A1 ref or row+col. Error values are \`{kind: 'error', code}\` with code one of \`#NULL!\`, \`#DIV/0!\`, \`#VALUE!\`, \`#REF!\`, \`#NAME?\`, \`#NUM!\`, \`#N/A\`, \`#GETTING_DATA\`.
 - \`set_cells\` — bulk-write a 2D array of values starting at a top-left range anchor. Use this for full-table writes; it's one call instead of many.
-- \`set_formula\` — write a formula like \`=SUM(A1:A10)\`. Pass a cached value when you can (\`setFormula(cell, formula, { cachedValue: ... })\`); the file then renders the result before Excel is forced to recalc on open.
-- \`set_cell_type\` — coerce an already-written text cell into number / currency / percent / date / boolean. Useful when numeric data came in as text (e.g. pasted from a CSV) and you need it to sort / sum correctly.
+- \`set_formula\` — write a formula like \`=SUM(A1:A10)\`. Pass a cached value when you can (\`setFormula(cell, formula, { cachedValue: ... })\`); the file then renders the result before Excel is forced to recalc on open. The structured response includes a \`warnings: string[]\` array (and a \`(warning: ...)\` note in the text) when the formula directly self-references the target cell — e.g. \`=E14/D14-1\` on cell \`E14\` — or includes it inside a range. The write still goes through; the warning lets you notice and correct the formula on a follow-up call.
+- \`set_cell_type\` — coerce an already-written text cell into number / currency / percent / date / text / boolean. Useful when numeric data came in as text (e.g. pasted from a CSV) and you need it to sort / sum correctly.
 
 ### 4. Make it look right
 
@@ -116,9 +99,9 @@ Use these when the layout is unfamiliar, the data is somewhere loose on the shee
 
 **Input control**: \`add_dropdown_validation\` (list of allowed values), \`add_number_validation\` (min/max bounds)
 
-**Visual rules**: \`add_color_scale\` (3-color heat-map across a range), \`add_cell_value_rule\` (highlight cells greater/less than, equal, or between values)
+**Visual rules**: \`add_color_scale\` (3-color heat-map across a range), \`add_cell_value_rule\` (highlight cells greater/less than, equal, or between values). \`value\` / \`value2\` accept string / number / boolean and are coerced to string internally — so \`value: 70000\` works for "greater than 70000". Pass \`fillColor: "FFFF6B6B"\` in AARRGGBB to set the highlight color; without it the rule still fires but applies no fill.
 
-**Structured tables**: \`create_excel_table\` (banded rows + built-in filter headers + named for formula reference), \`add_autofilter\` (filter dropdowns without the full table styling)
+**Structured tables**: \`create_excel_table\` (banded rows + built-in filter headers + named for formula reference — if a sheet-level autoFilter already covers the exact same range it is cleared and absorbed into the table, since Excel would otherwise discard the table on open; the structured response reports \`clearedAutoFilter: true\` when this happens. Do NOT pair \`add_autofilter\` with \`create_excel_table\` on the same range — the table already brings its own filter), \`add_autofilter\` (filter dropdowns without the full table styling)
 
 **Mixed formatting in one cell**: \`set_rich_text\` — pass an array of { text, bold?, italic?, fontSize?, fontColor?, fontName? } parts
 
@@ -126,7 +109,7 @@ Use these when the layout is unfamiliar, the data is somewhere loose on the shee
 
 **Annotations**: \`add_comment\` / \`delete_comment\` — sticky-note style comments on cells
 
-**Lock-down**: \`protect_sheet\` (enable/disable sheet protection), \`lock_cell\` (toggle lock on a specific cell)
+**Lock-down**: \`protect_sheet\` (enable/disable sheet protection), \`lock_cell\` (toggle lock on a specific cell; auto-creates the cell if missing, mirroring \`set_cell\`)
 
 ### 5. Visualizations and assets
 
@@ -141,7 +124,7 @@ Use these when the layout is unfamiliar, the data is somewhere loose on the shee
 ### 7. Save or close
 
 - \`export_workbook_to_url\` — returns a download URL with a TTL. Pass \`autoclose: true\` to drop the workbook from the session at the same time.
-- \`close_workbook\` — drop a workbook without exporting.
+- \`close_workbook\` — drop a workbook without exporting. \`filename\` is optional and defaults to the current workbook.
 
 ## Resources
 
@@ -155,4 +138,9 @@ Open workbooks are also exposed as MCP resources under the URI scheme \`workbook
 - **Formula cached values** are optional but cheap — pass them if you can, so files look correct in tools that don't recalculate on open.
 - **Many tools return TOON** (a compact token-efficient encoding) for ranges and search results so they fit cheaply in your context.
 - **Styling functions pool styles per workbook**. That means setting bold on ten thousand cells is essentially free storage-wise after the first one — it just references the existing bold style.
-- **Charts and images are anchored to a cell**, not floats — they live with the workbook and don't require an extra drawing part configuration from you.`;
+- **Charts and images are anchored to a cell**, not floats — they live with the workbook and don't require an extra drawing part configuration from you.
+- **\`createDefaultWorksheet: "false"\` (string) suppresses sheet creation** despite being truthy — the handler treats the literal string \`"false"\` the same as the boolean \`false\`. Pass \`false\` (boolean) for "no sheet", or any other string to name the sheet. Don't pass \`"false"\` thinking you're naming a sheet.
+- **\`chain_operations\` cannot invoke tools that require MCP sampling** — when \`detect_headers\` or its sample derivatives are called with \`useSampling: true\` inside a chain, the step errors with "tool requires client input (sampling) and cannot be used inside a chain". Pass \`useSampling: false\` on the step args, or call \`detect_headers\` outside the chain first and let the chain reuse its cached result.
+- **Persistence model**: each \`tools/call\` persists its writes immediately, so state is consistent across calls in a batch or SSE stream. \`chain_operations\` is the one exception — it batches internally for performance (a 10-step chain takes ~1s instead of ~10s), and its writes persist at HTTP-request completion, not after each step. A crash between standalone \`tools/call\`s loses nothing; a crash mid-chain loses the chain's unflushed writes.
+- **Every tool call round-trips the workbook through bytes.** \`Context.setWorkbook\` serialises to .xlsx bytes on each call and \`Context.getWorkbook\` re-parses them on the next call. Anything that does not survive a save→load cycle (e.g. raw XML stuffed into a field the parser doesn't model) is silently lost. Prefer first-class schema fields over hand-rolled XML payloads; if you must hand-roll XML, verify it round-trips by calling \`get_cell\` / \`get_range\` afterwards.
+- **Self-referential formulas are written as-is.** \`set_formula\` does not block \`=E14/D14-1\` on cell \`E14\` — Excel accepts it and surfaces it in its circular-reference dialog. The server's structured response includes a \`warnings\` array when this happens so you can correct the formula on a follow-up call. Watch for it whenever a formula's target cell also appears in its body, especially in "growth" / "delta" columns where row indices are easy to misalign.`;

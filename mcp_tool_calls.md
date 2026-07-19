@@ -835,37 +835,37 @@ set_cells
 set_formula
 {
   "ref": "E14",
-  "formula": "=E14/D14-1"
+  "formula": "=(D14-C14)/C14"
 }
 
 set_formula
 {
   "ref": "E15",
-  "formula": "=E15/D15-1"
+  "formula": "=(D15-C15)/C15"
 }
 
 set_formula
 {
   "ref": "E16",
-  "formula": "=E16/D16-1"
+  "formula": "=(D16-C16)/C16"
 }
 
 set_formula
 {
   "ref": "E17",
-  "formula": "=E17/D17-1"
+  "formula": "=(D17-C17)/C17"
 }
 
 set_formula
 {
   "ref": "E18",
-  "formula": "=E18/D18-1"
+  "formula": "=(D18-C18)/C18"
 }
 
 set_formula
 {
   "ref": "E19",
-  "formula": "=E19/D19-1"
+  "formula": "=(D19-C19)/C19"
 }
 ```
 
