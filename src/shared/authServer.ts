@@ -21,6 +21,7 @@ import express from 'express';
 import type { DemoAuth } from './auth.js';
 import { createAuth, DEMO_USER_CREDENTIALS } from './auth.js';
 import type { AuthConfig } from './authMode.js';
+import { consumePendingLogin, peekMostRecentPendingLogin } from './pendingLogin.js';
 
 export interface SetupAuthServerOptions {
     authServerUrl: URL;
@@ -96,6 +97,77 @@ async function ensureDemoUserExists(auth: DemoAuth): Promise<void> {
             throw error;
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// T-22 helpers — real-mode /sign-in support
+// ---------------------------------------------------------------------------
+
+/**
+ * Tiny HTML page shown when required OAuth query parameters are missing.
+ * Mode-agnostic (demo's 400 page has demo-specific copy; this one does not).
+ */
+function missingParamsHtml(): string {
+    return `<!DOCTYPE html>
+<html>
+<head><title>Missing OAuth Parameters</title></head>
+<body>
+    <h1>OAuth Server</h1>
+    <p>Missing required OAuth parameters. This page should be accessed via the OAuth flow.</p>
+</body>
+</html>`;
+}
+
+/**
+ * 302-redirect to the authorization endpoint, preserving all original OAuth
+ * query parameters.  Does NOT strip `prompt=consent` — in real mode the
+ * consent screen is real and the user must approve.
+ */
+function redirectToAuthorize(
+    res: ExpressResponse,
+    queryParams: URLSearchParams,
+    authServerUrl: URL,
+): void {
+    const authorizeUrl = new URL('/api/auth/mcp/authorize', authServerUrl);
+    authorizeUrl.search = queryParams.toString();
+    res.redirect(authorizeUrl.toString());
+}
+
+/**
+ * Small HTML page that polls for a pending login entry.
+ *
+ * Two refresh mechanisms:
+ * - `<meta http-equiv="refresh" content="2">` reloads the current URL
+ *   (with all original OAuth query params) every 2 seconds as a fallback.
+ * - A client-side script hits `/api/auth/pending-login-wait?since=<now>`
+ *   every 1 second and only forces `location.reload()` when the endpoint
+ *   returns `{ ready: true }`, avoiding unnecessary hammering.
+ */
+function pollingHtml(): string {
+    return `<!DOCTYPE html>
+<html>
+<head>
+    <title>Waiting for Sign-In</title>
+    <meta http-equiv="refresh" content="2">
+</head>
+<body>
+    <h1>Waiting for sign-up to complete…</h1>
+    <p>If this takes more than a minute, restart the request.</p>
+    <script>
+(async function() {
+    var since = Date.now();
+    while (true) {
+        try {
+            var resp = await fetch('/api/auth/pending-login-wait?since=' + since);
+            var data = await resp.json();
+            if (data.ready) { location.reload(); return; }
+        } catch (e) { /* meta refresh is the fallback */ }
+        await new Promise(function(r) { setTimeout(r, 1000); });
+    }
+})();
+    </script>
+</body>
+</html>`;
 }
 
 /**
@@ -181,6 +253,18 @@ export function setupAuthServer(options: SetupAuthServerOptions): void {
         });
     }
 
+    // T-22: Polling endpoint for the real-mode pending-login wait page.
+    // Intentionally unauthenticated — leaks only "pending login exists, yes/no",
+    // not the nonce or userId.
+    // MUST be registered BEFORE the better-auth catch-all below so
+    // toNodeHandler doesn't swallow the request.
+    authApp.get('/api/auth/pending-login-wait', (req: Request, res: ExpressResponse) => {
+        if (authConfig.mode !== 'real') { res.status(404).end(); return; }
+        const since = Number(req.query.since ?? 0);
+        const pending = peekMostRecentPendingLogin();
+        res.json({ ready: !!pending && pending.expiresAt > since, expiresAt: pending?.expiresAt ?? null });
+    });
+
     // Mount better-auth handler BEFORE body parsers
     // toNodeHandler reads the raw request body, so Express must not consume it first
     if (dangerousLoggingEnabled) {
@@ -248,7 +332,7 @@ export function setupAuthServer(options: SetupAuthServerOptions): void {
     // -----------------------------------------------------------------------
     // /sign-in route — mode-branched
     // Demo: auto-login as the demo user (byte-for-byte identical to pre-T-21).
-    // Real: T-22 fills the pending-login-aware handler; this is a stub.
+    // Real: T-22 pending-login-aware handler (re-emits captured cookies).
     // -----------------------------------------------------------------------
 
     // Demo handler — extracted verbatim from the inline route body.
@@ -325,10 +409,39 @@ export function setupAuthServer(options: SetupAuthServerOptions): void {
         }
     };
 
-    // Real handler — stub for T-22 to fill with pending-login-aware logic.
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const realSignInHandler = async (_req: Request, res: ExpressResponse): Promise<void> => {
-        res.status(501).json({ error: 'Not Implemented', message: 'Real-mode /sign-in will be implemented in T-22' });
+    // Real handler — T-22: pending-login-aware sign-in.
+    //
+    // Cookie-emission contract with T-41: the auth_signup tool MUST store
+    // `cookieHeaders` (from `signInEmail({ asResponse: true }).headers.getSetCookie()`)
+    // on the PendingLogin entry it creates.  This handler re-emits those
+    // captured Set-Cookie headers without calling signInEmail again — the
+    // signup tool already established the session server-side.
+    const realSignInHandler = async (req: Request, res: ExpressResponse): Promise<void> => {
+        const queryParams = new URLSearchParams(req.query as Record<string, string>);
+        const redirectUri = queryParams.get('redirect_uri');
+        const clientId = queryParams.get('client_id');
+        if (!redirectUri || !clientId) {
+            res.status(400).send(missingParamsHtml());
+            return;
+        }
+
+        // Try the query-param fast path (Option B optimisation from T-01).
+        let pending = null as ReturnType<typeof peekMostRecentPendingLogin>;
+        const nonce = queryParams.get('login_nonce');
+        if (nonce) pending = consumePendingLogin(nonce);
+        if (!pending) pending = peekMostRecentPendingLogin();
+
+        if (pending && pending.cookieHeaders?.length) {
+            // Fast path: re-emit cookies captured by the signup tool (T-41),
+            // then redirect to the authorization endpoint.
+            for (const c of pending.cookieHeaders) res.append('Set-Cookie', c);
+            if (nonce) consumePendingLogin(nonce); // already consumed above; idempotent safety net
+            redirectToAuthorize(res, queryParams, authServerUrl);
+            return;
+        }
+
+        // Slow path: render a small HTML page that polls and auto-reloads.
+        res.status(200).send(pollingHtml());
     };
 
     // Route branches on mode

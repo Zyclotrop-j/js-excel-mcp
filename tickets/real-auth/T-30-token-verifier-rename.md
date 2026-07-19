@@ -101,23 +101,30 @@ directly," add `verifyApiKey(auth, token)`:
 
 ```ts
 async function verifyApiKey(auth: Auth, token: string): Promise<AuthInfo> {
-  // Confirm the exact API with T-00 — likely:
+  // API confirmed against installed `@better-auth/api-key` .d.ts — see
+  // arch-decision-passkey-and-related.md §3 and the architect's note at
+  // the top of this ticket. The method is `auth.api.verifyApiKey` (NOT
+  // `auth.api.apiKey.verify`); the response shape is
+  // `{ valid: boolean, error: {message, code} | null, key: Omit<ApiKey, 'key'> | null }`.
+  // The user identifier on the `key` object is `referenceId` (NOT `userId` —
+  // the apiKey plugin stores the caller-supplied `userId` as `referenceId`
+  // on the row). `verifyApiKey` does NOT return a top-level `userId`.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const result = await (auth.api as any).apiKey.verify({ body: { key: token } });
-  if (!result || !result.userId) {
+  const result = await (auth.api as any).verifyApiKey({ body: { key: token } });
+  if (!result || result.valid !== true || !result.key) {
     throw new OAuthError(OAuthErrorCode.InvalidToken, 'Invalid API key');
   }
   // API keys don't expire in the same way MCP tokens do; use a long horizon.
   const expiresAt = Math.floor(Date.now() / 1000) + 3600;
   // Synthesize a clientId for the AuthInfo — the apiKey plugin
-  // doesn't go through OAuth's clientId concept. Use the key's
-  // prefix or a fixed 'mcp-api-key' value. Confirm with T-00.
+  // doesn't go through OAuth's clientId concept. Use the key's id
+  // (stable row id) or a fixed 'mcp-api-key' fallback.
   return {
     token,
-    clientId: result.keyId ?? 'mcp-api-key',
+    clientId: result.key.id ?? 'mcp-api-key',
     scopes: ['openid', 'profile', 'email', 'offline_access'],
     expiresAt,
-    extra: { userId: result.userId, credentialType: 'api-key' }
+    extra: { userId: result.key.referenceId, credentialType: 'api-key' }
   };
 }
 ```
