@@ -7,11 +7,17 @@ import { Context } from '../filesystem/context.js';
 import wretch from 'wretch';
 import { retry, dedupe, throttlingCache } from 'wretch/middlewares';
 
+export const IMAGE_OPTIONS = {
+    maxAttempts: 3,
+    delayTimer: 500,
+    throttle: 5 * 60 * 1000,
+}
+
 const imageClient = wretch()
     .middlewares([
         retry({
-            maxAttempts: 3,
-            delayTimer: 500,
+            maxAttempts: IMAGE_OPTIONS.maxAttempts,
+            delayTimer: IMAGE_OPTIONS.delayTimer,
             delayRamp: (delay, attempts) => delay * attempts,
             retryOnNetworkError: true,
             until: (response) => !!response && (response.ok || (response.status >= 400 && response.status < 500)),
@@ -21,7 +27,7 @@ const imageClient = wretch()
             resolver: (response) => response.clone(),
         }),
         throttlingCache({
-            throttle: 5 * 60 * 1000,
+            throttle: IMAGE_OPTIONS.throttle,
             key: (url, opts) => opts.method + '@' + url,
             condition: (response) => response.ok,
         }),

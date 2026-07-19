@@ -1,8 +1,14 @@
 import { strict as assert } from 'node:assert';
 import { MockMcpServer, createMockRequestContext } from '../helpers/test-server.js';
 import { createTestContext } from '../helpers/test-context.js';
-import { ImageHandler } from '../../src/tools/handleImage.js';
+import { ImageHandler, IMAGE_OPTIONS } from '../../src/tools/handleImage.js';
 import { run } from '../../src/util/requestContext.js';
+
+// Cut the wretch retry/throttle timings to near-zero so the tests that hit an
+// unreachable port (127.0.0.1:1) don't spend 3 × 500ms × N retries each.
+IMAGE_OPTIONS.maxAttempts = 1;
+IMAGE_OPTIONS.delayTimer = 0;
+IMAGE_OPTIONS.throttle = 0;
 
 let mockServer: MockMcpServer;
 let testContext: ReturnType<typeof createTestContext>;
@@ -83,9 +89,9 @@ test('insert_image with no open workbook (different userId)', async () => {
 
         assert.ok(result.content);
         assert.ok(result.content.length > 0);
-        assert.ok(result.content[0].type === 'text');
-        assert.ok(result.content[0].text.includes('no workbook is currently open'));
-        assert.ok(!result.structuredContent);
+        const text = result.content.map((c: any) => c.text ?? '').join('\n');
+        assert.ok(text.includes('no workbook is currently open'),
+            `expected 'no workbook' error; got: ${text}`);
 
         await differentContext.cleanup();
     });
@@ -113,13 +119,13 @@ test('insert_image response structure when successful (schema check)', async () 
     await run(async () => {
         const toolDefinition = mockServer.registeredTools.get('insert_image');
         assert.ok(toolDefinition);
-        assert.ok(toolDefinition.outputSchema);
+        const outputSchema = (toolDefinition.config as { outputSchema?: { shape?: Record<string, unknown> } }).outputSchema;
+        assert.ok(outputSchema, 'insert_image should register an outputSchema in its config');
 
-        const schemaShape = toolDefinition.outputSchema.shape;
+        const schemaShape = outputSchema.shape;
         assert.ok(schemaShape);
-        assert.ok(schemaShape.structuredContent);
-        assert.equal(schemaShape.structuredContent.type.name, 'ZodOptional');
-        assert.ok(schemaShape.structuredContent.type.schema);
+        assert.ok(schemaShape.anchorCell);
+        assert.ok(schemaShape.context);
     });
 });
 

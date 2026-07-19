@@ -53,8 +53,10 @@ const handler = createMcpHandler(async (context) => {
     });
 
     const toolSet: ToolHandler[] = [];
-    for(const Tool  of Object.values(tools)) {
-        const   t = new Tool(server, context, app, {serverHost: baseUrl});
+    for (const Tool of Object.values(tools)) {
+        // Skip non-handler exports (e.g. `IMAGE_OPTIONS` from handleImage.ts).
+        if (typeof Tool !== 'function' || !Tool.prototype || !(Tool.prototype instanceof ToolHandler)) continue;
+        const t = new Tool(server, context, app, { serverHost: baseUrl });
         toolSet.push(t);
         await t.register(toolSet);
     }

@@ -4,15 +4,20 @@ import { fromResponse, loadWorkbook } from '@office-kit/xlsx/io';
 import { ResourceTemplate } from '@modelcontextprotocol/server';
 import z from 'zod';
 import { Context } from '../filesystem/context.js';
-import { rgbColor } from '@office-kit/xlsx/styles';
 import wretch from 'wretch';
 import { retry, dedupe, throttlingCache } from 'wretch/middlewares';
+
+export const IMPORT_OPTIONS = {
+    maxAttempts: 3,
+    delayTimer: 500,
+    throttle: 5 * 60 * 1000,
+}
 
 const workbookClient = wretch()
     .middlewares([
         retry({
-            maxAttempts: 3,
-            delayTimer: 500,
+            maxAttempts: IMPORT_OPTIONS.maxAttempts,
+            delayTimer: IMPORT_OPTIONS.delayTimer,
             delayRamp: (delay, attempts) => delay * attempts,
             retryOnNetworkError: true,
             until: (response) => !!response && (response.ok || (response.status >= 400 && response.status < 500)),
@@ -22,7 +27,7 @@ const workbookClient = wretch()
             resolver: (response) => response.clone(),
         }),
         throttlingCache({
-            throttle: 5 * 60 * 1000,
+            throttle: IMPORT_OPTIONS.throttle,
             key: (url, opts) => opts.method + '@' + url,
             condition: (response) => response.ok,
         }),
