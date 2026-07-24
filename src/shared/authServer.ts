@@ -529,7 +529,7 @@ async function verifyApiKey(auth: DemoAuth, token: string): Promise<AuthInfo> {
         clientId: result.key.id ?? 'mcp-api-key',
         scopes: ['openid', 'profile', 'email', 'offline_access'],
         expiresAt,
-        extra: { userId: result.key.referenceId, credentialType: 'api-key' }
+        extra: { userId: result.key.referenceId, keyId: result.key.id, credentialType: 'api-key' }
     };
 }
 

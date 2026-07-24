@@ -18,4 +18,8 @@
  */
 
 export { AuthSignupHandler } from './signup.js';
+export { AuthSigninHandler } from './signin.js';
+export { AuthRecoverHandler } from './recover.js';
 export { AuthSignoutHandler } from './signout.js';
+export { AuthAddPasskeyHandler } from './addPasskey.js';
+export { AuthRotateApikeyHandler } from './rotateApikey.js';
