@@ -35,6 +35,14 @@ import bug3RichTextTests from './integration/bug3-rich-text.test.js';
 import bug4CloseWorkbookTests from './integration/bug4-close-workbook.test.js';
 import bug5CfTableRepairTests from './integration/bug5-cf-table-repair.test.js';
 
+// T-72: gated real-mode test files. Each self-skips when
+// MCP_AUTH_MODE !== 'real', so they are no-ops in the default CI job.
+import realAuthSignupTests from './real-auth/signup-to-excel.test.js';
+import realAuthSigninTests from './real-auth/signin.test.js';
+import realAuthRecoverTests from './real-auth/recover.test.js';
+import realAuthApikeyTests from './real-auth/apikey.test.js';
+import realAuthPasskeyTests from './real-auth/passkey.test.js';
+
 workbookFlow(test);
 sheetOpsFlow(test);
 cellOpsFlow(test);
@@ -64,6 +72,13 @@ bug2CellValueRuleTests(test);
 bug3RichTextTests(test);
 bug4CloseWorkbookTests(test);
 bug5CfTableRepairTests(test);
+
+// T-72: register gated real-mode tests (self-skip in demo mode).
+realAuthSignupTests(test);
+realAuthSigninTests(test);
+realAuthRecoverTests(test);
+realAuthApikeyTests(test);
+realAuthPasskeyTests(test);
 
 !(async function () {
     const ok = await test.run();

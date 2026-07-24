@@ -115,6 +115,66 @@ The PM2 config lives in `ecosystem.config.cjs`. It runs `tsx src/index.ts` with 
 
 **Important:** Always `pm2 delete` + `pm2 start` (not just `pm2 restart`) after updating `ecosystem.config.cjs` or adding new dependencies — restart alone may not pick up all changes.
 
+Real mode is started with `npx pm2 start ecosystem.config.cjs --env real` (uses the `env_real` block). See the [Auth modes](#auth-modes) section below for the full env var list and reset procedure.
+
+## Auth modes
+
+The server supports two auth modes, switched by `MCP_AUTH_MODE`:
+
+| Mode | Value | Behavior |
+|---|---|---|
+| Demo (default) | `MCP_AUTH_MODE` unset or `demo` | Auto-login, no consent screen, `origin: '*'`, loopback-only. Used by `examples/oauth/` and the test client. |
+| Real | `MCP_AUTH_MODE=real` | Real signup/signin/recover via MCP tools, real consent screen, explicit CORS origins, configurable bind host. |
+
+### Env vars (real mode only; demo uses hardcoded defaults)
+
+| Var | Purpose | Default |
+|---|---|---|
+| `MCP_AUTH_MODE` | Master switch | `demo` |
+| `MCP_AUTH_DB` | SQLite path | `data/_auth_real.db` |
+| `MCP_AUTH_BIND_HOST` | Bind host | `localhost` |
+| `MCP_AUTH_CORS_ORIGINS` | CORS origin CSV (no `*` in real) | **required** |
+| `AUTH_SECRET` | Session/JWT signing secret (also accepts `BETTER_AUTH_SECRET`) | **required** |
+| `MCP_AUTH_ALLOW_USER_SIGNUP` | `1`/`0` | `1` |
+| `AUTH_TRUSTED_ORIGINS` | better-auth trusted origins CSV | derived from base URL |
+| `MCP_AUTH_OTP_TRANSPORT` | `console`/`webhook`/`sendgrid`/`custom` | `console` |
+| `MCP_AUTH_OTP_WEBHOOK_URL` | Required when transport=webhook | — |
+| `MCP_AUTH_DB_BACKEND` | `sqlite`/`d1`/`turso`/`postgres`/`custom` | `sqlite` |
+| `MCP_AUTH_DB_URL` | Required when backend≠sqlite | — |
+| `MCP_AUTH_DB_AUTH_TOKEN` | For D1 / Turso | — |
+| `MCP_AUTH_PASSKEY_RP_ID` | Passkey relying-party ID | `localhost` |
+| `MCP_AUTH_PASSKEY_RP_NAME` | Passkey relying-party display name | `js-excel-mcp Auth` |
+
+The canonical list lives in `src/shared/authMode.ts` (`loadAuthConfig`). Only `src/server.ts` and `authMode.ts` may read `process.env` for auth. The `env_real` block in `ecosystem.config.cjs` carries the defaults; operators override `AUTH_SECRET` and other sensitive vars via their own PM2 setup.
+
+### Endpoints
+
+| Path | Auth | Tools |
+|---|---|---|
+| `/mcp/bootstrap` | None | `auth_signup` / `auth_signin` / `auth_recover` |
+| `/mcp` | Bearer (OAuth access token or API key) | Excel tools + `auth_signout` / `auth_add_passkey` / `auth_rotate_apikey` |
+
+An unauthenticated LLM connects to `/mcp/bootstrap` to sign up; once authenticated, it connects to `/mcp` for the Excel tools. Auth actions use **tool arguments** (not MCP elicitation) — the elicitation path was evaluated and deferred in favor of explicit tool arguments for broader client compatibility. See `tickets/real-auth/notes/SIGNUP_FLOW.md` (T-44) for the full flow.
+
+### Schema reset (real mode)
+
+The real-mode auth schema lives in `data/_auth_real.db` (SQLite, hand-written DDL with `CREATE TABLE IF NOT EXISTS`). **Adding a column to an existing table does not work** — delete the DB file before restarting:
+
+```
+npx pm2 stop js-excel-mcp
+Remove-Item data\_auth_real.db -Force -ErrorAction SilentlyContinue
+npx pm2 start ecosystem.config.cjs --env real
+```
+
+Demo mode (`data/_auth.db`) follows the same rule (see Database Management below).
+
+### Pluggable surfaces
+
+Two real-mode surfaces are designed to be swapped via follow-up tickets, without touching tools or auth-server:
+
+- **Mailer** (`src/shared/mailer.ts`): the `OtpMailer` function slot. Today: `consoleMailer` / `webhookMailer`. Follow-up T-80 adds SendGrid / Postmark.
+- **Database** (`src/shared/authDatabase/`): the `AuthDatabase` interface. Today: `openSqliteAuthDatabase`. Follow-up T-81 adds Kysely-backed D1 / Turso / Postgres backends.
+
 ## Database Management
 
 Data lives in `data/*.db` (SQLite via `better-sqlite3`, one `.db` per user). If you change the schema in `src/filesystem/system.ts`, **delete the old `.db` files** before restarting — the tables use `CREATE TABLE IF NOT EXISTS` which won't add columns to an existing table:
@@ -124,6 +184,16 @@ npx pm2 delete js-excel-mcp
 Remove-Item data\*.db -Force
 npx pm2 start ecosystem.config.cjs
 ```
+
+## Re-authenticating the `my-server` MCP
+
+The `my-server` MCP (this server, at `http://localhost:3000/mcp`) uses OAuth and its token expires periodically. When a `my-server` tool call fails with an auth/401 error, run the non-interactive reauth script (it skips if already authed and hard-kills after 90s, so it can't hang):
+
+```
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/reauth-my-server.ps1
+```
+
+After it returns, retry the original tool call. The script is safe to invoke proactively at the start of a session if you're unsure of auth state.
 
 ## Key Conventions
 

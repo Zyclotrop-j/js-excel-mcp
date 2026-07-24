@@ -19,6 +19,7 @@ import {
     setupAuthServer,
     demoTokenVerifier
 } from '../../src/shared/authServer.js';
+import { loadAuthConfig } from '../../src/shared/authMode.js';
 
 // Stub express application.listen so it never opens a real socket. Returns a
 // fake Server-like EventEmitter with a no-op close(). The original `listen`
@@ -53,7 +54,8 @@ export default function (test: any) {
     });
 
     test('authServer: after setupAuthServer, getAuth() returns instance with .api', async () => {
-        setupAuthServer({ authServerUrl, mcpServerUrl, demoMode: false, autoConsent: false });
+        const authConfig = loadAuthConfig(`http://localhost:${MCP_PORT}`);
+        setupAuthServer({ authServerUrl, mcpServerUrl, authConfig, autoConsent: false });
         const auth = getAuth();
         assert.ok(auth, 'getAuth() should return an instance after setup');
         assert.ok(auth.api, 'auth instance should expose .api');
