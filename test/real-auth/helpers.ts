@@ -52,8 +52,12 @@ function stubExpressListen(): void {
  * Set up the real-mode auth server for tests. Idempotent — only
  * initializes once per process. Returns the `AuthConfig` so test
  * files can read `dbPath` and other fields.
+ *
+ * `setupAuthServer` is now async (D1 schema init awaits a round-trip),
+ * so this helper is also async. Test files `await` the returned promise
+ * before reading `getAuth()`.
  */
-export function setupRealAuthTestEnv(): AuthConfig {
+export async function setupRealAuthTestEnv(): Promise<AuthConfig> {
     if (initialized && cachedConfig) return cachedConfig;
 
     // Set env vars for real mode BEFORE loadAuthConfig is called.
@@ -70,7 +74,7 @@ export function setupRealAuthTestEnv(): AuthConfig {
     stubExpressListen();
 
     const cfg = loadAuthConfig(`http://localhost:${MCP_PORT}`);
-    setupAuthServer({
+    await setupAuthServer({
         authServerUrl: new URL(`http://localhost:${AUTH_PORT}`),
         mcpServerUrl: new URL(`http://localhost:${MCP_PORT}/mcp`),
         authConfig: cfg,

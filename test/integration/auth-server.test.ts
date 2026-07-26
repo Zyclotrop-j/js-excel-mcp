@@ -55,7 +55,7 @@ export default function (test: any) {
 
     test('authServer: after setupAuthServer, getAuth() returns instance with .api', async () => {
         const authConfig = loadAuthConfig(`http://localhost:${MCP_PORT}`);
-        setupAuthServer({ authServerUrl, mcpServerUrl, authConfig, autoConsent: false });
+        await setupAuthServer({ authServerUrl, mcpServerUrl, authConfig, autoConsent: false });
         const auth = getAuth();
         assert.ok(auth, 'getAuth() should return an instance after setup');
         assert.ok(auth.api, 'auth instance should expose .api');

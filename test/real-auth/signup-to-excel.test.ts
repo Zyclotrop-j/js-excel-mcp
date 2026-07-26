@@ -27,7 +27,7 @@ export default function (test: any) {
     let authConfig: AuthConfig;
 
     test('real-auth signup: setup', async () => {
-        authConfig = setupRealAuthTestEnv();
+        authConfig = await setupRealAuthTestEnv();
         mockServer = new MockMcpServer();
     });
 
