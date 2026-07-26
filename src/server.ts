@@ -96,9 +96,14 @@ const authConfigLocal = loadAuthConfig(baseUrl);
 let activeBaseUrl: string | undefined;
 let activeAuthConfig: AuthConfig | undefined;
 
-let authReady = false;
-function ensureAuth(req: import('express').Request): void {
-    if (authReady) return;
+let authReady: boolean | Promise<void> = false;
+// Tracks the in-flight auth init so concurrent first-requests serialise on
+// the same promise rather than each racing `setupAuthServer` independently.
+let authInitPromise: Promise<void> | null = null;
+
+function ensureAuth(req: import('express').Request): Promise<void> {
+    if (authReady === true) return Promise.resolve();
+    if (authInitPromise) return authInitPromise;
     let cfgBase: string;
     let cfgMcpUrl: URL;
     let cfgAuthUrl: URL;
@@ -119,42 +124,38 @@ function ensureAuth(req: import('express').Request): void {
     // AFTER ensureAuth has set authReady=true) can read the live values.
     activeBaseUrl = cfgBase;
     activeAuthConfig = cfg;
-    // On Cloudflare, mount the auth routes onto the SAME Express `app`
-    // (the MCP app) so the single Worker fetch handler reaches both.
-    // See issue 6 in the Cloudflare migration notes. Local Node keeps the
-    // standalone authApp on port 3001 as before.
-    setupAuthServer({
-        authServerUrl: cfgAuthUrl, mcpServerUrl: cfgMcpUrl, authConfig: cfg,
-        autoConsent: false,
-        ...(isCloudflare ? { mountApp: app } : {})
-    });
-    // RFC 9728 Protected Resource Metadata at
-    // /.well-known/oauth-protected-resource/mcp — the client discovers the
-    // AS from the 401 challenge → this route → AS metadata. Mounted here
-    // (lazily) because `createProtectedResourceMetadataRouter` calls
-    // `getAuth()` which needs `setupAuthServer` to have run first.
-    //
-    // Note: PRM continues to point at `/mcp` only. `/mcp/bootstrap` is not
-    // a "protected resource" by design — it has no bearer requirement and
-    // is not advertised anywhere by the server. Clients discover it via the
-    // standard 401-challenge interaction with the auth tools (see T-40 §6).
-    app.use(createProtectedResourceMetadataRouter('/mcp'));
-    // Bearer middleware and the `/mcp` + `/mcp/bootstrap` routes are also
-    // constructed here, lazily, because they need `cfgMcpUrl` (which on
-    // Cloudflare is request-derived). `excelNodeHandler` /
-    // `bootstrapNodeHandler` are defined as module-level consts below and
-    // captured by the closures registered here — Order matters: those
-    // consts must be initialised before this lazy call runs, which is
-    // guaranteed because `ensureAuth` is only invoked from a request
-    // middleware (after module-eval completes).
-    const bearerAuth = requireBearerAuth({
-        verifier: tokenVerifier,
-        requiredScopes: [],
-        resourceMetadataUrl: getOAuthProtectedResourceMetadataUrl(cfgMcpUrl)
-    });
-    app.all('/mcp', bearerAuth, mcpRouteHandler);
-    app.all('/mcp/bootstrap', bootstrapRouteHandler);
-    authReady = true;
+    // Build the lazy init promise. setupAuthServer is async (D1 exec) so
+    // it must complete before any route or bearer middleware can run.
+    authInitPromise = (async () => {
+        await setupAuthServer({
+            authServerUrl: cfgAuthUrl, mcpServerUrl: cfgMcpUrl, authConfig: cfg,
+            autoConsent: false,
+            ...(isCloudflare ? { mountApp: app } : {})
+        });
+        // RFC 9728 Protected Resource Metadata at
+        // /.well-known/oauth-protected-resource/mcp — the client discovers
+        // the AS from the 401 challenge → this route → AS metadata. Mounted
+        // lazily because `createProtectedResourceMetadataRouter` calls
+        // `getAuth()` which needs `setupAuthServer` to have resolved.
+        //
+        // Note: PRM continues to point at `/mcp` only. `/mcp/bootstrap` is
+        // not a "protected resource" by design — it has no bearer
+        // requirement and is not advertised anywhere by the server.
+        app.use(createProtectedResourceMetadataRouter('/mcp'));
+        // Bearer middleware and the `/mcp` + `/mcp/bootstrap` routes are
+        // also constructed here, lazily, because they need `cfgMcpUrl`
+        // (which on Cloudflare is request-derived).
+        const bearerAuth = requireBearerAuth({
+            verifier: tokenVerifier,
+            requiredScopes: [],
+            resourceMetadataUrl: getOAuthProtectedResourceMetadataUrl(cfgMcpUrl)
+        });
+        app.all('/mcp', bearerAuth, mcpRouteHandler);
+        app.all('/mcp/bootstrap', bootstrapRouteHandler);
+        authReady = true;
+        authInitPromise = null;
+    })();
+    return authInitPromise;
 }
 // First-request middleware: lazily wire auth + routes on the first fetch,
 // then no-op for the rest of the isolate's lifetime. Express's router walks
@@ -164,7 +165,7 @@ function ensureAuth(req: import('express').Request): void {
 // handling. The current request that triggers `ensureAuth` continues down
 // the stack via `next()` and is dispatched to the freshly-registered
 // `/mcp*` route as expected.
-app.use((req, _res, next) => { ensureAuth(req); next(); });
+app.use((req, _res, next) => { ensureAuth(req).then(() => next()).catch(next); });
 
 // DEMO ONLY — restrict `origin` in production. `exposedHeaders` lists the
 // response headers a browser-based MCP client must be able to read.

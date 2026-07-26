@@ -191,11 +191,13 @@ function pollingHtml(): string {
  *
  * @param options - Server configuration
  */
-export function setupAuthServer(options: SetupAuthServerOptions): void {
+export async function setupAuthServer(options: SetupAuthServerOptions): Promise<void> {
     const { authServerUrl, mcpServerUrl, authConfig, dangerousLoggingEnabled = false, autoConsent = false } = options;
 
-    // Create better-auth instance via mode dispatcher
-    const auth = createAuth(authConfig, {
+    // Create better-auth instance via mode dispatcher (async — D1 schema
+    // init may await a round-trip to Cloudflare D1 before better-auth can
+    // issue its first query).
+    const auth = await createAuth(authConfig, {
         baseURL: authServerUrl.toString().replace(/\/$/, ''),
         resource: mcpServerUrl.toString(),
         loginPage: '/sign-in',

@@ -303,8 +303,52 @@ export const REAL_SCHEMA_DDL = `
 `;
 
 /**
- * Return the DDL string for the given mode.
+ * Return the DDL string for the given mode, sanitised for the target backend.
+ *
+ * D1's `exec()` is stricter than better-sqlite3's `db.exec()`:
+ *   - It does not tolerate SQL comments (`--` lines) — the parser fails
+ *     with `incomplete input: SQLITE_ERROR`.
+ *   - It does not tolerate blank lines mid-statement.
+ *   - Each statement must end with `;` and start cleanly on a new boundary.
+ *
+ * `sanitizeForD1` strips `--` comments and blank lines, then collapses
+ * runs of whitespace into single spaces so each statement is one line.
+ * The SQLite path keeps the original pretty-printed DDL (for readability
+ * in error messages and parity with the T-12 paste).
  */
 export function getD1ModeSchema(mode: AuthMode): string {
-    return mode === 'demo' ? DEMO_SCHEMA_DDL : REAL_SCHEMA_DDL;
+    const raw = mode === 'demo' ? DEMO_SCHEMA_DDL : REAL_SCHEMA_DDL;
+    return sanitizeForD1(raw);
+}
+
+/**
+ * Sanitise DDL for D1's `exec()`:
+ *   1. Strip `--` line comments (everything from `--` to end of line).
+ *   2. Drop blank lines.
+ *   3. Collapse internal whitespace runs to single spaces so each
+ *      statement occupies exactly one line, terminated by `;`.
+ *   4. Trim leading/trailing whitespace.
+ *
+ * The resulting string is semantically identical to the input — only
+ * whitespace and comments change. Comments don't affect SQL semantics.
+ */
+function sanitizeForD1(ddl: string): string {
+    return ddl
+        .split('\n')
+        .map(line => {
+            // Strip everything from the first `--` to end of line. We don't
+            // have any string literals containing `--` in the DDL, so this
+            // is safe.
+            const dash = line.indexOf('--');
+            return dash >= 0 ? line.slice(0, dash) : line;
+        })
+        .map(line => line.trim())
+        .filter(line => line.length > 0)
+        .join('\n')
+        // Collapse whitespace runs (including newlines) inside statements
+        // to single spaces. Each statement ends with `;` already, so the
+        // only multi-token separators remaining are line wraps within a
+        // single CREATE TABLE block.
+        .replace(/\s+/g, ' ')
+        .trim();
 }

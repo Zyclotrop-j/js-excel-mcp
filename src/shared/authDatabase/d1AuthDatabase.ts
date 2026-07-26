@@ -33,18 +33,13 @@ import { getD1ModeSchema } from './schemaDdl';
 export function openD1AuthDatabase(d1: D1Database): AuthDatabase {
     return {
         betterAuthHandle: d1,
-        initializeSchema(m: AuthMode) {
-            // D1.exec is async (returns a Promise<D1ExecResult>) — but
-            // initializeSchema's signature is `void` to match the SQLite
-            // implementation. We fire-and-forget the exec and rely on the
-            // first better-auth query's own await to surface any DDL errors,
-            // because better-auth reaches D1 through its own adapter, which
-            // serialises on the same binding. The explicit `void` here
-            // discards the Promise intentionally; fresh isolates replay the
-            // idempotent DDL so a transient failure is self-healing.
-            void d1.exec(getD1ModeSchema(m)).catch((e: unknown) => {
-                console.error('[Auth] D1 schema initialization failed:', e);
-            });
+        async initializeSchema(m: AuthMode) {
+            // D1.exec is async (returns Promise<D1ExecResult>). We MUST
+            // await it before the first better-auth query runs, otherwise a
+            // fresh isolate hits `no such table: user: SQLITE_ERROR`. The
+            // DDL is `CREATE TABLE IF NOT EXISTS` so concurrent isolates
+            // re-running it is a cheap no-op.
+            await d1.exec(getD1ModeSchema(m));
         },
         close() {
             // No-op — D1 connections are managed by the Workers runtime.

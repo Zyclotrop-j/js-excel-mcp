@@ -145,7 +145,7 @@ export const DEMO_USER_CREDENTIALS = {
  * is set (T-81), use it directly; otherwise open a better-sqlite3 instance
  * at `cfg.dbPath` and call `initializeSchema` on it.
  */
-function getDatabase(cfg: AuthConfig): AuthDatabase {
+async function getDatabase(cfg: AuthConfig): Promise<AuthDatabase> {
     if (cfg.databaseBackend) return cfg.databaseBackend;
 
     // T-81: on Cloudflare real-mode with MCP_AUTH_DB_BACKEND=d1, look up the
@@ -166,7 +166,9 @@ function getDatabase(cfg: AuthConfig): AuthDatabase {
             );
         }
         const db = openD1AuthDatabase(d1 as Parameters<typeof openD1AuthDatabase>[0]);
-        db.initializeSchema(cfg.mode);
+        // Await the DDL — D1.exec is async and the first better-auth query
+        // would otherwise race the schema creation (`no such table: user`).
+        await db.initializeSchema(cfg.mode);
         return db;
     }
 
@@ -177,7 +179,8 @@ function getDatabase(cfg: AuthConfig): AuthDatabase {
         );
     }
     const db = openSqliteAuthDatabase(cfg.dbPath, cfg.mode);
-    db.initializeSchema(cfg.mode);
+    // SQLite's initializeSchema is synchronous, but the await is cheap.
+    await db.initializeSchema(cfg.mode);
     return db;
 }
 
@@ -189,7 +192,7 @@ function getDatabase(cfg: AuthConfig): AuthDatabase {
  * Create a better-auth instance for the given mode. This is the canonical
  * entry point; `authServer.ts` (T-21) will migrate to this.
  */
-export function createAuth(cfg: AuthConfig, opts: CreateAuthOptions): Auth {
+export async function createAuth(cfg: AuthConfig, opts: CreateAuthOptions): Promise<Auth> {
     if (cfg.mode === 'demo') return buildDemoAuth(cfg, opts);
     return buildRealAuth(cfg, opts);
 }
@@ -201,7 +204,7 @@ export function createAuth(cfg: AuthConfig, opts: CreateAuthOptions): Auth {
  *
  * @deprecated Use `createAuth(cfg, opts)` instead. Will be removed in T-21.
  */
-export function createDemoAuth(options: CreateDemoAuthOptions): Auth {
+export async function createDemoAuth(options: CreateDemoAuthOptions): Promise<Auth> {
     const cfg = loadAuthConfig(options.baseURL);
     return buildDemoAuth(cfg, {
         baseURL: options.baseURL,
@@ -222,12 +225,12 @@ export function createDemoAuth(options: CreateDemoAuthOptions): Auth {
  * which trips TS4058 across the module boundary. Fixed by casting the result
  * to the explicit structural `Auth` type.
  */
-function buildDemoAuth(cfg: AuthConfig, opts: CreateAuthOptions): Auth {
+async function buildDemoAuth(cfg: AuthConfig, opts: CreateAuthOptions): Promise<Auth> {
     const { baseURL, resource, loginPage = '/sign-in' } = opts;
 
     // File-backed SQLite at cfg.dbPath. Demo data persists across server
     // restarts; delete the DB file between demo runs to reset.
-    const authDb = getDatabase(cfg);
+    const authDb = await getDatabase(cfg);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = authDb.betterAuthHandle as any;
 
@@ -275,10 +278,10 @@ function buildDemoAuth(cfg: AuthConfig, opts: CreateAuthOptions): Auth {
 // Real builder — wires passkey + magicLink + twoFactor + apiKey
 // ---------------------------------------------------------------------------
 
-function buildRealAuth(cfg: AuthConfig, opts: CreateAuthOptions): Auth {
+async function buildRealAuth(cfg: AuthConfig, opts: CreateAuthOptions): Promise<Auth> {
     const { baseURL, resource, loginPage = '/sign-in' } = opts;
 
-    const authDb = getDatabase(cfg);
+    const authDb = await getDatabase(cfg);
     const mailer = resolveMailer(cfg);
 
     // MCP plugin — same OIDC config as demo mode (T-20 §4).

@@ -25,8 +25,13 @@ export interface AuthDatabase {
     /**
      * Run DDL for the given mode. Idempotent (`CREATE TABLE IF NOT EXISTS`).
      * The only place SQL strings live outside tests.
+     *
+     * May return a Promise — Cloudflare D1's `exec()` is async, so the
+     * D1 implementation must await the DDL round-trip before the first
+     * better-auth query runs (else `no such table` on a fresh isolate).
+     * The SQLite implementation is synchronous and returns `void`.
      */
-    initializeSchema(mode: AuthMode): void;
+    initializeSchema(mode: AuthMode): void | Promise<void>;
     /** Close the underlying connection (for graceful shutdown). */
     close(): void;
 }
