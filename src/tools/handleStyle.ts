@@ -2,7 +2,7 @@ import { ToolHandler } from './interface'
 import z from 'zod'
 import { Context } from '../filesystem/context'
 import { type SheetRef, type Workbook } from '@office-kit/xlsx/workbook'
-import { type Worksheet, getCell, getCellByCoord, setCellByCoord } from '@office-kit/xlsx/worksheet'
+import { type Worksheet, getCell, getCellByCoord, setCell, setCellByCoord } from '@office-kit/xlsx/worksheet'
 import { getCoordinate } from '@office-kit/xlsx/cell'
 import {
     setBold, setFontSize, setFontName, setFontColor,
@@ -58,7 +58,7 @@ export class StyleHandler extends ToolHandler {
             if (arg.ref) {
                 cell = getCellByCoord(ws, arg.ref) ?? setCellByCoord(ws, arg.ref, null)
             } else if (arg.row !== undefined && arg.col !== undefined) {
-                cell = getCell(ws, arg.row, arg.col) ?? setCellByCoord(ws, arg.row, arg.col, null)
+                cell = getCell(ws, arg.row, arg.col) ?? setCell(ws, arg.row, arg.col, null)
             } else {
                 const currentCell = await context.getCurrentCell()
                 if (!currentCell) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no cell reference specified and no current cell set' }], isError: true })
@@ -116,7 +116,7 @@ export class StyleHandler extends ToolHandler {
             if (arg.ref) {
                 cell = getCellByCoord(ws, arg.ref) ?? setCellByCoord(ws, arg.ref, null)
             } else if (arg.row !== undefined && arg.col !== undefined) {
-                cell = getCell(ws, arg.row, arg.col) ?? setCellByCoord(ws, arg.row, arg.col, null)
+                cell = getCell(ws, arg.row, arg.col) ?? setCell(ws, arg.row, arg.col, null)
             } else {
                 const currentCell = await context.getCurrentCell()
                 if (!currentCell) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no cell reference specified and no current cell set' }], isError: true })
@@ -173,7 +173,7 @@ export class StyleHandler extends ToolHandler {
             if (arg.ref) {
                 cell = getCellByCoord(ws, arg.ref) ?? setCellByCoord(ws, arg.ref, null)
             } else if (arg.row !== undefined && arg.col !== undefined) {
-                cell = getCell(ws, arg.row, arg.col) ?? setCellByCoord(ws, arg.row, arg.col, null)
+                cell = getCell(ws, arg.row, arg.col) ?? setCell(ws, arg.row, arg.col, null)
             } else {
                 const currentCell = await context.getCurrentCell()
                 if (!currentCell) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no cell reference specified and no current cell set' }], isError: true })
@@ -231,7 +231,7 @@ export class StyleHandler extends ToolHandler {
             if (arg.ref) {
                 cell = getCellByCoord(ws, arg.ref) ?? setCellByCoord(ws, arg.ref, null)
             } else if (arg.row !== undefined && arg.col !== undefined) {
-                cell = getCell(ws, arg.row, arg.col) ?? setCellByCoord(ws, arg.row, arg.col, null)
+                cell = getCell(ws, arg.row, arg.col) ?? setCell(ws, arg.row, arg.col, null)
             } else {
                 const currentCell = await context.getCurrentCell()
                 if (!currentCell) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no cell reference specified and no current cell set' }], isError: true })
@@ -293,7 +293,7 @@ export class StyleHandler extends ToolHandler {
             if (arg.ref) {
                 cell = getCellByCoord(ws, arg.ref) ?? setCellByCoord(ws, arg.ref, null)
             } else if (arg.row !== undefined && arg.col !== undefined) {
-                cell = getCell(ws, arg.row, arg.col) ?? setCellByCoord(ws, arg.row, arg.col, null)
+                cell = getCell(ws, arg.row, arg.col) ?? setCell(ws, arg.row, arg.col, null)
             } else {
                 const currentCell = await context.getCurrentCell()
                 if (!currentCell) return context.contextualiseResponse({ content: [{ type: 'text', text: 'no cell reference specified and no current cell set' }], isError: true })

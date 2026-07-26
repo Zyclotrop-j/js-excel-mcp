@@ -42,10 +42,12 @@ export class PrintHandler extends ToolHandler {
             if (!sheet || sheet.kind !== 'worksheet') return context.contextualiseResponse({ content: [{ type: 'text', text: `sheet '${sheetName}' not found` }], isError: true });
             const ws: Worksheet = sheet.sheet;
 
+            const sheetIdx = wb.sheets.findIndex((s: SheetRef) => s.sheet.title === sheetName);
+            const scope: number | undefined = sheetIdx >= 0 ? sheetIdx : undefined;
             addDefinedName(wb, {
                 name: '_xlnm.Print_Area',
                 value: `${sheetName}!${arg.range}`,
-                scope: sheetName,
+                scope,
                 hidden: true
             });
             await context.setWorkbook(filename, wb);

@@ -1,7 +1,7 @@
 import { ToolHandler } from './interface';
 import { addConditionalFormatting, makeConditionalFormatting, makeCfRule, type ConditionalFormatting, type Worksheet } from '@office-kit/xlsx/worksheet';
 import type { SheetRef, Workbook } from '@office-kit/xlsx/workbook';
-import { addDxf, makeDifferentialStyle, makePatternFill } from '@office-kit/xlsx/styles';
+import { addDxf, makeDifferentialStyle, makePatternFill, rgbColor } from '@office-kit/xlsx/styles';
 import z from 'zod';
 import { Context } from '../filesystem/context';
 
@@ -114,7 +114,7 @@ export class ConditionalFormatHandler extends ToolHandler {
 
             let dxfId: number | undefined;
             if (arg.fillColor !== undefined) {
-                const dxf = makeDifferentialStyle({ fill: makePatternFill({ patternType: 'solid', fgColor: arg.fillColor }) });
+                const dxf = makeDifferentialStyle({ fill: makePatternFill({ patternType: 'solid', fgColor: rgbColor(arg.fillColor) }) });
                 dxfId = addDxf(wb.styles, dxf);
             }
 

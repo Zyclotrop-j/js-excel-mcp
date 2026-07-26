@@ -66,5 +66,9 @@
     "tsx": "^4.22.3",
     "typescript": "^6.0.3",
     "wrangler": "^4.114.0"
+  },
+  "overrides": {
+    "@hono/node-server": "2.0.5",
+    "qs": "6.15.2"
   }
 }

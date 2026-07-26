@@ -60,8 +60,9 @@ export class WorkbookTools extends ToolHandler {
         }}, async (arg) => {
             const wb = createWorkbook();
 
-            const shouldMakeWorkSheet = arg.createDefaultWorksheet && arg.createDefaultWorksheet !== 'false';
-            const sheetName = arg.createDefaultWorksheet === true ? 'Sheet1' : arg.createDefaultWorksheet;
+            const raw = arg.createDefaultWorksheet;
+            const shouldMakeWorkSheet = typeof raw === 'string' ? raw !== 'false' : raw;
+            const sheetName: string = raw === true ? 'Sheet1' : (typeof raw === 'string' ? raw : 'Sheet1');
             if(shouldMakeWorkSheet) {
                 addWorksheet(wb, sheetName);
             }

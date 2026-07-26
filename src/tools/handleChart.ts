@@ -1,7 +1,7 @@
 import { ToolHandler } from './interface';
 import { type SheetRef, type Workbook } from '@office-kit/xlsx/workbook';
 import type { Worksheet } from '@office-kit/xlsx/worksheet';
-import { makeBarChart, makeBarSeries, makeChartSpace, makeLineChart, type LineSeries } from '@office-kit/xlsx/chart';
+import { makeBarChart, makeBarSeries, makeChartSpace, makeLineChart, type BarDirection, type LineSeries } from '@office-kit/xlsx/chart';
 import { addChartAt } from '@office-kit/xlsx/drawing';
 import { formatSheetQualifiedRef } from '@office-kit/xlsx/utils';
 import z from 'zod';
@@ -43,7 +43,7 @@ export class ChartHandler extends ToolHandler {
                 return context.contextualiseResponse({ content: [{ type: 'text', text: `workbook '${filename}' doesn't exist` }], isError: true });
             }
 
-            const sheetName = arg.sheet ?? await context.getCurrentSheet();
+            const sheetName = arg.sheet ?? await context.getCurrentSheet() ?? '';
             const sheet = wb.sheets.find((s: SheetRef) => s.sheet.title === sheetName);
             if (!sheet || sheet.kind !== 'worksheet') return context.contextualiseResponse({ content: [{ type: 'text', text: `sheet '${sheetName}' not found` }], isError: true });
             const ws: Worksheet = sheet.sheet;
@@ -64,12 +64,12 @@ export class ChartHandler extends ToolHandler {
             const series = makeBarSeries({
                 idx: 0,
                 tx: { kind: 'literal', value: arg.title ?? 'Series' },
-                cat: { ref: formatSheetQualifiedRef(sheetName, '$' + catCol + '$' + startRow + ':$' + catCol + '$' + endRow) },
-                val: { ref: formatSheetQualifiedRef(sheetName, '$' + valCol + '$' + startRow + ':$' + valCol + '$' + endRow) }
+                cat: { ref: formatSheetQualifiedRef(sheetName, '$' + catCol + '$' + startRow + ':$' + catCol + '$' + endRow) ?? '' },
+                val: { ref: formatSheetQualifiedRef(sheetName, '$' + valCol + '$' + startRow + ':$' + valCol + '$' + endRow) ?? '' }
             });
 
             const chart = makeBarChart({
-                barDir: arg.barDir ?? 'col',
+                barDir: arg.barDir === 'row' ? 'bar' : 'col',
                 grouping: arg.grouping ?? 'clustered',
                 series: [series]
             });
@@ -118,7 +118,7 @@ export class ChartHandler extends ToolHandler {
                 return context.contextualiseResponse({ content: [{ type: 'text', text: `workbook '${filename}' doesn't exist` }], isError: true });
             }
 
-            const sheetName = arg.sheet ?? await context.getCurrentSheet();
+            const sheetName = arg.sheet ?? await context.getCurrentSheet() ?? '';
             const sheet = wb.sheets.find((s: SheetRef) => s.sheet.title === sheetName);
             if (!sheet || sheet.kind !== 'worksheet') return context.contextualiseResponse({ content: [{ type: 'text', text: `sheet '${sheetName}' not found` }], isError: true });
             const ws: Worksheet = sheet.sheet;
@@ -142,8 +142,8 @@ export class ChartHandler extends ToolHandler {
             const series = makeBarSeries({
                 idx: 0,
                 tx: { kind: 'literal', value: arg.title ?? 'Series' },
-                cat: { ref: formatSheetQualifiedRef(sheetName, '$' + catCol + '$' + startRow + ':$' + catCol + '$' + endRow) },
-                val: { ref: formatSheetQualifiedRef(sheetName, '$' + valCol + '$' + startRow + ':$' + valCol + '$' + endRow) }
+                cat: { ref: formatSheetQualifiedRef(sheetName, '$' + catCol + '$' + startRow + ':$' + catCol + '$' + endRow) ?? '' },
+                val: { ref: formatSheetQualifiedRef(sheetName, '$' + valCol + '$' + startRow + ':$' + valCol + '$' + endRow) ?? '' }
             }) as LineSeries;
 
             const chart = makeLineChart({

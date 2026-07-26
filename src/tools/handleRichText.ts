@@ -74,13 +74,14 @@ export class RichTextHandler extends ToolHandler {
             }
 
             const runs = arg.parts.map((p) => {
-                const font: InlineFont = {};
-                if (p.bold) font.b = true;
-                if (p.italic) font.i = true;
-                if (p.underline) font.u = 'single';
-                if (p.fontSize !== undefined) font.sz = p.fontSize;
-                if (p.fontColor) font.color = { rgb: p.fontColor.startsWith('FF') ? p.fontColor : `FF${p.fontColor}` };
-                if (p.fontName) font.name = p.fontName;
+                const font: InlineFont = {
+                    ...(p.bold ? { b: true } : {}),
+                    ...(p.italic ? { i: true } : {}),
+                    ...(p.underline ? { u: 'single' as const } : {}),
+                    ...(p.fontSize !== undefined ? { sz: p.fontSize } : {}),
+                    ...(p.fontColor ? { color: { rgb: p.fontColor.startsWith('FF') ? p.fontColor : `FF${p.fontColor}` } } : {}),
+                    ...(p.fontName ? { name: p.fontName } : {}),
+                };
 
                 return Object.keys(font).length > 0
                     ? makeTextRun(p.text, font)

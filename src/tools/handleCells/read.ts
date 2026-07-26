@@ -1,6 +1,6 @@
 import { ToolHandler } from '../interface';
 import { getCell, getCellByCoord, findCells, getRangeValues, type Worksheet } from '@office-kit/xlsx/worksheet';
-import { cellValueAsPrimitive, cellValueAsString, getFormulaText, getCoordinate, type Cell } from '@office-kit/xlsx/cell';
+import { type CellValue, cellValueAsPrimitive, cellValueAsString, getFormulaText, getCoordinate, type Cell } from '@office-kit/xlsx/cell';
 import type { SheetRef, Workbook } from '@office-kit/xlsx/workbook';
 import { encode } from '@toon-format/toon';
 import z from 'zod';
@@ -185,7 +185,7 @@ export class CellReadHandler extends ToolHandler {
             if (!sheet || sheet.kind !== 'worksheet') return context.contextualiseResponse({ content: [{ type: 'text', text: `sheet '${sheetName}' not found` }], isError: true });
             const ws: Worksheet = sheet.sheet;
 
-            const values = getRangeValues(ws, arg.range)?.map((row: (string | number | boolean | Date | null)[]) => row.map((value: string | number | boolean | Date | null) => value instanceof Date ? value.toISOString() : value));
+            const values = getRangeValues(ws, arg.range)?.map((row: CellValue[]) => row.map((value: CellValue) => value instanceof Date ? value.toISOString() : value));
 
             return context.contextualiseResponse({
                 content: [{ type: 'text', text: encode({ range: arg.range, values }) }],
