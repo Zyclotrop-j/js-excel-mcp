@@ -23,6 +23,7 @@
     "test:unit": "tsx test/run.ts",
     "test:integration": "tsx test/run-integration.ts",
     "test:e2e": "tsx test/run-e2e.ts",
+    "test:e2e:deployed": "tsx test/e2e-deployed/e2e-suite.ts",
     "test:real-auth": "tsx test/run-real-auth.ts",
     "test:property": "tsx test/run-property.ts",
     "test:mutation": "npx stryker run",
