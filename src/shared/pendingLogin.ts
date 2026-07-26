@@ -1,26 +1,30 @@
 /**
- * In-process pending-login nonce store.
+ * Pending-login nonce store — cross-isolate aware.
  *
  * Lets the auth tools (signup / signin / recover — T-41/T-42/T-43) hand a
  * freshly-created better-auth session to the auth server's `/sign-in` route
  * (T-22), so the OAuth authorization-code flow can complete without the LLM
  * having to manually thread credentials through query params.
  *
- * See `tickets/real-auth/STUDY_FIRST.md` §5 "The two-process-same-process
- * trick": both Express apps (MCP on :3000, AS on :3001) share one Node
- * process and one module graph, so this module-level `Map` is visible from
- * both the auth-tool callback and the `/sign-in` route. Confirmed by the
- * T-01 spike (`tickets/real-auth/notes/T-01-notes.md` §4).
+ * ## Backend selection
+ *
+ * - **Cloudflare Workers** (`BACKEND=cloudflare`): entries are written to the
+ *   `KEY_VALUE_STORE` KV binding so they survive across isolate boundaries.
+ *   Each isolate has its own module graph, so a module-level `Map` would be
+ *   invisible to requests landing on a different isolate.
+ * - **Local Node** (default): a module-level `Map` is sufficient because both
+ *   Express apps share one process and one module graph (confirmed by T-01).
  *
  * Contract `[C-PL]` (STUDY_FIRST §7) — extended by T-11 with
  * {@link peekMostRecentPendingLogin} and {@link sweep}.
  *
- * No persistence. A process restart drops all pending logins; the LLM just
- * retries the auth tool. No better-auth import — the store is
- * auth-framework-agnostic.
+ * No persistence beyond the KV TTL. A process restart drops all pending
+ * logins; the LLM just retries the auth tool. No better-auth import —
+ * the store is auth-framework-agnostic.
  */
 
 import { randomUUID } from 'node:crypto';
+import { getWorkerEnv } from '../util/workerEnv';
 
 export interface PendingLogin {
     /** Opaque, uuid v4 (crypto.randomUUID()). */
@@ -38,11 +42,20 @@ export interface PendingLogin {
 /** TTL: 5 minutes from creation. */
 const TTL_MS = 5 * 60 * 1000;
 
-/**
- * Module-level singleton. Visible from both Express apps in this process.
- * No persistence — see file header.
- */
+/** KV TTL in seconds (Cloudflare KV `expirationTtl` is in seconds). */
+const TTL_SECONDS = 300;
+
+const KV_PREFIX = 'pending-login:';
+
+// In-memory fallback (local Node mode). Visible from both Express apps in
+// one process. Not needed on Workers — KV is used instead.
 const store = new Map<string, PendingLogin>();
+
+function isKvAvailable(): boolean {
+    return process.env.BACKEND?.toLowerCase() === 'cloudflare'
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        && !!(getWorkerEnv() as any)?.KEY_VALUE_STORE;
+}
 
 function isExpired(entry: PendingLogin, now: number): boolean {
     return entry.expiresAt <= now;
@@ -50,22 +63,42 @@ function isExpired(entry: PendingLogin, now: number): boolean {
 
 /**
  * Create a pending-login entry with a fresh uuid nonce and a 5-minute TTL.
- * Runs {@link sweep} first (cheap) so the Map doesn't grow unboundedly.
- *
- * The returned object is the **same reference** stored in the Map; the auth
- * tool mutates `sessionId` / `cookieHeaders` on it after `signInEmail`
- * succeeds. `/sign-in` (T-22) then reads those fields via `consume` or
- * `peek`.
+ * For in-memory mode, the entry is stored in the Map immediately so callers
+ * that only call consume/peek (without savePendingLogin) still work.
+ * For KV mode, the caller must call savePendingLogin after mutating
+ * cookieHeaders/sessionId.
  */
-export function createPendingLogin(userId: string): PendingLogin {
-    sweep();
+export async function createPendingLogin(userId: string): Promise<PendingLogin> {
+    if (!isKvAvailable()) {
+        sweepSync();
+    }
     const entry: PendingLogin = {
         nonce: randomUUID(),
         userId,
         expiresAt: Date.now() + TTL_MS,
     };
-    store.set(entry.nonce, entry);
+    if (!isKvAvailable()) {
+        store.set(entry.nonce, entry);
+    }
     return entry;
+}
+
+/**
+ * Write a mutated PendingLogin to the store. For KV mode this is the
+ * actual write (after the caller has set cookieHeaders/sessionId).
+ * For in-memory mode this is a no-op re-set (the reference is already
+ * in the Map from createPendingLogin).
+ */
+export async function savePendingLogin(pending: PendingLogin): Promise<void> {
+    if (isKvAvailable()) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const kv = (getWorkerEnv() as any).KEY_VALUE_STORE;
+        await kv.put(KV_PREFIX + pending.nonce, JSON.stringify(pending), {
+            expirationTtl: TTL_SECONDS,
+        });
+    } else {
+        store.set(pending.nonce, pending);
+    }
 }
 
 /**
@@ -73,7 +106,17 @@ export function createPendingLogin(userId: string): PendingLogin {
  * found / expired. Used by `/sign-in` (T-22) when the nonce is supplied
  * via query param.
  */
-export function consumePendingLogin(nonce: string): PendingLogin | null {
+export async function consumePendingLogin(nonce: string): Promise<PendingLogin | null> {
+    if (isKvAvailable()) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const kv = (getWorkerEnv() as any).KEY_VALUE_STORE;
+        const raw = await kv.get(KV_PREFIX + nonce);
+        if (!raw) return null;
+        await kv.delete(KV_PREFIX + nonce);
+        const entry = JSON.parse(raw) as PendingLogin;
+        if (isExpired(entry, Date.now())) return null;
+        return entry;
+    }
     const entry = store.get(nonce);
     if (!entry) return null;
     store.delete(nonce);
@@ -85,7 +128,16 @@ export function consumePendingLogin(nonce: string): PendingLogin | null {
  * Non-destructive peek. Returns the entry or `null` if not found / expired.
  * Used by `/sign-in` (T-22) when polling for a pending session.
  */
-export function peekPendingLogin(nonce: string): PendingLogin | null {
+export async function peekPendingLogin(nonce: string): Promise<PendingLogin | null> {
+    if (isKvAvailable()) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const kv = (getWorkerEnv() as any).KEY_VALUE_STORE;
+        const raw = await kv.get(KV_PREFIX + nonce);
+        if (!raw) return null;
+        const entry = JSON.parse(raw) as PendingLogin;
+        if (isExpired(entry, Date.now())) return null;
+        return entry;
+    }
     const entry = store.get(nonce);
     if (!entry) return null;
     if (isExpired(entry, Date.now())) return null;
@@ -101,8 +153,25 @@ export function peekPendingLogin(nonce: string): PendingLogin | null {
  * "Most recent" = largest `expiresAt` (since `expiresAt = createdAt + TTL`,
  * a larger value means a later creation).
  */
-export function peekMostRecentPendingLogin(): PendingLogin | null {
+export async function peekMostRecentPendingLogin(): Promise<PendingLogin | null> {
     const now = Date.now();
+    if (isKvAvailable()) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const kv = (getWorkerEnv() as any).KEY_VALUE_STORE;
+        const listed = await kv.list({ prefix: KV_PREFIX });
+        let best: PendingLogin | null = null;
+        for (const { name } of listed.keys) {
+            const raw = await kv.get(name);
+            if (!raw) continue;
+            const entry = JSON.parse(raw) as PendingLogin;
+            if (entry.sessionId === undefined) continue;
+            if (isExpired(entry, now)) continue;
+            if (best === null || entry.expiresAt > best.expiresAt) {
+                best = entry;
+            }
+        }
+        return best;
+    }
     let best: PendingLogin | null = null;
     for (const entry of store.values()) {
         if (entry.sessionId === undefined) continue;
@@ -116,15 +185,40 @@ export function peekMostRecentPendingLogin(): PendingLogin | null {
 
 /**
  * Removes expired entries. Returns the count removed. Called by
- * {@link createPendingLogin} on each use so the Map doesn't grow
- * unboundedly; also safe to call directly.
+ * {@link createPendingLogin} on each use (in-memory mode) so the Map
+ * doesn't grow unboundedly; also safe to call directly.
  */
-export function sweep(): number {
+export async function sweep(): Promise<number> {
+    if (isKvAvailable()) {
+        return sweepKv();
+    }
+    return sweepSync();
+}
+
+function sweepSync(): number {
     const now = Date.now();
     let removed = 0;
     for (const [nonce, entry] of store) {
         if (isExpired(entry, now)) {
             store.delete(nonce);
+            removed++;
+        }
+    }
+    return removed;
+}
+
+async function sweepKv(): Promise<number> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const kv = (getWorkerEnv() as any).KEY_VALUE_STORE;
+    const listed = await kv.list({ prefix: KV_PREFIX });
+    const now = Date.now();
+    let removed = 0;
+    for (const { name } of listed.keys) {
+        const raw = await kv.get(name);
+        if (!raw) continue;
+        const entry = JSON.parse(raw) as PendingLogin;
+        if (isExpired(entry, now)) {
+            await kv.delete(name);
             removed++;
         }
     }

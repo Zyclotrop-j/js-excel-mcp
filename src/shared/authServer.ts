@@ -22,6 +22,7 @@ import type { DemoAuth } from './auth';
 import { createAuth, DEMO_USER_CREDENTIALS } from './auth';
 import type { AuthConfig } from './authMode';
 import { consumePendingLogin, peekMostRecentPendingLogin } from './pendingLogin';
+import type { PendingLogin } from './pendingLogin';
 
 export interface SetupAuthServerOptions {
     authServerUrl: URL;
@@ -286,10 +287,10 @@ export async function setupAuthServer(options: SetupAuthServerOptions): Promise<
     // not the nonce or userId.
     // MUST be registered BEFORE the better-auth catch-all below so
     // toNodeHandler doesn't swallow the request.
-    authApp.get('/api/auth/pending-login-wait', (req: Request, res: ExpressResponse) => {
+    authApp.get('/api/auth/pending-login-wait', async (req: Request, res: ExpressResponse) => {
         if (authConfig.mode !== 'real') { res.status(404).end(); return; }
         const since = Number(req.query.since ?? 0);
-        const pending = peekMostRecentPendingLogin();
+        const pending = await peekMostRecentPendingLogin();
         res.json({ ready: !!pending && pending.expiresAt > since, expiresAt: pending?.expiresAt ?? null });
     });
 
@@ -454,16 +455,16 @@ export async function setupAuthServer(options: SetupAuthServerOptions): Promise<
         }
 
         // Try the query-param fast path (Option B optimisation from T-01).
-        let pending = null as ReturnType<typeof peekMostRecentPendingLogin>;
+        let pending: PendingLogin | null = null;
         const nonce = queryParams.get('login_nonce');
-        if (nonce) pending = consumePendingLogin(nonce);
-        if (!pending) pending = peekMostRecentPendingLogin();
+        if (nonce) pending = await consumePendingLogin(nonce);
+        if (!pending) pending = await peekMostRecentPendingLogin();
 
         if (pending && pending.cookieHeaders?.length) {
             // Fast path: re-emit cookies captured by the signup tool (T-41),
             // then redirect to the authorization endpoint.
             for (const c of pending.cookieHeaders) res.append('Set-Cookie', c);
-            if (nonce) consumePendingLogin(nonce); // already consumed above; idempotent safety net
+            if (nonce) await consumePendingLogin(nonce); // already consumed above; idempotent safety net
             redirectToAuthorize(res, queryParams, authServerUrl);
             return;
         }

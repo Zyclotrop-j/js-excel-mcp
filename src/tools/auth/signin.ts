@@ -48,7 +48,7 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 
 import { AuthToolHandler } from './baseAuthTool';
 import { getAuth } from '../../shared/authServer';
-import { createPendingLogin } from '../../shared/pendingLogin';
+import { createPendingLogin, savePendingLogin } from '../../shared/pendingLogin';
 
 // -- Signin input schema ---------------------------------------------------
 
@@ -322,12 +322,12 @@ export class AuthSigninHandler extends AuthToolHandler {
      * reference stored in the module-level Map (per
      * `src/shared/pendingLogin.ts:55-69`).
      */
-    private completeSignIn(
+    private async completeSignIn(
         userId: string,
         cookieHeaders: string[],
         sessionToken?: string
-    ): CallToolResult {
-        const pending = createPendingLogin(userId);
+    ): Promise<CallToolResult> {
+        const pending = await createPendingLogin(userId);
         pending.cookieHeaders = cookieHeaders;
 
         // Extract session id from the token (preferred) or from the
@@ -345,6 +345,7 @@ export class AuthSigninHandler extends AuthToolHandler {
                 if (token) pending.sessionId = token;
             }
         }
+        await savePendingLogin(pending);
 
         return this.textResult(
             JSON.stringify(

@@ -91,7 +91,7 @@ export default function (test: any) {
         const parsed = JSON.parse((result.content as any)[0]?.text as string);
         const nonce = parsed.loginNonce as string;
 
-        const pending = peekPendingLogin(nonce);
+        const pending = await peekPendingLogin(nonce);
         assert.ok(pending, 'pending-login store should have an entry');
         assert.equal(pending!.userId, parsed.userId);
         assert.ok(

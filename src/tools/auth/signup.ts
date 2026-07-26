@@ -78,7 +78,7 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 
 import { AuthToolHandler } from './baseAuthTool';
 import { getAuth } from '../../shared/authServer';
-import { createPendingLogin } from '../../shared/pendingLogin';
+import { createPendingLogin, savePendingLogin } from '../../shared/pendingLogin';
 
 // -- Signup input schema (matches T-02 §3.4 / Correction 4) -----------------
 //
@@ -315,7 +315,7 @@ export class AuthSignupHandler extends AuthToolHandler {
         // the contract with T-22 — `createPendingLogin` returns the same
         // reference stored in the module-level Map (per
         // `src/shared/pendingLogin.ts:55-69`).
-        const pending = createPendingLogin(userId);
+        const pending = await createPendingLogin(userId);
         pending.cookieHeaders = setCookieHeaders;
         // Extract the session id from the cookie if feasible; T-22 only
         // checks `cookieHeaders?.length`, so leaving this undefined is
@@ -330,6 +330,7 @@ export class AuthSignupHandler extends AuthToolHandler {
             const sessionToken = sessionCookie.slice('better-auth.session_token='.length);
             if (sessionToken) pending.sessionId = sessionToken;
         }
+        await savePendingLogin(pending);
 
         return this.textResult(
             JSON.stringify(
