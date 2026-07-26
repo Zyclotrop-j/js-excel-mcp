@@ -41,23 +41,38 @@ export interface IDatabaseBackend {
     /**
      * Deletes all entries from the KV table.
      * 
-     * This is used during flush operations to clear the table before re-inserting current state.
+     * This is used during cleanup operations to clear the entire table.
      */
     deleteAllKV(): Promise<void> | void;
 
     /**
      * Deletes all entries from the files table.
      * 
-     * This is used during flush operations to clear the table before re-inserting current state.
+     * This is used during cleanup operations to clear the entire table.
      */
     deleteAllFiles(): Promise<void> | void;
 
     /**
      * Deletes all entries from the exports table.
      * 
-     * This is used during flush operations to clear the table before re-inserting current state.
+     * This is used during cleanup operations to clear the entire table.
      */
     deleteAllExports(): Promise<void> | void;
+
+    /**
+     * Deletes a single key-value entry by key.
+     */
+    deleteKV(key: string): Promise<void> | void;
+
+    /**
+     * Deletes a single file entry by name.
+     */
+    deleteFile(name: string): Promise<void> | void;
+
+    /**
+     * Deletes a single export entry by key.
+     */
+    deleteExport(key: string): Promise<void> | void;
 
     /**
      * Inserts a key-value entry into the database.

@@ -154,6 +154,18 @@ export class CloudflareBackend implements IDatabaseBackend {
         } while (cursor);
     }
 
+    async deleteKV(key: string): Promise<void> {
+        await this.env.KEY_VALUE_STORE.delete(this.kvKey(key));
+    }
+
+    async deleteFile(name: string): Promise<void> {
+        await this.env.EXCEL_FILES.delete(this.fileKey(name));
+    }
+
+    async deleteExport(key: string): Promise<void> {
+        await this.env.EXCEL_EXPORTS.delete(this.exportKey(key));
+    }
+
     async insertKV(key: string, value: string, ttl: string): Promise<void> {
         await this.env.KEY_VALUE_STORE.put(this.kvKey(key), value, { metadata: { ttl } });
     }

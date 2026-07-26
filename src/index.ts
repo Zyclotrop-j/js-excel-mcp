@@ -14,6 +14,8 @@ import { httpServerHandler } from "cloudflare:node";
 import server from './server';
 import { setWorkerEnv } from './util/workerEnv';
 
+export { SessionStateDO } from './filesystem/sessionStateDO';
+
 server.app.listen(server.port, () => {
 	console.error(`  Protected Resource Metadata: http://localhost:${server.port}/.well-known/oauth-protected-resource/mcp`);
 });

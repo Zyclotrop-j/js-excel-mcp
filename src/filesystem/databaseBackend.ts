@@ -55,6 +55,18 @@ export class DatabaseBackend implements IDatabaseBackend {
         this.db.prepare('DELETE FROM exports').run();
     }
 
+    async deleteKV(key: string): Promise<void> {
+        this.db.prepare('DELETE FROM kv WHERE key = ?').run(key);
+    }
+
+    async deleteFile(name: string): Promise<void> {
+        this.db.prepare('DELETE FROM files WHERE name = ?').run(name);
+    }
+
+    async deleteExport(key: string): Promise<void> {
+        this.db.prepare('DELETE FROM exports WHERE key = ?').run(key);
+    }
+
     async insertKV(key: string, value: string, ttl: string): Promise<void> {
         this.db.prepare('INSERT INTO kv (key, value, ttl) VALUES (?, ?, ?)').run(key, value, ttl);
     }

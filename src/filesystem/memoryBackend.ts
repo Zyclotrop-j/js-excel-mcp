@@ -78,6 +78,24 @@ export class MemoryBackend implements IDatabaseBackend {
         this.exports.clear();
     }
 
+    async deleteKV(key: string): Promise<void> {
+        this.assertOpen();
+        await this.simulateLatency();
+        this.kv.delete(key);
+    }
+
+    async deleteFile(name: string): Promise<void> {
+        this.assertOpen();
+        await this.simulateLatency();
+        this.files.delete(name);
+    }
+
+    async deleteExport(key: string): Promise<void> {
+        this.assertOpen();
+        await this.simulateLatency();
+        this.exports.delete(key);
+    }
+
     async insertKV(key: string, value: string, ttl: string): Promise<void> {
         this.assertOpen();
         await this.simulateLatency();
