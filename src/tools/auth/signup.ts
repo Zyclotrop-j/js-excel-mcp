@@ -76,9 +76,9 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 
-import { AuthToolHandler } from './baseAuthTool.js';
-import { getAuth } from '../../shared/authServer.js';
-import { createPendingLogin } from '../../shared/pendingLogin.js';
+import { AuthToolHandler } from './baseAuthTool';
+import { getAuth } from '../../shared/authServer';
+import { createPendingLogin } from '../../shared/pendingLogin';
 
 // -- Signup input schema (matches T-02 §3.4 / Correction 4) -----------------
 //
@@ -143,7 +143,7 @@ function buildCookieHeader(setCookieHeaders: string[]): string {
 export class AuthSignupHandler extends AuthToolHandler {
     static readonly authSurface = 'bootstrap' as const;
 
-    async register(_allTools: import('../interface.js').ToolHandler[]): Promise<void> {
+    async register(_allTools: import('../interface').ToolHandler[]): Promise<void> {
         // The `description` carries the security-critical instructions for
         // backup-code handling and the chain_operations restriction. The
         // chain handler no longer rejects this tool (with elicitation

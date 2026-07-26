@@ -1,6 +1,6 @@
-import { ToolHandler } from './interface.js'
+import { ToolHandler } from './interface'
 import z from 'zod'
-import { Context } from '../filesystem/context.js'
+import { Context } from '../filesystem/context'
 import { type SheetRef, type Workbook } from '@office-kit/xlsx/workbook'
 import { type Worksheet, getCell, getCellByCoord, setCellByCoord } from '@office-kit/xlsx/worksheet'
 import { getCoordinate } from '@office-kit/xlsx/cell'

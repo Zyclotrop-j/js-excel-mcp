@@ -33,7 +33,7 @@
     },
     "codegraphcontext": {
       "type": "local",
-      "command": ["C:\\Users\\Janne\\.local\\bin\\codegraphcontext.exe", "mcp", "start"]
+      "command": ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "C:\\Users\\Janne\\.local\\bin\\cgc-mcp-start.ps1"]
     },
     "llm-council": {
       "type": "local",

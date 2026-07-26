@@ -7,7 +7,7 @@
  * provided below.
  */
 
-import type { AuthConfig } from './authMode.js';
+import type { AuthConfig } from './authMode';
 import wretch from 'wretch';
 
 export interface OtpMailerRequest {

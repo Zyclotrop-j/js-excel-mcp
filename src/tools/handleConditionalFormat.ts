@@ -1,9 +1,9 @@
-import { ToolHandler } from './interface.js';
+import { ToolHandler } from './interface';
 import { addConditionalFormatting, makeConditionalFormatting, makeCfRule, type ConditionalFormatting, type Worksheet } from '@office-kit/xlsx/worksheet';
 import type { SheetRef, Workbook } from '@office-kit/xlsx/workbook';
 import { addDxf, makeDifferentialStyle, makePatternFill } from '@office-kit/xlsx/styles';
 import z from 'zod';
-import { Context } from '../filesystem/context.js';
+import { Context } from '../filesystem/context';
 
 export class ConditionalFormatHandler extends ToolHandler {
     async register(allTools: ToolHandler[]): Promise<void> {

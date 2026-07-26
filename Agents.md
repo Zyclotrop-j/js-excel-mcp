@@ -6,42 +6,76 @@ license: MIT
 
 # js-excel-mcp
 
-TypeScript MCP server exposing 60+ tools for programmatic Excel `.xlsx` manipulation. Runs as an Express HTTP server (port 3000 for MCP, port 3001 for OAuth).
+TypeScript MCP server exposing 60+ tools for programmatic Excel `.xlsx` manipulation. **Primary runtime: Cloudflare Workers.** Also runnable locally as a plain Node.js Express server for development and the demo OAuth flow.
 
 ## Tech Stack
 
 | Layer | Choice |
 |---|---|
-| Runtime | Node.js, `tsx` (dev), `node` (production from `dist/`) |
+| Primary runtime | Cloudflare Workers (`nodejs_compat` + `enable_nodejs_http_server_modules` via compat date 2026-07-26) |
+| Local-dev runtime | Node.js via `tsx` / `node` (`npm run dev:plain`, `npm start:plain`) |
 | Language | TypeScript 6.0, strict mode, ES modules (`"type": "module"`) |
-| Module | NodeNext |
-| Framework | Express, `@modelcontextprotocol/sdk` |
+| Module | `module: "es2022"`, `moduleResolution: "bundler"` (Workers + Bundler compatibility) |
+| Framework | Express, `@modelcontextprotocol/server` / `…/express` / `…/node` |
 | Excel | `@office-kit/xlsx` |
-| Database | SQLite via `better-sqlite3` (per-user `.db` files in `data/`) |
-| Auth | better-auth OIDC (demo-only, hardcoded credentials) |
-| Process mgmt | PM2 |
+| VFS storage (Workers) | Cloudflare KV + R2 (`KEY_VALUE_STORE`, `EXCEL_FILES`, `EXCEL_EXPORTS` bindings) via `cloudflareBackend.ts` |
+| VFS storage (local) | SQLite via `better-sqlite3` (per-user `.db` files in `data/`) via `databaseBackend.ts` |
+| Auth storage (Workers) | Cloudflare D1 (`AUTH` binding) via `d1AuthDatabase.ts` |
+| Auth storage (local) | SQLite via `better-sqlite3` (`data/_auth_real.db`) via `sqliteAuthDatabase.ts` |
+| Auth | better-auth OIDC, real + demo modes |
+| Worker bundler | Wrangler 4.x (esbuild) |
+| Process mgmt (local dev) | PM2 |
 | Testing | baretest, fast-check (property), Stryker (mutation), c8 (coverage) |
+
+## Two runtime modes — switched by `BACKEND` env var
+
+| Env | Mode | VFS | Auth DB | Entry | Routes |
+|---|---|---|---|---|---|
+| `BACKEND=cloudflare` | Workers | KV + R2 | D1 | `src/index.ts` (default `exportedHandler.fetch` → `httpServerHandler`) | Auth + MCP on same Worker / same Express app |
+| unset / other | Local Node | better-sqlite3 | better-sqlite3 | `src/plain.ts` (`app.listen(3000)` + `app.listen(3001)`) | Auth on port 3001, MCP on port 3000 |
+
+The cloudflare entry (`src/index.ts`) wraps `httpServerHandler({ port: 3000 })` from `cloudflare:node`, stashes the Worker's `env` (KV/R2/D1 bindings) via `setWorkerEnv(env)` on the first `fetch`, then delegates to the underlying handler. The Node entry (`src/plain.ts`) just calls `app.listen` to bind real TCP ports.
 
 ## Architecture
 
 ```
 src/
-├── index.ts                  Node entry point (6 LOC) — starts Express on port 3000
-├── server.ts                 Server wiring — MCP handler, OAuth, CORS, tool registration
-├── handler.ts                Cloudflare Workers entry point (forward-readiness)
+├── index.ts                  Cloudflare Workers entry — captures `env` per request, delegates to httpServerHandler
+├── plain.ts                  Local Node entry — app.listen on real TCP ports (3000, 3001)
+├── handler.ts                Legacy Cloudflare entry (kept for back-compat; identical to index.ts minus env capture)
+├── server.ts                 Server wiring — MCP handler, OAuth, CORS, tool registration (lazy auth init for Workers)
 ├── meta/
 │   └── mcpdescription.ts     MCP server metadata
 ├── shared/
-│   ├── auth.ts               better-auth OIDC setup (DEMO ONLY)
-│   └── authServer.ts         setupAuthServer, getAuth, demoTokenVerifier
+│   ├── auth.ts               better-auth OIDC dispatcher (demo + real) — picks DB backend by mode
+│   ├── authMode.ts           Single `process.env` reader for auth; `AuthConfig` type
+│   ├── authServer.ts         setupAuthServer — mounts onto MCP app on Workers, standalone listen on Node
+│   ├── mailer.ts             OTP / magic-link mailer (console / webhook / T-80 hook)
+│   ├── emailOptionalPlugin.ts
+│   ├── pendingLogin.ts       Pending-login handoff (T-22)
+│   └── authDatabase/
+│       ├── index.ts          AuthDatabase interface
+│       ├── schemaDdl.ts       Shared demo + real DDL (used by SQLite and D1 impls)
+│       ├── sqliteAuthDatabase.ts   better-sqlite3 implementation (local Node)
+│       └── d1AuthDatabase.ts       D1 implementation (Cloudflare Workers) — T-81
 ├── filesystem/
-│   ├── system.ts             SQLite-backed virtual filesystem
+│   ├── system.ts             VirtualFileSystem — async backend selection via `BACKEND` env
 │   ├── context.ts            Per-user workbook store + sticky state
 │   ├── IDatabaseBackend.ts   Database backend interface (16 methods)
-│   ├── databaseBackend.ts    better-sqlite3 production implementation
+│   ├── databaseBackend.ts    better-sqlite3 implementation (local Node) — dynamic-import only on this path
 │   ├── memoryBackend.ts      In-memory Map backend (testing)
-│   ├── cloudflareBackend.ts  Cloudflare KV+R2 backend (forward-readiness)
+│   ├── cloudflareBackend.ts  Cloudflare KV + R2 implementation (Workers) — reads bindings via `getWorkerEnv()`
 │   └── writeCoordinator.ts   Per-userid FIFO ticket lock + 1s rate limit
+├── tools/
+│   ├── interface.ts          ToolHandler base class
+│   ├── index.ts              Re-exports all 21 handler files
+│   ├── handleWorkbook.ts     create/import/close/export/list workbooks
+├── util/
+│   ├── requestContext.ts     AsyncLocalStorage wrapper
+│   ├── workerEnv.ts      avail Module-scoped slot for the Worker's `env` (KV/R2/D1 bindings)
+│   ├── detectSelfReference.ts Formula self-reference detector
+│   └── lru.js                LRU cache wrapper
+```
 ├── tools/
 │   ├── interface.ts          ToolHandler base class
 │   ├── index.ts              Re-exports all 21 handler files
@@ -292,3 +326,45 @@ For multi-step tasks, state a brief plan:
 ```
 
 Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+
+# Cloudflare Workers
+
+STOP. Your knowledge of Cloudflare Workers APIs and limits may be outdated. Always retrieve current documentation before any Workers, KV, R2, D1, Durable Objects, Queues, Vectorize, AI, or Agents SDK task.
+
+## Docs
+
+- https://developers.cloudflare.com/workers/
+- MCP: `https://docs.mcp.cloudflare.com/mcp`
+
+For all limits and quotas, retrieve from the product's `/platform/limits/` page. eg. `/workers/platform/limits`
+
+## Commands
+
+| Command | Purpose |
+|---------|---------|
+| `npx wrangler dev` | Local development |
+| `npx wrangler deploy` | Deploy to Cloudflare |
+| `npx wrangler types` | Generate TypeScript types |
+
+Run `wrangler types` after changing bindings in wrangler.jsonc.
+
+## Node.js Compatibility
+
+https://developers.cloudflare.com/workers/runtime-apis/nodejs/
+
+## Errors
+
+- **Error 1102** (CPU/Memory exceeded): Retrieve limits from `/workers/platform/limits/`
+- **All errors**: https://developers.cloudflare.com/workers/observability/errors/
+
+## Product Docs
+
+Retrieve API references and limits from:
+`/kv/` · `/r2/` · `/d1/` · `/durable-objects/` · `/queues/` · `/vectorize/` · `/workers-ai/` · `/agents/`
+
+## Best Practices (conditional)
+
+If the application uses Durable Objects or Workflows, refer to the relevant best practices:
+
+- Durable Objects: https://developers.cloudflare.com/durable-objects/best-practices/rules-of-durable-objects/
+- Workflows: https://developers.cloudflare.com/workflows/build/rules-of-workflows/

@@ -1,9 +1,9 @@
-import { ToolHandler } from './interface.js';
+import { ToolHandler } from './interface';
 import {addWorksheet, createWorkbook, sheetNames } from '@office-kit/xlsx/workbook';
 import { fromResponse, loadWorkbook } from '@office-kit/xlsx/io';
 import { ResourceTemplate } from '@modelcontextprotocol/server';
 import z from 'zod';
-import { Context } from '../filesystem/context.js';
+import { Context } from '../filesystem/context';
 import wretch from 'wretch';
 import { retry, dedupe, throttlingCache } from 'wretch/middlewares';
 

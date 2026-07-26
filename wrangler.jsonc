@@ -1,0 +1,87 @@
+/**
+ * For more details on how to configure Wrangler, refer to:
+ * https://developers.cloudflare.com/workers/wrangler/configuration/
+ */
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "excel-js-mcp",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-07-26",
+	"observability": {
+		"enabled": true
+	},
+	"upload_source_maps": true,
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	/**
+	 * Smart Placement
+	 * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
+	 */
+	// "placement": {  "mode": "smart" }
+	/**
+	 * Bindings
+	 * Bindings allow your Worker to interact with resources on the Cloudflare Developer Platform, including
+	 * databases, object storage, AI inference, real-time communication and more.
+	 * https://developers.cloudflare.com/workers/runtime-apis/bindings/
+	 */
+	/**
+	 * Environment Variables
+	 * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
+	 * Note: Use secrets to store sensitive data.
+	 * https://developers.cloudflare.com/workers/configuration/secrets/
+	 */
+	"vars": {
+		"BACKEND": "CLOUDFLARE",
+		"NODE_ENV": "production",
+		"MCP_AUTH_MODE": "real",
+		"MCP_AUTH_BIND_HOST": "0.0.0.0", // or '0.0.0.0' for external
+		"MCP_AUTH_CORS_ORIGINS": "http://localhost:3000,http://localhost:5173",
+		//"AUTH_SECRET": "CHANGE_ME",                 // operator MUST override
+		"MCP_AUTH_ALLOW_USER_SIGNUP": "1",
+		"MCP_AUTH_OTP_TRANSPORT": "console", // or 'webhook'
+		// MCP_AUTH_OTP_WEBHOOK_URL: 'https://...',
+		"MCP_AUTH_DB_BACKEND": "d1",
+		"MCP_AUTH_DB_URL": "AUTH"
+		// MCP_AUTH_DB_AUTH_TOKEN: '...',
+		// MCP_AUTH_PASSKEY_RP_ID: 'localhost',
+		// MCP_AUTH_PASSKEY_RP_NAME: 'js-excel-mcp Auth',
+	},
+	"secrets": {
+		"required": [
+			"AUTH_SECRET"
+		]
+	},
+	/**
+	 * Static Assets
+	 * https://developers.cloudflare.com/workers/static-assets/binding/
+	 */
+	// "assets": {  "directory": "./public/",  "binding": "ASSETS" }
+	/**
+	 * Service Bindings (communicate between multiple Workers)
+	 * https://developers.cloudflare.com/workers/wrangler/configuration/#service-bindings
+	 */
+	"kv_namespaces": [
+		{
+			"binding": "KEY_VALUE_STORE",
+			"id": "bab1f31af67e48738ed14af738572f14"
+		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "EXCEL_FILES",
+			"bucket_name": "excel-mcp-js-files",
+		},
+		{
+			"binding": "EXCEL_EXPORTS",
+			"bucket_name": "excel-mcp-js-exports"
+		}
+	],
+	"d1_databases": [
+		{
+			"binding": "AUTH",
+			"database_name": "excel-mcp-js-auth",
+			"database_id": "f0c9a893-ddf7-4871-bf46-618743c81f10"
+		}
+	]
+}

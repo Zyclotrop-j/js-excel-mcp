@@ -16,12 +16,14 @@ import { magicLink } from 'better-auth/plugins';
 import { twoFactor } from 'better-auth/plugins';
 import { apiKey } from '@better-auth/api-key';
 
-import type { AuthConfig } from './authMode.js';
-import { DEMO_SECRET, loadAuthConfig } from './authMode.js';
-import type { AuthDatabase } from './authDatabase/index.js';
-import { openSqliteAuthDatabase } from './authDatabase/sqliteAuthDatabase.js';
-import { resolveMailer } from './mailer.js';
-import { emailOptionalPlugin } from './emailOptionalPlugin.js';
+import type { AuthConfig } from './authMode';
+import { DEMO_SECRET, loadAuthConfig } from './authMode';
+import type { AuthDatabase } from './authDatabase/index';
+import { openSqliteAuthDatabase } from './authDatabase/sqliteAuthDatabase';
+import { resolveMailer } from './mailer';
+import { emailOptionalPlugin } from './emailOptionalPlugin';
+import { getWorkerEnv } from '../util/workerEnv';
+import { openD1AuthDatabase } from './authDatabase/d1AuthDatabase';
 
 // ---------------------------------------------------------------------------
 // Shared types
@@ -145,6 +147,35 @@ export const DEMO_USER_CREDENTIALS = {
  */
 function getDatabase(cfg: AuthConfig): AuthDatabase {
     if (cfg.databaseBackend) return cfg.databaseBackend;
+
+    // T-81: on Cloudflare real-mode with MCP_AUTH_DB_BACKEND=d1, look up the
+    // D1 binding named by MCP_AUTH_DB_URL (e.g. "AUTH" → env.AUTH) and
+    // build a D1-backed AuthDatabase. better-auth accepts a D1Database
+    // instance directly in its `database` option.
+    if (cfg.mode === 'real' && cfg.dbBackend === 'd1') {
+        const env = getWorkerEnv() as { [binding: string]: unknown } | undefined;
+        const bindingName = cfg.dbUrl;
+        if (!bindingName) {
+            throw new Error('[Auth] MCP_AUTH_DB_BACKEND=d1 requires MCP_AUTH_DB_URL (the D1 binding name, e.g. "AUTH")');
+        }
+        const d1 = env?.[bindingName];
+        if (!d1) {
+            throw new Error(
+                `[Auth] D1 binding "${bindingName}" not found on the Worker env. ` +
+                `Confirm the binding name in wrangler.jsonc matches MCP_AUTH_DB_URL.`
+            );
+        }
+        const db = openD1AuthDatabase(d1 as Parameters<typeof openD1AuthDatabase>[0]);
+        db.initializeSchema(cfg.mode);
+        return db;
+    }
+
+    if (cfg.dbBackend !== 'sqlite' && cfg.mode === 'real') {
+        throw new Error(
+            `[Auth] database backend "${cfg.dbBackend}" requires the T-81 Kysely AuthDatabase adapter (cfg.databaseBackend). ` +
+            `Set MCP_AUTH_DB_BACKEND=sqlite for local real-mode dev, or supply cfg.databaseBackend.`
+        );
+    }
     const db = openSqliteAuthDatabase(cfg.dbPath, cfg.mode);
     db.initializeSchema(cfg.mode);
     return db;

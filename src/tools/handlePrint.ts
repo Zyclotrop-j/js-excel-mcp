@@ -1,9 +1,9 @@
-import { ToolHandler } from './interface.js';
+import { ToolHandler } from './interface';
 import { makePageSetup, type Worksheet } from '@office-kit/xlsx/worksheet';
 import { addDefinedName } from '@office-kit/xlsx/workbook';
 import type { SheetRef, Workbook } from '@office-kit/xlsx/workbook';
 import z from 'zod';
-import { Context } from '../filesystem/context.js';
+import { Context } from '../filesystem/context';
 
 export class PrintHandler extends ToolHandler {
     async register(allTools: ToolHandler[]): Promise<void> {

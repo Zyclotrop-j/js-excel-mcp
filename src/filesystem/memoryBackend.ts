@@ -1,4 +1,4 @@
-import type { IDatabaseBackend } from './IDatabaseBackend.js';
+import type { IDatabaseBackend } from './IDatabaseBackend';
 
 type KVEntry = { key: string; value: string; ttl: string };
 type FileEntry = { name: string; data: Buffer; ttl: string };

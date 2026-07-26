@@ -1,10 +1,10 @@
-import { ToolHandler } from './interface.js';
+import { ToolHandler } from './interface';
 import { setCellAsCurrency, setCellAsPercent, setCellNumberFormat, FORMAT_DATE_DATETIME } from '@office-kit/xlsx/styles';
 import { getCell, getCellByCoord, type Worksheet } from '@office-kit/xlsx/worksheet';
 import { getCoordinate } from '@office-kit/xlsx/cell';
 import type { SheetRef, Workbook } from '@office-kit/xlsx/workbook';
 import z from 'zod';
-import { Context } from '../filesystem/context.js';
+import { Context } from '../filesystem/context';
 
 export class NumberFormatHandler extends ToolHandler {
     async register(allTools: ToolHandler[]): Promise<void> {

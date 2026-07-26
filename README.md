@@ -1,6 +1,6 @@
 # js-excel-mcp
 
-A TypeScript-based MCP (Model Context Protocol) server for programmatic Excel workbook manipulation. Exposes 50+ tools for reading, writing, formatting, charting, and exporting `.xlsx` files through a stateful session model. Supports Node.js and Cloudflare Workers.
+A TypeScript-based MCP (Model Context Protocol) server for programmatic Excel workbook manipulation. Exposes 50+ tools for reading, writing, formatting, charting, and exporting `.xlsx` files through a stateful session model. **Primary runtime: Cloudflare Workers** (KV + R2 + D1 bindings); also runnable locally as a plain Node.js Express server for development.
 
 ## Overview
 
@@ -12,33 +12,32 @@ This server implements the Model Context Protocol to let AI assistants and other
 - **50+ MCP tools** — workbook, sheet, cell, styling, chart, table, validation, protection, and more
 - **Smart header detection** — uses MCP sampling or heuristic analysis to identify header bands
 - **Token-efficient output** — TOON encoding for range/search results
-- **Per-user isolation** — SQLite/memory/Cloudflare-backed virtual filesystem with user-scoped workbooks
+- **Per-user isolation** — backend-transparent virtual filesystem with user-scoped workbooks
 - **OAuth 2.1** — OIDC authorization server with PKCE
 - **Cursor navigation** — directional moves with stopping conditions (UNTIL_BLANK, UNTIL_ERROR, value/regex/date compares)
 - **Chain operations** — batch tool calls with shared context
 - **Export URLs** — 4-hour TTL download links for workbooks
 - **MCP resources** — open workbooks exposed as `workbook://` URIs
 - **Explicit context control** — `set_context` tool to manually set file/sheet/cell
-- **Cloudflare Workers** — deployable as a Cloudflare Worker via `handler.ts`
-- **PM2 process management** — auto-restart, logs, backgrounding
+- **Cloudflare Workers** — **primary runtime**; KV + R2 + D1 bindings for storage, single-Worker auth + MCP routing
+- **Local Node fallback** — `npm run dev:plain` / `npm start:plain`, per-user SQLite under `data/`, PM2 for auto-restart
 - **Comprehensive test suite** — unit, integration, e2e, property-based, and mutation tests
 
 ## Stack
 
 - **TypeScript** — strict type safety
-- **@modelcontextprotocol/sdk** — MCP server framework
-- **@modelcontextprotocol/express** — Express MCP transport
+- **@modelcontextprotocol/server** / `…/express` / `…/node` — MCP server framework + Express transport
 - **@office-kit/xlsx** — Excel file manipulation (workbook, worksheet, styles, cell, io)
-- **better-sqlite3** — per-user virtual filesystem (production)
+- **better-sqlite3** — per-user virtual filesystem + auth DB (local Node only)
 - **memfs** — in-memory filesystem (testing)
-- **better-auth** — OIDC authorization server
+- **better-auth** — OIDC authorization server (real + demo modes), pluggable DB backend
 - **zod** — runtime validation
 - **@toon-format/toon** — token-efficient encoding
-- **@cfworker/json-schema** — JSON schema validation
 - **lru-cache** — caching
-- **Express** — HTTP transport
-- **Node.js** — primary runtime
-- **Cloudflare Workers** — alternative deployment target
+- **Express** — HTTP transport (drives both the Worker and local Node)
+- **Cloudflare Workers** — primary runtime (KV + R2 + D1 bindings via Wrangler)
+- **Node.js** — local dev fallback runtime
+- **Wrangler** — Worker bundler + deploy CLI
 
 ## Installation
 
@@ -48,23 +47,34 @@ npm install
 
 ## Development
 
+There are two modes: **Cloudflare Workers** (primary) and **local Node** (dev fallback). The `BACKEND` env var switches storage backends (`cloudflare` uses Wrangler local Miniflare; absent / anything else uses `better-sqlite3` per-user `data/*.db` files).
+
+### Cloudflare Workers (primary)
+
 ```bash
-# Run the development server (tsx watch mode)
-npm run dev
+# Local Miniflare dev (uses real KV/R2/D1 local bindings + the Worker fetch handler)
+npm run dev                # equivalent to `wrangler dev`
 
-# Build TypeScript
-npm run build
+# Deploy to Cloudflare (live on https://excel-js-mcp.<subdomain>.workers.dev)
+npm run deploy             # equivalent to `wrangler deploy`
 
-# Start production server
-npm start
-
-# Watch mode for TypeScript compilation
-npm run watch
+# Regenerate Env types after editing wrangler.jsonc bindings
+npm run cf-typegen
 ```
 
-### PM2 Process Management
+### Local Node (dev fallback)
 
-The server can run under PM2 for auto-restart and backgrounding:
+```bash
+# Run the dev server via tsx (no build step; per-user SQLite under data/)
+npm run dev:plain          # equivalent to `tsx src/index.ts`
+
+# Build TypeScript to dist/ and run production
+npm run build              # equivalent to `tsc`
+npm start:plain           # equivalent to `node dist/types/index.js`
+npm run watch             # `tsc --watch`
+```
+
+### PM2 Process Management (local Node only)
 
 ```bash
 npm run pm2:start      # Start via PM2
@@ -78,16 +88,17 @@ See [Agents.md](Agents.md) for detailed PM2 usage and notes.
 
 ## Usage
 
-The server runs on **port 3000** (MCP endpoint at `/mcp`) with an OAuth authorization server on **port 3001**.
+- **Cloudflare Workers (primary)** — single Worker serves MCP (`/mcp`), auth (`/api/auth/*`, `/sign-in`, `/.well-known/oauth-authorization-server`), and Protected Resource Metadata (`/.well-known/oauth-protected-resource/mcp`). The deployed URL is the issuer for both OAuth discovery and PRM. AUTH_PORT collapses onto the MCP port because there is no second TCP port on a Worker.
+- **Local Node (fallback)** — MCP on **port 3000** (endpoint `/mcp`), OAuth authorization server on **port 3001** (two `app.listen` calls).
 
-### Configuration
+### Configuration (local Node)
 
 ```bash
-# Optional: override auth server port (default: 3001)
-MCP_AUTH_PORT=3001 npm run dev
+# Override MCP server port (default: 3000) — not used on Workers
+MCP_AUTH_PORT=3001 npm run dev:plain
 
-# Optional: override base host (default: http://localhost)
-MCP_BASEHOST=http://localhost npm run dev
+# Override base host (default: http://localhost) — not used on Workers (derived from request Host)
+MCP_BASEHOST=http://localhost npm run dev:plain
 ```
 
 ### Connecting an MCP Client
@@ -156,19 +167,28 @@ MCP_BASEHOST=http://localhost npm run dev
 
 ```
 src/
-  index.ts              ← Express server entry point
-  server.ts             ← server setup + MCP handler wiring
-  handler.ts            ← Cloudflare Workers handler entry
+  index.ts              ← Cloudflare Workers entry — captures env, delegates to httpServerHandler
+  plain.ts              ← Local Node entry — app.listen on real TCP ports (3000, 3001)
+  handler.ts            ← Legacy Cloudflare entry (back-compat alias of index.ts sans env capture)
+  server.ts             ← Server wiring — MCP handler, OAuth, lazy auth init, tool registration
   shared/
-    auth.ts             ← demo auth credentials
-    authServer.ts       ← OIDC authorization server setup
+    auth.ts             ← better-auth OIDC dispatcher (real + demo), picks DB backend by mode
+    authMode.ts         ← Single process.env reader for auth; AuthConfig type
+    authServer.ts       ← setupAuthServer — mounts onto MCP app on Workers, standalone listen on Node
+    mailer.ts           ← OTP / magic-link mailer (console / webhook / T-80 hook)
+    pendingLogin.ts     ← Pending-login handoff (T-22)
+    authDatabase/
+      index.ts          ← AuthDatabase interface
+      schemaDdl.ts       ← Shared demo + real DDL (used by SQLite and D1 impls)
+      sqliteAuthDatabase.ts ← better-sqlite3 implementation (local Node)
+      d1AuthDatabase.ts    ← D1 implementation (Cloudflare Workers) — T-81
   filesystem/
-    system.ts           ← SQLite-backed virtual filesystem
+    system.ts           ← VirtualFileSystem — async backend selection via BACKEND env
     context.ts          ← per-user workbook store + sticky state
     IDatabaseBackend.ts ← database backend interface
-    databaseBackend.ts  ← SQLite backend implementation
+    databaseBackend.ts  ← SQLite backend implementation (local Node) — dynamic-import only
     memoryBackend.ts    ← in-memory backend (testing)
-    cloudflareBackend.ts← Cloudflare D1 backend
+    cloudflareBackend.ts ← Cloudflare KV + R2 backend (Workers) — reads bindings via getWorkerEnv()
     writeCoordinator.ts ← write serialization
   tools/
     index.ts            ← tool re-exports
@@ -226,7 +246,7 @@ test/
 Every tool's `workbook`, `sheet`, and `ref` parameters are optional. If omitted, the server uses the current file/sheet/cell from the session context. The cursor auto-follows any cell-touching operation.
 
 **Per-User Isolation**
-Each user gets a separate database scope. The server supports multiple backends: SQLite (`databaseBackend.ts`, stored in `data/{userId}.db`), in-memory (`memoryBackend.ts`, for testing), and Cloudflare D1 (`cloudflareBackend.ts`). The `IDatabaseBackend.ts` interface abstracts over all implementations. The `_shared` database holds cross-user export URLs.
+Each user gets a separate backend-keyed storage scope (the VFS keys KV/R2/SQLite rows by `{userid}:...`). The server supports multiple backends: SQLite (`databaseBackend.ts`, stored in `data/{userId}.db` — local Node), in-memory (`memoryBackend.ts`, for testing), and Cloudflare KV + R2 (`cloudflareBackend.ts` — Workers, with the Worker `env` bindings stashed via `setWorkerEnv()` from `src/index.ts`). The `IDatabaseBackend.ts` interface abstracts over all implementations. Auth storage is also pluggable: SQLite (`sqliteAuthDatabase.ts`, local Node) or D1 (`d1AuthDatabase.ts`, Workers — T-81). The `_shared` database holds cross-user export URLs.
 
 **TOON Encoding**
 Many read/search tools return TOON-encoded strings (a compact, token-efficient format) to minimize context usage. The `@toon-format/toon` library handles encoding/decoding.

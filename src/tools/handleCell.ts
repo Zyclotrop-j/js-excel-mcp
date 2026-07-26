@@ -1,1 +1,1 @@
-export * from './handleCells/index.js';
+export * from './handleCells/index';

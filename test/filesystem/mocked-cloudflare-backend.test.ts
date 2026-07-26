@@ -82,7 +82,7 @@ function makeR2Stub(): R2Bucket {
 }
 
 function makeEnv() {
-    return { KV: makeKVStub(), MY_BUCKET: makeR2Stub(), MY_EXPORTS: makeR2Stub() } as const;
+    return { KV: makeKVStub(), EXCEL_FILES: makeR2Stub(), EXCEL_EXPORTS: makeR2Stub() } as const;
 }
 
 export default function (test: any) {

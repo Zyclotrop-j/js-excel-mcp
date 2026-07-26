@@ -51,9 +51,9 @@
 import { z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 
-import { AuthToolHandler } from './baseAuthTool.js';
-import { getAuth } from '../../shared/authServer.js';
-import { getExpressRequestHeaders } from '../../util/requestContext.js';
+import { AuthToolHandler } from './baseAuthTool';
+import { getAuth } from '../../shared/authServer';
+import { getExpressRequestHeaders } from '../../util/requestContext';
 
 // -- Input schema ------------------------------------------------------------
 //
@@ -90,7 +90,7 @@ type AddPasskeyInput = z.infer<typeof addPasskeySchema>;
 export class AuthAddPasskeyHandler extends AuthToolHandler {
     static readonly authSurface = 'authenticated' as const;
 
-    async register(_allTools: import('../interface.js').ToolHandler[]): Promise<void> {
+    async register(_allTools: import('../interface').ToolHandler[]): Promise<void> {
         this.registerTool(
             'auth_add_passkey',
             {

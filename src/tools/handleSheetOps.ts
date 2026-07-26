@@ -1,9 +1,9 @@
-import { ToolHandler } from './interface.js';
+import { ToolHandler } from './interface';
 import { addWorksheet, sheetNames, moveSheet, type SheetRef, type Workbook } from '@office-kit/xlsx/workbook';
 import { copyRange, getMaxCol, getMaxRow, type Worksheet } from '@office-kit/xlsx/worksheet';
 import { columnLetterFromIndex } from '@office-kit/xlsx/utils';
 import z from 'zod';
-import { Context } from '../filesystem/context.js';
+import { Context } from '../filesystem/context';
 
 // Mirror office-kit's validateSheetTitle rules without depending on its
 // un-exported symbol. Returns null for an acceptable title, or a reason string.

@@ -1,12 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { readdirSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
-import { DatabaseBackend } from './databaseBackend.js';
-import { CloudflareBackend } from './cloudflareBackend.js';
-import { MemoryBackend } from './memoryBackend.js';
-import { WriteCoordinator } from './writeCoordinator.js';
-import type { IDatabaseBackend } from './IDatabaseBackend.js';
-import type { KVEntry, FileEntry, ExportEntry } from './writeCoordinator.js';
+import { WriteCoordinator } from './writeCoordinator';
+import type { IDatabaseBackend } from './IDatabaseBackend';
+import type { KVEntry, FileEntry, ExportEntry } from './writeCoordinator';
+import { getWorkerEnv } from '../util/workerEnv';
 
 const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
 const FOUR_WEEKS_MS = 4 * 7 * 24 * 60 * 60 * 1000;
@@ -24,7 +22,9 @@ export class VirtualFileSystem {
     static async acquire(userid: string, systemCollection: boolean): Promise<VirtualFileSystem> {
         await WriteCoordinator.acquireLock(userid);
         try {
-            const vfs = new VirtualFileSystem(userid, systemCollection);
+            const dbPath = join(DB_DIR, `${userid}.db`);
+            const backend = await VirtualFileSystem.selectBackend(dbPath);
+            const vfs = new VirtualFileSystem(userid, systemCollection, backend);
             await vfs.hydrate();
             return vfs;
         } catch (e) {
@@ -33,22 +33,32 @@ export class VirtualFileSystem {
         }
     }
 
-    static selectBackend(dbPath: string): IDatabaseBackend {
+    static async selectBackend(dbPath: string): Promise<IDatabaseBackend> {
         const backend = process.env.BACKEND?.toLowerCase();
         switch (backend) {
-            case 'cloudflare': return new CloudflareBackend(globalThis as any, dbPath);
-            case 'test': return new MemoryBackend(dbPath);
-            default: return new DatabaseBackend(dbPath);
+            case 'cloudflare': {
+                const { CloudflareBackend } = await import('./cloudflareBackend');
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                return new CloudflareBackend(getWorkerEnv() as any, dbPath);
+            }
+            case 'test': {
+                const { MemoryBackend } = await import('./memoryBackend');
+                return new MemoryBackend(dbPath);
+            }
+            default: {
+                const { DatabaseBackend } = await import('./databaseBackend');
+                return new DatabaseBackend(dbPath);
+            }
         }
     }
 
-    private constructor(userid: string, systemCollection: boolean) {
+    private constructor(userid: string, systemCollection: boolean, backend: IDatabaseBackend) {
         if(!systemCollection && !/[a-zA-Z]/.test(userid[0])) {
             throw new Error(`All collections must start with a-z. Requested collection was ${userid}`);
         }
         this.userid = userid;
         this.dbPath = join(DB_DIR, `${userid}.db`);
-        this.backend = VirtualFileSystem.selectBackend(this.dbPath);
+        this.backend = backend;
 
         this.memoryKV = new Map();
         this.memoryFiles = new Map();
@@ -309,6 +319,7 @@ function cleanupProcess() {
             const fullPath = join(DB_DIR, entry);
 
             try {
+                const { DatabaseBackend } = await import('./databaseBackend');
                 const backend = new DatabaseBackend(fullPath);
 
                 if (!isSystem) {
@@ -326,4 +337,6 @@ function cleanupProcess() {
         }
     }, 60 * 60 * 1000)?.unref();
 }
-cleanupProcess();
+if (process.env.BACKEND?.toLowerCase() !== 'cloudflare') {
+    cleanupProcess();
+}

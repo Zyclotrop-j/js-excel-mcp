@@ -1,9 +1,9 @@
-import { ToolHandler } from './interface.js';
+import { ToolHandler } from './interface';
 import { groupRows, groupColumns } from '@office-kit/xlsx/worksheet';
 import type { SheetRef, Workbook } from '@office-kit/xlsx/workbook';
 import type { Worksheet } from '@office-kit/xlsx/worksheet';
 import z from 'zod';
-import { Context } from '../filesystem/context.js';
+import { Context } from '../filesystem/context';
 
 export class OutlineHandler extends ToolHandler {
     async register(allTools: ToolHandler[]): Promise<void> {

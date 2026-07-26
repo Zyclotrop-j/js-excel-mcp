@@ -1,10 +1,10 @@
-import { ToolHandler } from '../interface.js';
+import { ToolHandler } from '../interface';
 import { getCell, setCell, setCellByCoord, getCellByCoord, setRangeValues, type Worksheet } from '@office-kit/xlsx/worksheet';
 import { bindValue, setFormula, cellValueAsString, getCoordinate } from '@office-kit/xlsx/cell';
 import type { SheetRef, Workbook } from '@office-kit/xlsx/workbook';
 import z from 'zod';
-import { Context } from '../../filesystem/context.js';
-import { detectSelfReference } from '../../util/detectSelfReference.js';
+import { Context } from '../../filesystem/context';
+import { detectSelfReference } from '../../util/detectSelfReference';
 
 const cellValueSchema = z.union([z.string(), z.number(), z.boolean(), z.null(), z.object({ kind: z.literal('error'), code: z.enum(['#NULL!', '#DIV/0!', '#VALUE!', '#REF!', '#NAME?', '#NUM!', '#N/A', '#GETTING_DATA']) })]);
 

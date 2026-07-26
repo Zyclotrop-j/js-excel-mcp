@@ -1,8 +1,8 @@
-import { ToolHandler } from './interface.js';
+import { ToolHandler } from './interface';
 import { sheetNames } from '@office-kit/xlsx/workbook';
 import { isValidCellRef } from '@office-kit/xlsx/utils';
 import z from 'zod';
-import { Context } from '../filesystem/context.js';
+import { Context } from '../filesystem/context';
 
 export class SetContextHandler extends ToolHandler {
     async register(allTools: ToolHandler[]): Promise<void> {

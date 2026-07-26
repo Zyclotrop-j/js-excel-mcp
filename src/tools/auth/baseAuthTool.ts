@@ -19,7 +19,7 @@
  * `[C-PA]` / `[C-AT]` / `[C-REG]` in `STUDY_FIRST.md`.
  */
 
-import { ToolHandler } from '../interface.js';
+import { ToolHandler } from '../interface';
 
 /**
  * Discriminator: which endpoint does this tool mount on?

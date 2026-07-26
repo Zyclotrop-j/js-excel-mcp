@@ -60,7 +60,7 @@
 import { z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 
-import { AuthToolHandler } from './baseAuthTool.js';
+import { AuthToolHandler } from './baseAuthTool';
 
 // -- Recover input schema --------------------------------------------------
 
@@ -83,7 +83,7 @@ type RecoverInput = z.infer<typeof recoverSchema>;
 export class AuthRecoverHandler extends AuthToolHandler {
     static readonly authSurface = 'bootstrap' as const;
 
-    async register(_allTools: import('../interface.js').ToolHandler[]): Promise<void> {
+    async register(_allTools: import('../interface').ToolHandler[]): Promise<void> {
         this.registerTool(
             'auth_recover',
             {

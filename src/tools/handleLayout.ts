@@ -1,9 +1,9 @@
-import { ToolHandler } from './interface.js';
+import { ToolHandler } from './interface';
 import { mergeCells, setColumnWidth, setRowHeight, makeFreezePane, makeSheetView, type Worksheet } from '@office-kit/xlsx/worksheet';
 import type { SheetRef, Workbook } from '@office-kit/xlsx/workbook';
 import { encode } from '@toon-format/toon';
 import z from 'zod';
-import { Context } from '../filesystem/context.js';
+import { Context } from '../filesystem/context';
 
 export class LayoutHandler extends ToolHandler {
     async register(allTools: ToolHandler[]): Promise<void> {

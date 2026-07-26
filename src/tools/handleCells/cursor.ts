@@ -1,11 +1,11 @@
-import { ToolHandler } from '../interface.js';
+import { ToolHandler } from '../interface';
 import { getCell, getMaxRow, getMaxCol, type Worksheet } from '@office-kit/xlsx/worksheet';
 import { cellValueAsString, cellValueAsDate, isErrorCell, getFormulaText } from '@office-kit/xlsx/cell';
 import type { SheetRef, Workbook } from '@office-kit/xlsx/workbook';
 import { coordinateToTuple, tupleToCoordinate } from '@office-kit/xlsx/utils';
 import { encode } from '@toon-format/toon';
 import z from 'zod';
-import { Context } from '../../filesystem/context.js';
+import { Context } from '../../filesystem/context';
 
 export class CellCursorHandler extends ToolHandler {
     async register(allTools: ToolHandler[]): Promise<void> {

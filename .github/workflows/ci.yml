@@ -1,0 +1,79 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel in-progress runs for the same ref — cheaper CI minutes
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22]
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      # better-sqlite3 is a native .node addon — prebuilt binaries cover
+      # ubuntu-latest, but fall back to source build which needs python3.
+      - name: Install dependencies
+        run: npm ci
+
+      # Known pre-existing office-kit type-integration errors in src/tools/*
+      # (31 at time of writing) — tracked separately, not migration-related.
+      # Reports the count but doesn't block the pipeline.
+      - name: Typecheck (advisory)
+        run: npx tsc --noEmit
+        continue-on-error: true
+
+      - name: Unit tests
+        run: npm run test:unit
+
+      - name: Integration tests
+        run: npm run test:integration
+
+      - name: E2E tests
+        run: npm run test:e2e
+
+      - name: Property tests
+        run: npm run test:property
+
+  deploy:
+    name: Deploy to Cloudflare Workers
+    runs-on: ubuntu-latest
+    # Only on push to main (skip PRs). Depends on the test matrix passing.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: test
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Deploy Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy

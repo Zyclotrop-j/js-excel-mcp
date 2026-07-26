@@ -14,8 +14,8 @@
  * env vars (see T-10 "Fail-fast rules").
  */
 
-import type { AuthDatabase } from './authDatabase/index.js';
-import type { OtpMailer } from './mailer.js';
+import type { AuthDatabase } from './authDatabase/index';
+import type { OtpMailer } from './mailer';
 
 export type AuthMode = 'demo' | 'real';
 export type OtpTransportKind = 'console' | 'webhook' | 'sendgrid' | 'custom';
@@ -134,7 +134,7 @@ export function loadAuthConfig(baseURL: string): AuthConfig {
         }
     }
 
-    const dbBackend = (process.env.MCP_AUTH_DB_BACKEND ?? 'sqlite') as AuthConfig['dbBackend'];
+    let dbBackend = (process.env.MCP_AUTH_DB_BACKEND ?? 'sqlite') as AuthConfig['dbBackend'];
     let dbUrl: string | undefined;
     let dbAuthToken: string | undefined;
     if (dbBackend !== 'sqlite') {

@@ -1,8 +1,8 @@
-import { ToolHandler } from './interface.js';
+import { ToolHandler } from './interface';
 import { isInputRequiredResult, type CallToolResult, type InputRequiredResult } from '@modelcontextprotocol/server';
 import { encode } from '@toon-format/toon';
 import z from 'zod';
-import { Context } from '../filesystem/context.js';
+import { Context } from '../filesystem/context';
 
 type StandardSchema = { '~standard': { validate: (value: unknown) => Promise<{ value?: unknown; issues?: { message: string }[] }> } };
 

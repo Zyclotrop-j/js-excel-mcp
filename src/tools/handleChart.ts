@@ -1,11 +1,11 @@
-import { ToolHandler } from './interface.js';
+import { ToolHandler } from './interface';
 import { type SheetRef, type Workbook } from '@office-kit/xlsx/workbook';
 import type { Worksheet } from '@office-kit/xlsx/worksheet';
 import { makeBarChart, makeBarSeries, makeChartSpace, makeLineChart, type LineSeries } from '@office-kit/xlsx/chart';
 import { addChartAt } from '@office-kit/xlsx/drawing';
 import { formatSheetQualifiedRef } from '@office-kit/xlsx/utils';
 import z from 'zod';
-import { Context } from '../filesystem/context.js';
+import { Context } from '../filesystem/context';
 
 export class ChartHandler extends ToolHandler {
     async register(allTools: ToolHandler[]): Promise<void> {

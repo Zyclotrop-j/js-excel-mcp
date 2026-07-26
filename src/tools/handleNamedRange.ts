@@ -1,7 +1,7 @@
-import { ToolHandler } from './interface.js';
+import { ToolHandler } from './interface';
 import { addDefinedName, removeDefinedName, type Workbook } from '@office-kit/xlsx/workbook';
 import z from 'zod';
-import { Context } from '../filesystem/context.js';
+import { Context } from '../filesystem/context';
 
 export class NamedRangeHandler extends ToolHandler {
     async register(allTools: ToolHandler[]): Promise<void> {

@@ -44,8 +44,8 @@ import { z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import Database from 'better-sqlite3';
 
-import { AuthToolHandler } from './baseAuthTool.js';
-import { getAuth } from '../../shared/authServer.js';
+import { AuthToolHandler } from './baseAuthTool';
+import { getAuth } from '../../shared/authServer';
 
 const rotateApikeySchema = z.object({
     action: z.enum(['issue', 'rotate', 'revoke']).default('issue')
@@ -71,7 +71,7 @@ type RotateApikeyInput = z.infer<typeof rotateApikeySchema>;
 export class AuthRotateApikeyHandler extends AuthToolHandler {
     static readonly authSurface = 'authenticated' as const;
 
-    async register(_allTools: import('../interface.js').ToolHandler[]): Promise<void> {
+    async register(_allTools: import('../interface').ToolHandler[]): Promise<void> {
         this.registerTool(
             'auth_rotate_apikey',
             {

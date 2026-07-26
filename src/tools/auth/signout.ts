@@ -34,9 +34,9 @@
 
 import type { CallToolResult } from '@modelcontextprotocol/server';
 
-import { AuthToolHandler } from './baseAuthTool.js';
-import { getAuth } from '../../shared/authServer.js';
-import { getExpressRequestHeaders } from '../../util/requestContext.js';
+import { AuthToolHandler } from './baseAuthTool';
+import { getAuth } from '../../shared/authServer';
+import { getExpressRequestHeaders } from '../../util/requestContext';
 
 export class AuthSignoutHandler extends AuthToolHandler {
     static readonly authSurface = 'authenticated' as const;

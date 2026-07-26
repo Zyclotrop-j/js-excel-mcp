@@ -1,7 +1,7 @@
-import { ToolHandler } from './interface.js';
+import { ToolHandler } from './interface';
 import { addWorksheet, getSheet, removeSheet, renameSheet, setActiveSheet, sheetNames, type Workbook } from '@office-kit/xlsx/workbook';
 import z from 'zod';
-import { Context } from '../filesystem/context.js';
+import { Context } from '../filesystem/context';
 
 // Mirror office-kit's validateSheetTitle rules without depending on its
 // un-exported symbol. Returns null for an acceptable title, or a reason string.

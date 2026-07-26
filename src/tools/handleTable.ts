@@ -1,10 +1,10 @@
-import { ToolHandler } from './interface.js';
+import { ToolHandler } from './interface';
 import { addExcelTable, makeAutoFilter, setAutoFilter, getAutoFilter, listTables, type Worksheet } from '@office-kit/xlsx/worksheet';
 import { rangeBoundaries } from '@office-kit/xlsx/utils';
 import { rangesOverlap } from '@office-kit/xlsx/worksheet';
 import type { SheetRef, Workbook } from '@office-kit/xlsx/workbook';
 import z from 'zod';
-import { Context } from '../filesystem/context.js';
+import { Context } from '../filesystem/context';
 
 /** True iff `a` and `b` (A1 range strings) share at least one cell. */
 function overlaps(a: string, b: string): boolean {

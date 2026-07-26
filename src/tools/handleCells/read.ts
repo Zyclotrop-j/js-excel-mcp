@@ -1,10 +1,10 @@
-import { ToolHandler } from '../interface.js';
+import { ToolHandler } from '../interface';
 import { getCell, getCellByCoord, findCells, getRangeValues, type Worksheet } from '@office-kit/xlsx/worksheet';
 import { cellValueAsPrimitive, cellValueAsString, getFormulaText, getCoordinate, type Cell } from '@office-kit/xlsx/cell';
 import type { SheetRef, Workbook } from '@office-kit/xlsx/workbook';
 import { encode } from '@toon-format/toon';
 import z from 'zod';
-import { Context } from '../../filesystem/context.js';
+import { Context } from '../../filesystem/context';
 
 const cellNativeValueSchema = z.union([
     z.string(),

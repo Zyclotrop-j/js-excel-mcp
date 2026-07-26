@@ -1,13 +1,12 @@
-import { KVNamespace, R2Bucket } from '@cloudflare/workers-types';
-import type { IDatabaseBackend } from './IDatabaseBackend.js';
+import type { IDatabaseBackend } from './IDatabaseBackend';
 
 /**
  * Cloudflare Workers environment bindings
  */
 export interface CloudflareWorkerEnv {
-    KV: KVNamespace;
-    MY_BUCKET: R2Bucket;
-    MY_EXPORTS: R2Bucket;
+    KEY_VALUE_STORE: KVNamespace;
+    EXCEL_FILES: R2Bucket;
+    EXCEL_EXPORTS: R2Bucket;
 }
 
 /**
@@ -15,8 +14,8 @@ export interface CloudflareWorkerEnv {
  * 
  * Storage mapping:
  * - KV table → Cloudflare KV with keys prefixed by `{dbPath}:kv:`
- * - Files table → R2 bucket MY_BUCKET with keys prefixed by `{dbPath}:files:`
- * - Exports table → R2 bucket MY_EXPORTS with keys prefixed by `{dbPath}:exports:`
+ * - Files table → R2 bucket EXCEL_FILES with keys prefixed by `{dbPath}:files:`
+ * - Exports table → R2 bucket EXCEL_EXPORTS with keys prefixed by `{dbPath}:exports:`
  * 
  * TTL is stored as metadata on each object.
  */
@@ -47,12 +46,12 @@ export class CloudflareBackend implements IDatabaseBackend {
         
         let cursor: string | undefined;
         do {
-            const list = await this.env.KV.list({ prefix, cursor });
+            const list = await this.env.KEY_VALUE_STORE.list({ prefix, cursor });
             const entries = await Promise.all(
                 list.keys.map(async (key) => {
                     const [value, metadata] = await Promise.all([
-                        this.env.KV.get(key.name),
-                        this.env.KV.getWithMetadata<{ ttl: string }>(key.name)
+                        this.env.KEY_VALUE_STORE.get(key.name),
+                        this.env.KEY_VALUE_STORE.getWithMetadata<{ ttl: string }>(key.name)
                     ]);
                     if (value !== null && metadata.metadata?.ttl) {
                         const actualKey = key.name.substring(prefix.length);
@@ -74,11 +73,11 @@ export class CloudflareBackend implements IDatabaseBackend {
         
         let cursor: string | undefined;
         do {
-            const list = await this.env.MY_BUCKET.list({ prefix, cursor });
+            const list = await this.env.EXCEL_FILES.list({ prefix, cursor });
             const entries = await Promise.all(
                 list.objects.map(async (obj) => {
                     if (!obj.customMetadata?.ttl) return null;
-                    const data = await this.env.MY_BUCKET.get(obj.key);
+                    const data = await this.env.EXCEL_FILES.get(obj.key);
                     if (data) {
                         const actualName = obj.key.substring(prefix.length);
                         const arrayBuffer = await data.arrayBuffer();
@@ -100,11 +99,11 @@ export class CloudflareBackend implements IDatabaseBackend {
         
         let cursor: string | undefined;
         do {
-            const list = await this.env.MY_EXPORTS.list({ prefix, cursor });
+            const list = await this.env.EXCEL_EXPORTS.list({ prefix, cursor });
             const entries = await Promise.all(
                 list.objects.map(async (obj) => {
                     if (!obj.customMetadata?.ttl || !obj.customMetadata?.name) return null;
-                    const data = await this.env.MY_EXPORTS.get(obj.key);
+                    const data = await this.env.EXCEL_EXPORTS.get(obj.key);
                     if (data) {
                         const actualKey = obj.key.substring(prefix.length);
                         const arrayBuffer = await data.arrayBuffer();
@@ -129,8 +128,8 @@ export class CloudflareBackend implements IDatabaseBackend {
         const prefix = `${this.dbPath}:kv:`;
         let cursor: string | undefined;
         do {
-            const list = await this.env.KV.list({ prefix, cursor });
-            await Promise.all(list.keys.map(k => this.env.KV.delete(k.name)));
+            const list = await this.env.KEY_VALUE_STORE.list({ prefix, cursor });
+            await Promise.all(list.keys.map(k => this.env.KEY_VALUE_STORE.delete(k.name)));
             cursor = list.list_complete ? undefined : list.cursor;
         } while (cursor);
     }
@@ -139,8 +138,8 @@ export class CloudflareBackend implements IDatabaseBackend {
         const prefix = `${this.dbPath}:files:`;
         let cursor: string | undefined;
         do {
-            const list = await this.env.MY_BUCKET.list({ prefix, cursor });
-            await Promise.all(list.objects.map(obj => this.env.MY_BUCKET.delete(obj.key)));
+            const list = await this.env.EXCEL_FILES.list({ prefix, cursor });
+            await Promise.all(list.objects.map(obj => this.env.EXCEL_FILES.delete(obj.key)));
             cursor = list.truncated ? list.cursor : undefined;
         } while (cursor);
     }
@@ -149,46 +148,46 @@ export class CloudflareBackend implements IDatabaseBackend {
         const prefix = `${this.dbPath}:exports:`;
         let cursor: string | undefined;
         do {
-            const list = await this.env.MY_EXPORTS.list({ prefix, cursor });
-            await Promise.all(list.objects.map(obj => this.env.MY_EXPORTS.delete(obj.key)));
+            const list = await this.env.EXCEL_EXPORTS.list({ prefix, cursor });
+            await Promise.all(list.objects.map(obj => this.env.EXCEL_EXPORTS.delete(obj.key)));
             cursor = list.truncated ? list.cursor : undefined;
         } while (cursor);
     }
 
     async insertKV(key: string, value: string, ttl: string): Promise<void> {
-        await this.env.KV.put(this.kvKey(key), value, { metadata: { ttl } });
+        await this.env.KEY_VALUE_STORE.put(this.kvKey(key), value, { metadata: { ttl } });
     }
 
     async insertFile(name: string, data: Uint8Array, ttl: string): Promise<void> {
-        await this.env.MY_BUCKET.put(this.fileKey(name), data, {
+        await this.env.EXCEL_FILES.put(this.fileKey(name), data, {
             customMetadata: { ttl }
         });
     }
 
     async insertExport(key: string, name: string, ttl: string, data: Uint8Array): Promise<void> {
-        await this.env.MY_EXPORTS.put(this.exportKey(key), data, {
+        await this.env.EXCEL_EXPORTS.put(this.exportKey(key), data, {
             customMetadata: { ttl, name }
         });
     }
 
     async insertOrReplaceKV(key: string, value: string, ttl: string): Promise<void> {
-        await this.env.KV.put(this.kvKey(key), value, { metadata: { ttl } });
+        await this.env.KEY_VALUE_STORE.put(this.kvKey(key), value, { metadata: { ttl } });
     }
 
     async insertOrReplaceExport(key: string, name: string, ttl: string, data: Uint8Array): Promise<void> {
-        await this.env.MY_EXPORTS.put(this.exportKey(key), data, {
+        await this.env.EXCEL_EXPORTS.put(this.exportKey(key), data, {
             customMetadata: { ttl, name }
         });
     }
 
     async insertOrReplaceFile(name: string, data: Uint8Array, ttl: string): Promise<void> {
-        await this.env.MY_BUCKET.put(this.fileKey(name), data, {
+        await this.env.EXCEL_FILES.put(this.fileKey(name), data, {
             customMetadata: { ttl }
         });
     }
 
     async selectFileTTL(name: string): Promise<{ ttl: string } | undefined> {
-        const obj = await this.env.MY_BUCKET.head(this.fileKey(name));
+        const obj = await this.env.EXCEL_FILES.head(this.fileKey(name));
         if (obj && obj.customMetadata?.ttl) {
             return { ttl: obj.customMetadata.ttl };
         }
@@ -196,7 +195,7 @@ export class CloudflareBackend implements IDatabaseBackend {
     }
 
     async selectKVTTL(key: string): Promise<{ ttl: string } | undefined> {
-        const metadata = await this.env.KV.getWithMetadata<{ ttl: string }>(this.kvKey(key));
+        const metadata = await this.env.KEY_VALUE_STORE.getWithMetadata<{ ttl: string }>(this.kvKey(key));
         if (metadata.value !== null && metadata.metadata?.ttl) {
             return { ttl: metadata.metadata.ttl };
         }
@@ -204,7 +203,7 @@ export class CloudflareBackend implements IDatabaseBackend {
     }
 
     async selectKVValue(key: string): Promise<{ value: string } | undefined> {
-        const value = await this.env.KV.get(this.kvKey(key));
+        const value = await this.env.KEY_VALUE_STORE.get(this.kvKey(key));
         if (value !== null) {
             return { value };
         }

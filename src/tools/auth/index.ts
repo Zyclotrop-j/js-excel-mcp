@@ -17,9 +17,9 @@
  * `[C-PA]` / `[C-AT]` / `[C-REG]` contracts in `STUDY_FIRST.md`.
  */
 
-export { AuthSignupHandler } from './signup.js';
-export { AuthSigninHandler } from './signin.js';
-export { AuthRecoverHandler } from './recover.js';
-export { AuthSignoutHandler } from './signout.js';
-export { AuthAddPasskeyHandler } from './addPasskey.js';
-export { AuthRotateApikeyHandler } from './rotateApikey.js';
+export { AuthSignupHandler } from './signup';
+export { AuthSigninHandler } from './signin';
+export { AuthRecoverHandler } from './recover';
+export { AuthSignoutHandler } from './signout';
+export { AuthAddPasskeyHandler } from './addPasskey';
+export { AuthRotateApikeyHandler } from './rotateApikey';

@@ -15,13 +15,13 @@ import { OAuthError, OAuthErrorCode } from '@modelcontextprotocol/server';
 import { toNodeHandler } from 'better-auth/node';
 import { oAuthDiscoveryMetadata, oAuthProtectedResourceMetadata } from 'better-auth/plugins';
 import cors from 'cors';
-import type { NextFunction, Request, Response as ExpressResponse, Router } from 'express';
+import type { Express, NextFunction, Request, Response as ExpressResponse, Router } from 'express';
 import express from 'express';
 
-import type { DemoAuth } from './auth.js';
-import { createAuth, DEMO_USER_CREDENTIALS } from './auth.js';
-import type { AuthConfig } from './authMode.js';
-import { consumePendingLogin, peekMostRecentPendingLogin } from './pendingLogin.js';
+import type { DemoAuth } from './auth';
+import { createAuth, DEMO_USER_CREDENTIALS } from './auth';
+import type { AuthConfig } from './authMode';
+import { consumePendingLogin, peekMostRecentPendingLogin } from './pendingLogin';
 
 export interface SetupAuthServerOptions {
     authServerUrl: URL;
@@ -51,6 +51,22 @@ export interface SetupAuthServerOptions {
      * Ignored unless `authConfig.mode === 'demo'`.
      */
     autoConsent?: boolean;
+    /**
+     * Optional Express app to mount the auth routes onto. When omitted
+     * (local Node mode), `setupAuthServer` creates its own `authApp`,
+     * calls `authApp.listen(AUTH_PORT, ...)` on a separate port, and
+     * returns nothing.
+     *
+     * When provided (Cloudflare Workers mode), `setupAuthServer` mounts
+     * all auth routes (`/api/auth/*`, `/sign-in`,
+     * `/.well-known/oauth-authorization-server`) onto the supplied app
+     * and does NOT call `listen()` — the Worker's single fetch handler
+     * drives everything via the port-routing-key of the same Express
+     * instance. Auth routes share path prefixes with the MCP routes
+     * (`/mcp`, `/mcp/bootstrap`, `/.well-known/oauth-protected-resource
+     * /mcp`) without collision.
+     */
+    mountApp?: Express;
 }
 
 // Store auth instance globally so it can be used for token verification
@@ -188,12 +204,22 @@ export function setupAuthServer(options: SetupAuthServerOptions): void {
     // Store globally for token verification
     globalAuth = auth;
 
-    // Create Express app for auth server
-    const authApp = express();
+    // Create Express app for auth server (local Node mode). When called with
+    // `mountApp` (Cloudflare Workers mode — see option doc), auth routes are
+    // mounted onto the supplied MCP Express app instead, sharing the single
+    // Worker fetch handler. Auth and MCP route path prefixes are disjoint
+    // (`/api/auth/*`, `/sign-in`, `/.well-known/oauth-authorization-server`
+    // vs `/mcp`, `/mcp/bootstrap`,
+    // `/.well-known/oauth-protected-resource/mcp`).
+    const authApp = options.mountApp ?? express();
 
     // CORS — demo allows all origins; real uses the explicit list from authConfig.
     // The `cors` package accepts string or string[].
     const corsOrigin = authConfig.mode === 'demo' ? '*' : authConfig.corsOrigins;
+    // On Workers we mount onto the MCP app, which already has its own CORS
+    // middleware from `server.ts`. Calling `app.use(cors(...))` again is
+    // idempotent for OPTIONS handling and only widens the origin list, so it
+    // is safe to call in both modes.
     authApp.use(cors({ origin: corsOrigin }));
 
     // Create better-auth handler
@@ -451,6 +477,29 @@ export function setupAuthServer(options: SetupAuthServerOptions): void {
     });
 
     // Start the auth server — bind to loopback in demo, configurable in real.
+    //
+    // Cloudflare Workers mode (`mountApp` provided): we mounted the auth
+    // routes onto the MCP app, and there is no second TCP port on a
+    // Worker — `httpServerHandler({ port: server.port })` drives the single
+    // Express instance. The standalone `listen()` would no-op on Workers
+    // anyway (no real network port), but we also skip it to avoid the
+    // startup banner lying about a port that doesn't exist there. The
+    // banner below logs only on the local-Node path.
+    if (options.mountApp) {
+        const corsSummary = authConfig.mode === 'demo'
+            ? 'CORS *'
+            : `CORS=${authConfig.corsOrigins.length} origin${authConfig.corsOrigins.length !== 1 ? 's' : ''}`;
+        if (authConfig.mode === 'demo') {
+            console.log(`[Auth] mode=demo mounted on same Worker (${corsSummary}, autoConsent=${autoConsent ? 'on' : 'off'})`);
+        } else {
+            console.log(`[Auth] mode=real mounted on same Worker (${corsSummary}, signup=${authConfig.allowUserSignup ? 'on' : 'off'}, backend=${authConfig.dbBackend})`);
+        }
+        console.log(`  Authorization: ${authServerUrl}api/auth/mcp/authorize`);
+        console.log(`  Token:         ${authServerUrl}api/auth/mcp/token`);
+        console.log(`  Metadata:      ${authServerUrl}.well-known/oauth-authorization-server`);
+        return;
+    }
+
     const authPort = Number.parseInt(authServerUrl.port, 10);
     authApp.listen(authPort, authConfig.bindHost, (error?: Error) => {
         if (error) {

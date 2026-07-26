@@ -11,7 +11,7 @@
  * cycle with `authMode.ts`.
  */
 
-import type { AuthMode } from '../authMode.js';
+import type { AuthMode } from '../authMode';
 
 export interface AuthDatabase {
     /**

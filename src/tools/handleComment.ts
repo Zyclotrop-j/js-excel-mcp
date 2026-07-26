@@ -1,10 +1,10 @@
-import { ToolHandler } from './interface.js';
+import { ToolHandler } from './interface';
 import { setComment, type Worksheet, type LegacyComment } from '@office-kit/xlsx/worksheet';
 import { getCoordinate } from '@office-kit/xlsx/cell';
 import type { SheetRef, Workbook } from '@office-kit/xlsx/workbook';
 import { tupleToCoordinate } from '@office-kit/xlsx/utils';
 import z from 'zod';
-import { Context } from '../filesystem/context.js';
+import { Context } from '../filesystem/context';
 
 export class CommentHandler extends ToolHandler {
     async register(allTools: ToolHandler[]): Promise<void> {

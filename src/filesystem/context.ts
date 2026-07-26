@@ -1,10 +1,10 @@
 import type { CallToolResult } from '@modelcontextprotocol/server';
-import { VirtualFileSystem } from './system.js'
-import { WriteCoordinator } from './writeCoordinator.js'
+import { VirtualFileSystem } from './system'
+import { WriteCoordinator } from './writeCoordinator'
 import type { Workbook } from '@office-kit/xlsx/workbook';
 import { fromArrayBuffer, loadWorkbook, workbookToBytes } from '@office-kit/xlsx/io';
 import z from 'zod';
-import { getContext } from '../util/requestContext.js';
+import { getContext } from '../util/requestContext';
 
 export class Context {
     virtualFileSystem: VirtualFileSystem;

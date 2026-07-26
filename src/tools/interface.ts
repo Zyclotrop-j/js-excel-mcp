@@ -1,6 +1,6 @@
 import { McpServer, McpRequestContext, type CallToolResult, type InputRequiredResult, type StandardSchemaWithJSON, type ServerContext, type ToolCallback, type ToolAnnotations, type Icon } from "@modelcontextprotocol/server";
 import { Express } from 'express';
-import type { AuthConfig } from '../shared/authMode.js';
+import type { AuthConfig } from '../shared/authMode';
 
 type StoredCallback = (args: any, ctx: any) => CallToolResult | InputRequiredResult | Promise<CallToolResult | InputRequiredResult>;
 

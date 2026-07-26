@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import type { IDatabaseBackend } from './IDatabaseBackend.js';
+import type { IDatabaseBackend } from './IDatabaseBackend';
 
 export class DatabaseBackend implements IDatabaseBackend {
     private db: InstanceType<typeof Database>;
