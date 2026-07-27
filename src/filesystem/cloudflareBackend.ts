@@ -73,7 +73,7 @@ export class CloudflareBackend implements IDatabaseBackend {
         
         let cursor: string | undefined;
         do {
-            const list = await this.env.EXCEL_FILES.list({ prefix, cursor });
+            const list = await this.env.EXCEL_FILES.list({ prefix, cursor, include: ['customMetadata'] });
             const entries = await Promise.all(
                 list.objects.map(async (obj) => {
                     if (!obj.customMetadata?.ttl) return null;
@@ -99,7 +99,7 @@ export class CloudflareBackend implements IDatabaseBackend {
         
         let cursor: string | undefined;
         do {
-            const list = await this.env.EXCEL_EXPORTS.list({ prefix, cursor });
+            const list = await this.env.EXCEL_EXPORTS.list({ prefix, cursor, include: ['customMetadata'] });
             const entries = await Promise.all(
                 list.objects.map(async (obj) => {
                     if (!obj.customMetadata?.ttl || !obj.customMetadata?.name) return null;

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { readdirSync, unlinkSync } from 'node:fs';
-import { join } from 'node:path';
+import { join } from 'node:path/posix';
 import { WriteCoordinator } from './writeCoordinator';
 import type { IDatabaseBackend } from './IDatabaseBackend';
 import type { KVEntry, FileEntry, ExportEntry } from './writeCoordinator';

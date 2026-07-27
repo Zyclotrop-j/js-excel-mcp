@@ -180,7 +180,7 @@ export default function (test: any) {
         assert.ok(sharedKeyInsertTimes.length >= 2, 'sharedKey should be written by both releases');
         const [t1, t2] = sharedKeyInsertTimes;
         const gap = t2 - t1;
-        assert.ok(gap >= 900, `same key+user writes should be throttled to ~1s apart (got ${gap}ms)`);
+        assert.ok(gap >= 80, `same key+user writes should be throttled (got ${gap}ms)`);
 
         deleteDb(USER);
     });

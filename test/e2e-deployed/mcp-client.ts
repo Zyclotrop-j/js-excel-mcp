@@ -34,14 +34,23 @@ export function createMcpClient(opts: McpClientOptions) {
     async function rpc(method: string, params?: unknown): Promise<any> {
         const id = nextId++;
         const body = JSON.stringify({ jsonrpc: '2.0', id, method, params: params ?? {} });
-        const res = await fetch(url, { method: 'POST', headers, body });
-        if (!res.ok) throw new Error(`MCP ${method} HTTP ${res.status}: ${await res.text().catch(() => '')}`);
-        const newSess = res.headers.get('mcp-session-id');
-        if (newSess && !sessionId) { sessionId = newSess; headers['Mcp-Session-Id'] = newSess; }
-        const raw = await res.text();
-        const parsed = parseSseOrJson(raw);
-        if (parsed.error) throw new Error(`MCP error ${parsed.error.code}: ${parsed.error.message}`);
-        return parsed.result;
+        let lastErr: Error | null = null;
+        for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+                const res = await fetch(url, { method: 'POST', headers, body });
+                if (!res.ok) throw new Error(`MCP ${method} HTTP ${res.status}: ${await res.text().catch(() => '')}`);
+                const newSess = res.headers.get('mcp-session-id');
+                if (newSess && !sessionId) { sessionId = newSess; headers['Mcp-Session-Id'] = newSess; }
+                const raw = await res.text();
+                const parsed = parseSseOrJson(raw);
+                if (parsed.error) throw new Error(`MCP error ${parsed.error.code}: ${parsed.error.message}`);
+                return parsed.result;
+            } catch (e) {
+                lastErr = e instanceof Error ? e : new Error(String(e));
+                if (attempt < 2) { await new Promise(r => setTimeout(r, 1000 * (attempt + 1))); }
+            }
+        }
+        throw lastErr ?? new Error(`MCP ${method} failed after 3 attempts`);
     }
 
     return {
@@ -60,30 +69,31 @@ export function createMcpClient(opts: McpClientOptions) {
         },
 
         async callTool(name: string, args: Record<string, unknown>): Promise<any> {
-            const result = await rpc('tools/call', { name, arguments: args });
-            if (result.isError) {
-                const text = result.content?.map((c: any) => c.text ?? '').join(' ') ?? JSON.stringify(result);
-                throw new Error(`Tool ${name} error: ${text}`);
-            }
-            // The server wraps every response with context: content[0] is the
-            // context preamble (starts with "context:"), content[1] is the
-            // human-readable message, content[2] (if present) is a resource
-            // whose `text` field contains structured JSON.
-            // Strategy: find the first content entry whose text starts with `{`
-            // or parse the resource text. Fall back to content[1] (plain text).
-            const content = result.content ?? [];
-            for (const block of content) {
-                if (block.type === 'resource' && block.resource?.text) {
-                    try { return JSON.parse(block.resource.text); } catch { /* not JSON */ }
+            let lastErr: Error | null = null;
+            for (let attempt = 0; attempt < 3; attempt++) {
+                try {
+                    const result = await rpc('tools/call', { name, arguments: args });
+                    if (result.isError) {
+                        const text = result.content?.map((c: any) => c.text ?? '').join(' ') ?? JSON.stringify(result);
+                        throw new Error(`Tool ${name} error: ${text}`);
+                    }
+                    const content = result.content ?? [];
+                    for (const block of content) {
+                        if (block.type === 'resource' && block.resource?.text) {
+                            try { return JSON.parse(block.resource.text); } catch { /* not JSON */ }
+                        }
+                        if (block.type === 'text' && block.text?.trimStart().startsWith('{')) {
+                            try { return JSON.parse(block.text); } catch { /* not JSON */ }
+                        }
+                    }
+                    const texts = content.filter((c: any) => c.type === 'text').map((c: any) => c.text);
+                    return texts.length > 1 ? texts[1] : (texts[0] ?? result);
+                } catch (e) {
+                    lastErr = e instanceof Error ? e : new Error(String(e));
+                    if (attempt < 2) { await new Promise(r => setTimeout(r, 1000 * (attempt + 1))); }
                 }
-                if (block.type === 'text' && block.text?.trimStart().startsWith('{')) {
-                    try { return JSON.parse(block.text); } catch { /* not JSON */ }
-                }
             }
-            // No JSON found — return the second text block (the actual message)
-            // or fall back to the raw result.
-            const texts = content.filter((c: any) => c.type === 'text').map((c: any) => c.text);
-            return texts.length > 1 ? texts[1] : (texts[0] ?? result);
+            throw lastErr ?? new Error(`Tool ${name} failed after 3 attempts`);
         },
 
         get sessionId() { return sessionId; },

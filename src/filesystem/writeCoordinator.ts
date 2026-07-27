@@ -5,14 +5,9 @@ export type FileEntry = { data: Uint8Array; ttl: string };
 export type ExportEntry = { name: string; key: string; ttl: string; data: Uint8Array };
 export type PendingWrite = { kv: Map<string, KVEntry>; files: Map<string, FileEntry>; exports: Map<string, ExportEntry> };
 
-const WRITE_COOLDOWN_MS = 1000;
+const WRITE_COOLDOWN_MS = 100;
 
 export class WriteCoordinator {
-    // Per-userid FIFO queue of release callbacks. The entry at index 0 holds the
-    // lock; everyone else awaits their ticket before proceeding. This serializes
-    // VFS access for a single userid and avoids the lost-wakeup bug of the old
-    // single-promise design (where two waiters could both pass the gate and run
-    // concurrently, racing on the same DB file).
     private static lockQueues = new Map<string, Array<() => void>>();
     private static lastWriteTimestamps = new LRUCache<string, number>({ max: 10000, ttl: 2000 });
     private static pendingWrites = new LRUCache<string, PendingWrite>({ max: 1000, ttl: 10000 });
